@@ -1,0 +1,4699 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Candidate Portal — Design Review v18</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Fraunces:ital,wght@1,400&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #F6F5F0;
+    --surface: #FFFFFF;
+    --surface-soft: #F1EFE8;
+    --surface-subtle: #FAF9F5;
+    --text: #1A1A1A;
+    --text-muted: #5F5E5A;
+    --text-faint: #888780;
+    --border: rgba(0,0,0,0.08);
+    --border-strong: rgba(0,0,0,0.16);
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 14px;
+    --font-sans: 'Inter', -apple-system, system-ui, sans-serif;
+    --font-serif: 'Fraunces', Georgia, serif;
+    --brand-primary: #008aba;
+    --brand-soft: color-mix(in srgb, var(--brand-primary) 8%, var(--surface-soft));
+    --brand-wash: color-mix(in srgb, var(--brand-primary) 14%, transparent);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 32px 16px 64px;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    line-height: 1.5;
+  }
+
+  .page { max-width: 880px; margin: 0 auto; }
+  .page-header { margin-bottom: 24px; }
+  .page-header h1 { font-size: 22px; font-weight: 500; margin: 0 0 4px; letter-spacing: -0.01em; }
+  .page-header p { font-size: 13px; color: var(--text-muted); margin: 0; }
+
+  .version-badge {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 500;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: #E6F1FB;
+    color: #0C447C;
+    margin-left: 8px;
+    letter-spacing: 0.04em;
+    vertical-align: middle;
+  }
+
+  .controls-bar {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 14px 18px;
+    margin-bottom: 18px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .controls-bar .label {
+    font-size: 10px;
+    color: var(--text-faint);
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .brand-pill {
+    padding: 7px 14px;
+    border-radius: 999px;
+    border: 1px solid var(--border-strong);
+    background: transparent;
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: var(--font-sans);
+  }
+  .brand-pill:hover { background: var(--surface-soft); }
+  .brand-pill.active {
+    background: var(--brand-primary);
+    color: white;
+    border-color: var(--brand-primary);
+  }
+  .view-chip {
+    padding: 6px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: transparent;
+    font-size: 12px;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-family: var(--font-sans);
+  }
+  .view-chip.active { background: var(--text); color: var(--surface); border-color: var(--text); }
+
+  /* Portal frame */
+  .portal {
+    background: var(--surface);
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border);
+    overflow: hidden;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+    position: relative;
+  }
+
+  /* Breadcrumb */
+  .breadcrumb {
+    padding: 14px 22px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    background: var(--surface-subtle);
+  }
+  .crumb-left { display: flex; align-items: center; gap: 12px; font-size: 13px; color: var(--text-muted); min-width: 0; }
+  .crumb-back {
+    padding: 5px 10px;
+    font-size: 12px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-strong);
+    background: transparent;
+    color: var(--text);
+    cursor: pointer;
+    font-family: var(--font-sans);
+  }
+  .crumb-back:hover { background: var(--surface-soft); }
+  .crumb-chapter { color: var(--text); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .crumb-count { font-size: 12px; color: var(--text-faint); white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+  /* Stage */
+  .stage-area { padding: 24px 28px 0; }
+  .slide-canvas {
+    aspect-ratio: 16/9;
+    background: var(--brand-soft);
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border);
+    padding: 32px 36px;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    transition: opacity 0.3s ease, transform 0.3s ease;
+  }
+  .slide-canvas.leaving-left { opacity: 0; transform: translateX(-16px); }
+  .slide-canvas.leaving-right { opacity: 0; transform: translateX(16px); }
+
+  .slide-eyebrow {
+    font-size: 11px;
+    color: var(--brand-primary);
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+  .slide-headline {
+    font-size: 28px;
+    font-weight: 500;
+    line-height: 1.15;
+    margin: 0 0 8px;
+    letter-spacing: -0.015em;
+    max-width: 82%;
+  }
+  .slide-sub {
+    font-size: 14px;
+    color: var(--text-muted);
+    line-height: 1.55;
+    margin: 0;
+    max-width: 70%;
+  }
+  .slide-mark {
+    position: absolute;
+    right: 28px;
+    bottom: 24px;
+    opacity: 0.35;
+  }
+
+  .pillars {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+    margin-top: auto;
+  }
+  .pillar {
+    background: var(--surface);
+    border-radius: var(--radius-md);
+    padding: 14px 16px;
+    border: 1px solid var(--border);
+    min-width: 0;
+  }
+  .pillar-num {
+    font-size: 10px;
+    color: var(--brand-primary);
+    font-weight: 500;
+    margin-bottom: 6px;
+    letter-spacing: 0.1em;
+  }
+  .pillar-label { font-size: 14px; font-weight: 500; margin-bottom: 3px; }
+  .pillar-body { font-size: 12px; color: var(--text-muted); line-height: 1.45; }
+
+  .quote-text {
+    font-family: var(--font-serif);
+    font-size: 22px;
+    line-height: 1.4;
+    color: var(--text);
+    font-style: italic;
+    margin: 8px 0 auto;
+    max-width: 86%;
+  }
+  .quote-attr { font-size: 12px; color: var(--text-muted); margin-top: 14px; }
+
+  .cta-inner {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+  }
+  .cta-inner .slide-headline { font-size: 32px; margin-bottom: 12px; max-width: 100%; }
+  .cta-inner .slide-sub { max-width: 75%; }
+
+  /* Video slide — takes over the whole canvas */
+  .slide-canvas.video-canvas {
+    padding: 0;
+    background: #0E0E0E;
+    border-color: rgba(0,0,0,0.2);
+  }
+  .video-frame {
+    width: 100%;
+    height: 100%;
+    position: relative;
+    background:
+      radial-gradient(ellipse at 30% 40%, color-mix(in srgb, var(--brand-primary) 45%, #111) 0%, #0E0E0E 70%),
+      #0E0E0E;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    padding: 24px 28px;
+    cursor: pointer;
+    overflow: hidden;
+  }
+  .video-frame::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to top, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0) 55%);
+    pointer-events: none;
+  }
+  .video-mark-bg {
+    position: absolute;
+    right: -20px;
+    top: -20px;
+    opacity: 0.15;
+    color: var(--brand-primary);
+    pointer-events: none;
+  }
+  .play-btn {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 70px;
+    height: 70px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.95);
+    color: var(--brand-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.2s ease;
+    cursor: pointer;
+    border: none;
+    padding: 0;
+  }
+  .play-btn:hover { transform: translate(-50%, -50%) scale(1.06); }
+  .play-btn svg { margin-left: 4px; }
+  .video-duration {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    background: rgba(0,0,0,0.5);
+    color: white;
+    font-size: 11px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-variant-numeric: tabular-nums;
+    backdrop-filter: blur(4px);
+  }
+  .video-info {
+    position: relative;
+    color: white;
+  }
+  .video-info .slide-eyebrow { color: rgba(255,255,255,0.85); margin-bottom: 6px; }
+  .video-title {
+    color: white;
+    font-size: 22px;
+    font-weight: 500;
+    margin: 0 0 4px;
+    letter-spacing: -0.01em;
+  }
+  .video-sub {
+    color: rgba(255,255,255,0.75);
+    font-size: 13px;
+    margin: 0;
+    max-width: 70%;
+  }
+  .video-playing {
+    position: absolute;
+    inset: 0;
+    background: #000;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    color: rgba(255,255,255,0.6);
+    font-size: 13px;
+  }
+  .video-frame.playing .video-playing { display: flex; }
+  .video-frame.playing .play-btn,
+  .video-frame.playing .video-info,
+  .video-frame.playing .video-duration,
+  .video-frame.playing::before { display: none; }
+
+  /* Static info strip — persistent across slides */
+  .static-info {
+    margin: 14px 28px 0;
+    padding: 14px 18px;
+    background: var(--surface-subtle);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 16px;
+  }
+  .info-cell {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+  .info-cell + .info-cell {
+    border-left: 1px solid var(--border);
+    padding-left: 16px;
+  }
+  .info-label {
+    font-size: 10px;
+    color: var(--text-faint);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 500;
+  }
+  .info-value {
+    font-size: 14px;
+    color: var(--text);
+    font-weight: 500;
+    line-height: 1.3;
+  }
+  .info-value .accent { color: var(--brand-primary); }
+
+  /* Caption */
+  .caption {
+    padding: 16px 28px 0;
+    font-size: 13px;
+    color: var(--text-muted);
+    line-height: 1.6;
+    font-style: italic;
+    text-align: center;
+  }
+
+  /* Controls */
+  .controls {
+    padding: 18px 28px 24px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .dots { display: flex; gap: 8px; flex: 1; justify-content: center; }
+  .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--border-strong);
+    cursor: pointer;
+    transition: all 0.3s;
+    border: none;
+    padding: 0;
+  }
+  .dot.active { background: var(--brand-primary); width: 26px; border-radius: 4px; }
+  .dot.done { background: color-mix(in srgb, var(--brand-primary) 55%, var(--border-strong)); }
+  .dot.video { position: relative; }
+  .dot.video::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 4px;
+    height: 4px;
+    background: var(--surface);
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+  }
+  .nav-btn {
+    background: transparent;
+    border: 1px solid var(--border-strong);
+    color: var(--text);
+    padding: 8px 16px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: 13px;
+    transition: all 0.15s;
+    font-family: var(--font-sans);
+    font-weight: 500;
+  }
+  .nav-btn:hover { background: var(--surface-soft); }
+  .nav-btn:disabled { opacity: 0.35; cursor: default; }
+  .nav-btn.primary {
+    background: var(--brand-primary);
+    color: white;
+    border-color: var(--brand-primary);
+  }
+  .nav-btn.primary:hover { background: var(--brand-primary); opacity: 0.92; }
+
+  /* Complete */
+  .complete-state {
+    padding: 56px 40px 40px;
+    text-align: center;
+    animation: riseIn 0.5s ease;
+  }
+  .seal {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: var(--brand-wash);
+    color: var(--brand-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 20px;
+    animation: sealPop 0.7s cubic-bezier(0.2, 1.3, 0.4, 1);
+  }
+  .complete-state h3 { font-size: 24px; font-weight: 500; margin: 0 0 10px; letter-spacing: -0.01em; }
+  .complete-state p { font-size: 14px; color: var(--text-muted); margin: 0 auto 26px; max-width: 420px; line-height: 1.6; }
+  .complete-sub { margin-top: 16px; font-size: 12px; color: var(--text-faint); }
+
+  @keyframes sealPop {
+    0% { transform: scale(0.3); opacity: 0; }
+    60% { transform: scale(1.12); opacity: 1; }
+    100% { transform: scale(1); }
+  }
+  @keyframes riseIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: none; }
+  }
+
+  .confetti {
+    position: absolute;
+    width: 8px;
+    height: 12px;
+    pointer-events: none;
+    border-radius: 2px;
+    z-index: 100;
+  }
+
+  /* Journey view */
+  .journey-view { padding: 32px 28px 24px; }
+  .hero-band {
+    position: relative;
+    padding: 32px 24px;
+    text-align: center;
+    background: var(--brand-soft);
+    border-radius: var(--radius-lg);
+    margin-bottom: 20px;
+    overflow: hidden;
+  }
+  .brand-mark-lg {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    background: var(--surface);
+    margin: 0 auto 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--brand-primary);
+    border: 2px solid var(--brand-primary);
+  }
+  .hero-band h2 { font-size: 22px; font-weight: 500; margin: 0 0 6px; letter-spacing: -0.01em; }
+  .hero-band p { font-size: 14px; color: var(--text-muted); margin: 0; }
+
+  .journey-rail {
+    padding: 20px 40px;
+    position: relative;
+    margin-bottom: 24px;
+  }
+  .journey-track {
+    position: absolute;
+    top: calc(20px + 18px);
+    left: 12%;
+    right: 12%;
+    height: 2px;
+    background: var(--border);
+  }
+  .journey-fill {
+    position: absolute;
+    top: calc(20px + 18px);
+    left: 12%;
+    height: 2px;
+    background: var(--brand-primary);
+  }
+  .journey-stages { display: grid; grid-template-columns: repeat(5, 1fr); position: relative; }
+  .jstage { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .jstage-dot {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--surface);
+    border: 2px solid var(--border-strong);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted);
+    font-size: 13px;
+    font-weight: 500;
+  }
+  .jstage.done .jstage-dot { background: var(--brand-primary); border-color: var(--brand-primary); color: white; }
+  .jstage.current .jstage-dot {
+    border: 2px solid var(--brand-primary);
+    color: var(--brand-primary);
+    animation: pulse 2.4s ease-in-out infinite;
+  }
+  .jstage-label { font-size: 12px; color: var(--text-muted); text-align: center; }
+  .jstage.done .jstage-label, .jstage.current .jstage-label { color: var(--text); font-weight: 500; }
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 0 0 transparent; }
+    50% { box-shadow: 0 0 0 7px color-mix(in srgb, var(--brand-primary) 15%, transparent); }
+  }
+
+  .chapter-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 20px 22px;
+  }
+  .chapter-meta {
+    font-size: 11px;
+    color: var(--brand-primary);
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin: 0 0 6px;
+  }
+  .chapter-card h3 { font-size: 17px; font-weight: 500; margin: 0 0 10px; }
+  .chapter-card p { font-size: 14px; color: var(--text-muted); margin: 0 0 16px; line-height: 1.6; }
+
+  .lock-panel {
+    margin-top: 16px;
+    padding: 14px 16px;
+    background: var(--surface-soft);
+    border-radius: var(--radius-md);
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .lock-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted);
+    flex-shrink: 0;
+  }
+  .lock-text { font-size: 13px; color: var(--text-muted); flex: 1; line-height: 1.5; }
+  .lock-text strong { color: var(--text); font-weight: 500; }
+
+  .footer-meta { text-align: center; padding: 14px 0 0; font-size: 11px; color: var(--text-faint); }
+
+  .view-toggle { display: flex; gap: 6px; }
+
+  .design-notes {
+    margin-top: 24px;
+    padding: 18px 22px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    font-size: 13px;
+    color: var(--text-muted);
+    line-height: 1.6;
+  }
+  .design-notes h4 { font-size: 11px; font-weight: 500; color: var(--text); margin: 0 0 10px; letter-spacing: 0.06em; text-transform: uppercase; }
+  .design-notes ul { margin: 0; padding-left: 18px; }
+  .design-notes li { margin-bottom: 6px; }
+  .design-notes li::marker { color: var(--text-faint); }
+  .design-notes code {
+    background: var(--surface-soft);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 12px;
+  }
+
+  /* Application module */
+  .app-header {
+    padding: 14px 22px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    background: var(--surface-subtle);
+  }
+  .app-progress-wrap {
+    flex: 1;
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+    margin: 0 14px;
+  }
+  .app-progress-fill {
+    height: 100%;
+    background: var(--brand-primary);
+    width: 0;
+    border-radius: 2px;
+    transition: width 0.5s cubic-bezier(0.3, 0.7, 0.3, 1);
+  }
+  .app-counter {
+    font-size: 12px;
+    color: var(--text-faint);
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+  .app-stage {
+    padding: 42px 44px 36px;
+    min-height: 340px;
+    display: flex;
+    flex-direction: column;
+    animation: appRise 0.35s ease both;
+  }
+  .app-stage.leaving {
+    opacity: 0;
+    transform: translateX(-12px);
+    transition: opacity 0.25s, transform 0.25s;
+  }
+  @keyframes appRise {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: none; }
+  }
+  .app-eyebrow {
+    font-size: 11px;
+    color: var(--brand-primary);
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+  .app-question {
+    font-size: 26px;
+    font-weight: 500;
+    line-height: 1.25;
+    margin: 0 0 10px;
+    letter-spacing: -0.015em;
+    color: var(--text);
+  }
+  .app-hint {
+    font-size: 14px;
+    color: var(--text-muted);
+    line-height: 1.55;
+    margin: 0 0 28px;
+    max-width: 560px;
+  }
+  .app-answer {
+    margin-top: auto;
+  }
+  .app-options {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .app-option {
+    background: var(--surface);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-md);
+    padding: 14px 18px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    transition: all 0.2s ease;
+    text-align: left;
+    font-family: var(--font-sans);
+    font-size: 15px;
+    color: var(--text);
+    width: 100%;
+  }
+  .app-option:hover {
+    border-color: var(--brand-primary);
+    background: var(--surface-subtle);
+  }
+  .app-option.selected {
+    border: 2px solid var(--brand-primary);
+    background: var(--brand-wash);
+    padding: 13px 17px;
+  }
+  .app-option-indicator {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    border: 1.5px solid var(--border-strong);
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+  }
+  .app-option.multi .app-option-indicator {
+    border-radius: 4px;
+  }
+  .app-option.selected .app-option-indicator {
+    background: var(--brand-primary);
+    border-color: var(--brand-primary);
+    color: white;
+  }
+  .app-option-label { flex: 1; line-height: 1.4; }
+  .app-multi-counter {
+    font-size: 12px;
+    color: var(--text-faint);
+    margin-top: 10px;
+  }
+  .app-multi-counter .count {
+    color: var(--brand-primary);
+    font-weight: 500;
+  }
+
+  .app-slider-wrap {
+    padding: 20px 0 8px;
+  }
+  .app-slider-track-bg {
+    position: relative;
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    margin: 0 11px 32px;
+  }
+  .app-slider-track-fill {
+    position: absolute;
+    left: 0;
+    top: 0;
+    height: 100%;
+    background: var(--brand-primary);
+    border-radius: 3px;
+    transition: width 0.25s ease;
+  }
+  .app-slider-input {
+    -webkit-appearance: none;
+    appearance: none;
+    width: calc(100% + 22px);
+    height: 22px;
+    background: transparent;
+    position: relative;
+    top: -14px;
+    left: -11px;
+    cursor: pointer;
+    margin: 0;
+    outline: none;
+    padding: 0;
+  }
+  .app-slider-input::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--surface);
+    border: 2.5px solid var(--brand-primary);
+    cursor: pointer;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+  }
+  .app-slider-input::-moz-range-thumb {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--surface);
+    border: 2.5px solid var(--brand-primary);
+    cursor: pointer;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+  }
+  .app-slider-labels {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    color: var(--text-muted);
+    padding: 0 4px;
+  }
+  .app-slider-readout {
+    text-align: center;
+    font-size: 14px;
+    color: var(--text);
+    margin-bottom: 14px;
+    font-weight: 500;
+  }
+  .app-slider-readout .value {
+    color: var(--brand-primary);
+  }
+
+  .app-input {
+    width: 100%;
+    padding: 14px 18px;
+    font-size: 17px;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+    color: var(--text);
+    font-family: var(--font-sans);
+    transition: border-color 0.15s, box-shadow 0.15s;
+    outline: none;
+  }
+  .app-input:focus {
+    border-color: var(--brand-primary);
+    box-shadow: 0 0 0 3px var(--brand-wash);
+  }
+  .app-textarea {
+    min-height: 140px;
+    resize: vertical;
+    line-height: 1.55;
+    font-size: 15px;
+  }
+  .app-prompts {
+    margin-top: 14px;
+    font-size: 12px;
+    color: var(--text-faint);
+    line-height: 1.7;
+  }
+  .app-prompts-label {
+    display: block;
+    font-weight: 500;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+    letter-spacing: 0.04em;
+  }
+  .app-prompts ul {
+    margin: 0;
+    padding-left: 18px;
+  }
+  .app-prompts li::marker { color: var(--text-faint); }
+
+  .app-nav {
+    padding: 16px 28px 22px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    border-top: 1px solid var(--border);
+  }
+  .app-nav .autosave {
+    flex: 1;
+    font-size: 11px;
+    color: var(--text-faint);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .app-nav .autosave::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--brand-primary);
+    opacity: 0.6;
+  }
+
+  .app-intro-stage {
+    padding: 72px 44px 40px;
+    text-align: center;
+  }
+  .app-intro-mark {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    background: var(--brand-wash);
+    color: var(--brand-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 22px;
+  }
+  .app-intro-stage h2 {
+    font-size: 28px;
+    font-weight: 500;
+    margin: 0 0 10px;
+    letter-spacing: -0.015em;
+  }
+  .app-intro-stage p {
+    font-size: 15px;
+    color: var(--text-muted);
+    max-width: 440px;
+    margin: 0 auto 26px;
+    line-height: 1.6;
+  }
+  .app-intro-meta {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    margin-bottom: 26px;
+    font-size: 12px;
+    color: var(--text-faint);
+  }
+  .app-intro-meta span::before {
+    content: '•';
+    margin-right: 8px;
+    color: var(--brand-primary);
+  }
+  .app-intro-meta span:first-child::before { display: none; }
+  .app-btn-large {
+    background: var(--brand-primary);
+    color: white;
+    border: none;
+    padding: 12px 28px;
+    border-radius: var(--radius-md);
+    font-size: 15px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: transform 0.15s, opacity 0.15s;
+    font-family: var(--font-sans);
+  }
+  .app-btn-large:hover { opacity: 0.92; }
+  .app-btn-large:active { transform: scale(0.98); }
+  .app-btn-large:disabled { opacity: 0.35; cursor: default; }
+
+  /* Chapter intro for application */
+  .app-chapter-intro {
+    padding: 72px 44px 40px;
+    text-align: center;
+  }
+  .app-chapter-number {
+    font-size: 11px;
+    color: var(--brand-primary);
+    font-weight: 500;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+  .app-chapter-intro h2 {
+    font-size: 28px;
+    font-weight: 500;
+    margin: 0 0 14px;
+    letter-spacing: -0.015em;
+  }
+  .app-chapter-intro p {
+    font-size: 15px;
+    color: var(--text-muted);
+    max-width: 440px;
+    margin: 0 auto 28px;
+    line-height: 1.65;
+  }
+  .app-chapter-mark {
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    background: var(--brand-wash);
+    color: var(--brand-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 20px;
+    font-size: 18px;
+    font-weight: 500;
+  }
+
+  /* Field pair and address block */
+  .app-field-row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+  .app-field-row.three-col {
+    grid-template-columns: 2fr 1fr 1fr;
+  }
+  .app-field-group {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .app-field-label {
+    font-size: 12px;
+    color: var(--text-muted);
+    font-weight: 500;
+    margin-bottom: 6px;
+    letter-spacing: 0.02em;
+  }
+  .app-field-wrap {
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Agreement */
+  .app-agreement {
+    background: var(--surface-subtle);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 22px 24px;
+    margin-top: 10px;
+  }
+  .app-agreement h4 {
+    font-size: 16px;
+    font-weight: 500;
+    margin: 0 0 10px;
+  }
+  .app-agreement p {
+    font-size: 14px;
+    color: var(--text-muted);
+    line-height: 1.6;
+    margin: 0 0 18px;
+  }
+  .app-agreement-check {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 14px 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: border-color 0.15s;
+  }
+  .app-agreement-check:hover { border-color: var(--brand-primary); }
+  .app-agreement-check.checked {
+    border-color: var(--brand-primary);
+    background: var(--brand-wash);
+  }
+  .app-agreement-check-box {
+    width: 20px;
+    height: 20px;
+    border-radius: 4px;
+    border: 1.5px solid var(--border-strong);
+    flex-shrink: 0;
+    margin-top: 1px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    transition: all 0.15s;
+  }
+  .app-agreement-check.checked .app-agreement-check-box {
+    background: var(--brand-primary);
+    border-color: var(--brand-primary);
+  }
+  .app-agreement-check-label {
+    font-size: 14px;
+    line-height: 1.55;
+    color: var(--text);
+    flex: 1;
+  }
+
+  /* Chapter breadcrumb in header */
+  .app-chapter-meta {
+    font-size: 11px;
+    color: var(--text-faint);
+    letter-spacing: 0.06em;
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    font-weight: 500;
+  }
+
+  /* Persistent journey rail (top of every in-journey view) */
+  .jrail {
+    padding: 14px 14px 10px;
+    background: var(--surface-subtle);
+    border-bottom: 1px solid var(--border);
+    position: relative;
+  }
+  .jrail-track {
+    position: absolute;
+    top: calc(14px + 11px);
+    left: 9%;
+    right: 9%;
+    height: 2px;
+    background: var(--border);
+    z-index: 0;
+  }
+  .jrail-fill {
+    position: absolute;
+    top: calc(14px + 11px);
+    left: 9%;
+    height: 2px;
+    background: var(--brand-primary);
+    transition: width 0.6s cubic-bezier(0.3, 0.7, 0.3, 1);
+    z-index: 0;
+  }
+  .jrail-stages {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    position: relative;
+    z-index: 1;
+  }
+  .jrail-stage {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    background: transparent;
+    border: none;
+    padding: 2px 0;
+    cursor: pointer;
+    font-family: var(--font-sans);
+    transition: transform 0.15s;
+  }
+  .jrail-stage[disabled] { cursor: default; opacity: 0.75; }
+  .jrail-stage:hover:not([disabled]) { transform: translateY(-1px); }
+  .jrail-dot {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--surface);
+    border: 1.5px solid var(--border-strong);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-muted);
+    transition: all 0.3s;
+  }
+  .jrail-stage.done .jrail-dot {
+    background: var(--brand-primary);
+    border-color: var(--brand-primary);
+    color: white;
+  }
+  .jrail-stage.current .jrail-dot {
+    border: 2px solid var(--brand-primary);
+    color: var(--brand-primary);
+    animation: jrailPulse 2.4s ease-in-out infinite;
+  }
+  .jrail-stage.nextup .jrail-dot {
+    border: 1.5px dashed var(--brand-primary);
+    color: var(--brand-primary);
+    background: var(--brand-wash);
+  }
+  .jrail-stage.nextup .jrail-label {
+    color: var(--brand-primary);
+    font-weight: 500;
+  }
+  .jrail-label {
+    font-size: 9.5px;
+    color: var(--text-faint);
+    text-align: center;
+    font-weight: 500;
+    letter-spacing: 0.015em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+  }
+  .jrail-stage.done .jrail-label,
+  .jrail-stage.current .jrail-label {
+    color: var(--text);
+  }
+  .jrail-stage.nextup .jrail-dot {
+    border: 1.5px dashed var(--brand-primary);
+    color: var(--brand-primary);
+    opacity: 0.7;
+  }
+  .jrail-stage.nextup .jrail-label {
+    color: var(--text-muted);
+  }
+  @keyframes jrailPulse {
+    0%, 100% { box-shadow: 0 0 0 0 transparent; }
+    50% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--brand-primary) 18%, transparent); }
+  }
+
+  /* Pre-journey preview strip (teases the 5 stages) */
+  .journey-preview {
+    border-top: 1px dashed var(--border-strong);
+    padding: 16px 4px 4px;
+    margin-top: 8px;
+  }
+  .journey-preview-label {
+    font-size: 11px;
+    color: var(--text-faint);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-weight: 500;
+    margin-bottom: 10px;
+    text-align: center;
+  }
+  .journey-preview-stages {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+  .preview-stage {
+    padding: 4px 10px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+  .preview-arrow {
+    color: var(--text-faint);
+    font-size: 10px;
+  }
+
+  /* Stage-specific extras */
+  .dashcard-meta-sub {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 10px;
+    font-style: italic;
+  }
+  .dashcard-row-meta {
+    font-size: 10px;
+    color: var(--text-faint);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    flex-shrink: 0;
+    margin-left: auto;
+  }
+
+  /* Prototype-only simulator button */
+  .stage-simulate {
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px dashed var(--border);
+  }
+  .stage-simulate-btn {
+    background: transparent;
+    border: 1px dashed var(--border-strong);
+    color: var(--text-faint);
+    font-size: 11px;
+    padding: 6px 12px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-family: var(--font-sans);
+    transition: all 0.15s;
+    letter-spacing: 0.02em;
+  }
+  .stage-simulate-btn:hover {
+    color: var(--brand-primary);
+    border-color: var(--brand-primary);
+  }
+  .dashcard.primary.celebrate {
+    background: linear-gradient(135deg, var(--brand-wash), var(--brand-soft));
+    border: 2px solid var(--brand-primary);
+  }
+  .dashcard.primary.celebrate h3 { color: var(--brand-primary); }
+
+  /* Vertical timeline (the "up and down" journey view) */
+  .timeline {
+    position: relative;
+    padding: 16px 4px 8px;
+  }
+  .timeline-row {
+    display: grid;
+    grid-template-columns: 52px 1fr;
+    gap: 18px;
+    position: relative;
+    align-items: stretch;
+    min-height: 88px;
+  }
+  .timeline-row.current {
+    min-height: 200px;
+  }
+  .timeline-col-rail {
+    position: relative;
+    display: flex;
+    justify-content: center;
+  }
+  /* Connecting line — runs full height of the rail column */
+  .timeline-line {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background: var(--border-strong);
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 0;
+  }
+  .timeline-row:first-child .timeline-line {
+    top: 16px;
+  }
+  .timeline-row:last-child .timeline-line {
+    bottom: 50%;
+  }
+  .timeline-row.done .timeline-line {
+    background: var(--brand-primary);
+  }
+  .timeline-row.current .timeline-line {
+    background: linear-gradient(180deg, var(--brand-primary) 0%, var(--brand-primary) 22%, var(--border-strong) 22%, var(--border-strong) 100%);
+  }
+  /* Dot sits centered vertically on the row */
+  .timeline-dot {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--surface);
+    border: 2.5px solid var(--border-strong);
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    color: var(--text-muted);
+    font-weight: 500;
+    margin-top: 16px;
+    transition: all 0.3s ease;
+    flex-shrink: 0;
+    align-self: flex-start;
+  }
+  .timeline-row.done .timeline-dot {
+    background: var(--brand-primary);
+    border-color: var(--brand-primary);
+    color: white;
+  }
+  .timeline-row.current .timeline-dot {
+    border: 2.5px solid var(--brand-primary);
+    color: var(--brand-primary);
+    background: var(--surface);
+    animation: tlPulse 2.4s ease-in-out infinite;
+    width: 40px;
+    height: 40px;
+    font-size: 15px;
+  }
+  .timeline-row.locked .timeline-dot {
+    background: var(--surface-subtle);
+  }
+  @keyframes tlPulse {
+    0%, 100% { box-shadow: 0 0 0 0 transparent; }
+    50% { box-shadow: 0 0 0 7px color-mix(in srgb, var(--brand-primary) 20%, transparent); }
+  }
+  .timeline-card-col {
+    padding: 14px 0;
+    min-width: 0;
+  }
+  .timeline-row.current .timeline-card-col {
+    padding: 8px 0 12px;
+  }
+
+  /* Compact rows for done + locked stages — designed to have vertical travel */
+  .tl-compact {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 18px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    transition: all 0.2s;
+  }
+  .tl-compact.done {
+    background: var(--surface-subtle);
+    border-color: var(--border);
+  }
+  .tl-compact.locked {
+    background: transparent;
+    border: 1px dashed var(--border-strong);
+    opacity: 0.7;
+  }
+  .tl-compact:hover.done {
+    border-color: var(--brand-primary);
+    opacity: 0.95;
+  }
+  .tl-compact-body {
+    flex: 1;
+    min-width: 0;
+  }
+  .tl-compact-title {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text);
+    margin: 0 0 2px;
+  }
+  .tl-compact-sub {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin: 0;
+    line-height: 1.4;
+  }
+  .tl-compact-stage {
+    font-size: 10px;
+    color: var(--text-faint);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+  .tl-compact.locked .tl-compact-title { color: var(--text-muted); }
+  .tl-compact.locked .tl-compact-sub { color: var(--text-faint); }
+  .tl-compact-action {
+    background: transparent;
+    border: 1px solid var(--border-strong);
+    color: var(--text-muted);
+    font-size: 11px;
+    padding: 5px 11px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-family: var(--font-sans);
+    transition: all 0.15s;
+  }
+  .tl-compact-action:hover {
+    color: var(--brand-primary);
+    border-color: var(--brand-primary);
+  }
+
+  /* Timeline stage sub-cards (for Stage 1 tour + app) */
+  .tl-substack {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  /* Sidebar tab layout (v15) — tabs go vertical, content fills right */
+  .sidebar-layout {
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    min-height: 560px;
+  }
+  .sidebar-tabs {
+    background: var(--surface-subtle);
+    border-right: 1px solid var(--border);
+    padding: 18px 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .sidebar-tab {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 18px 12px 22px;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    font-family: var(--font-sans);
+    text-align: left;
+    width: 100%;
+    transition: all 0.15s;
+    position: relative;
+    color: var(--text-muted);
+  }
+  .sidebar-tab[disabled] {
+    cursor: not-allowed;
+    opacity: 0.55;
+  }
+  .sidebar-tab:hover:not([disabled]):not(.active) {
+    background: color-mix(in srgb, var(--brand-primary) 5%, transparent);
+    color: var(--text);
+  }
+  .sidebar-tab.active {
+    background: var(--surface);
+    color: var(--text);
+  }
+  .sidebar-tab.active::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background: var(--brand-primary);
+  }
+  .sidebar-tab-dot {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: var(--surface);
+    border: 1.5px solid var(--border-strong);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-muted);
+    flex-shrink: 0;
+    transition: all 0.2s;
+  }
+  .sidebar-tab.done .sidebar-tab-dot {
+    background: var(--brand-primary);
+    border-color: var(--brand-primary);
+    color: white;
+  }
+  .sidebar-tab.current .sidebar-tab-dot {
+    border-color: var(--brand-primary);
+    color: var(--brand-primary);
+    background: var(--surface);
+  }
+  .sidebar-tab-body {
+    flex: 1;
+    min-width: 0;
+  }
+  .sidebar-tab-label {
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 1.3;
+    margin: 0;
+  }
+  .sidebar-tab-sub {
+    font-size: 11px;
+    color: var(--text-faint);
+    margin: 2px 0 0;
+    line-height: 1.3;
+  }
+  .sidebar-tab.done .sidebar-tab-label,
+  .sidebar-tab.current .sidebar-tab-label {
+    color: var(--text);
+  }
+  .sidebar-tab-status {
+    font-size: 10px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    font-weight: 500;
+    margin-left: auto;
+  }
+  .sidebar-tab.current .sidebar-tab-status {
+    color: var(--brand-primary);
+  }
+  .sidebar-tab.done .sidebar-tab-status {
+    color: var(--brand-primary);
+    opacity: 0.7;
+  }
+
+  /* Right side: stage detail panel */
+  .stage-panel {
+    padding: 28px 32px;
+    overflow-y: auto;
+  }
+  .stage-panel-header {
+    margin-bottom: 20px;
+  }
+  .stage-panel-eyebrow {
+    font-size: 11px;
+    color: var(--brand-primary);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    font-weight: 500;
+    margin-bottom: 8px;
+  }
+  .stage-panel h2 {
+    font-size: 26px;
+    font-weight: 500;
+    margin: 0 0 10px;
+    letter-spacing: -0.015em;
+  }
+  .stage-panel-summary {
+    font-size: 15px;
+    color: var(--text-muted);
+    line-height: 1.6;
+    margin: 0;
+    max-width: 540px;
+  }
+  .stage-panel-meta {
+    font-size: 12px;
+    color: var(--text-faint);
+    margin-top: 14px;
+    font-style: italic;
+  }
+  .stage-panel-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 22px;
+    flex-wrap: wrap;
+  }
+  .stage-panel-btn {
+    background: var(--brand-primary);
+    color: white;
+    border: none;
+    padding: 11px 20px;
+    border-radius: var(--radius-md);
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    font-family: var(--font-sans);
+    transition: all 0.15s;
+  }
+  .stage-panel-btn:hover { opacity: 0.92; }
+  .stage-panel-btn.secondary {
+    background: transparent;
+    color: var(--text);
+    border: 1px solid var(--border-strong);
+  }
+  .stage-panel-locked {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--text-muted);
+  }
+  .stage-panel-locked-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: var(--surface-subtle);
+    color: var(--text-faint);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 16px;
+  }
+  .stage-panel-locked h3 {
+    font-size: 18px;
+    font-weight: 500;
+    margin: 0 0 8px;
+    color: var(--text);
+  }
+  .stage-panel-locked p {
+    font-size: 13px;
+    color: var(--text-muted);
+    max-width: 320px;
+    line-height: 1.55;
+    margin: 0;
+  }
+  .stage-panel-proto {
+    margin-top: 28px;
+    padding-top: 20px;
+    border-top: 1px dashed var(--border);
+  }
+  .stage-panel-done-seal {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    background: color-mix(in srgb, var(--brand-primary) 8%, transparent);
+    border-radius: var(--radius-md);
+    font-size: 13px;
+    color: var(--text);
+    margin-bottom: 18px;
+    border: 1px solid color-mix(in srgb, var(--brand-primary) 25%, transparent);
+  }
+  .stage-panel-done-seal svg { color: var(--brand-primary); flex-shrink: 0; }
+
+  /* Hero strip above the layout */
+  .sidebar-hero {
+    padding: 24px 28px 22px;
+    background: var(--brand-soft);
+    border-bottom: 1px solid var(--border);
+  }
+  .sidebar-hero-inner {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .sidebar-hero-text h2 {
+    font-size: 20px;
+    font-weight: 500;
+    margin: 0 0 3px;
+    letter-spacing: -0.01em;
+  }
+  .sidebar-hero-text p {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin: 0;
+    line-height: 1.5;
+  }
+
+  /* =========================================================================
+     v16 CINEMATIC (LIGHT) — editorial marketing treatment
+     ========================================================================= */
+  .portal-cinematic {
+    --cin-bg: var(--bg);
+    --cin-surface: var(--surface);
+    --cin-surface-raised: var(--surface-subtle);
+    --cin-sidebar: #faf9f5;
+    --cin-border: var(--border);
+    --cin-border-soft: var(--border);
+    --cin-text: var(--text);
+    --cin-text-muted: var(--text-muted);
+    --cin-text-faint: var(--text-faint);
+    --cin-accent: var(--brand-accent, #d97706);
+
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    min-height: 680px;
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    background: var(--cin-bg);
+    border: 1px solid var(--cin-border);
+  }
+  .cine-sidebar-stickywrap {
+    position: sticky;
+    top: 0;
+  }
+
+  /* Left sidebar */
+  .cine-sidebar {
+    background: var(--cin-sidebar);
+    border-right: 1px solid var(--cin-border);
+    display: flex;
+    flex-direction: column;
+    padding: 22px 0 20px;
+  }
+  .cine-brand {
+    padding: 0 22px 20px;
+    border-bottom: 1px solid var(--cin-border);
+  }
+  .cine-brand-mark {
+    font-family: var(--font-serif);
+    font-size: 22px;
+    font-weight: 500;
+    color: var(--brand-primary);
+    letter-spacing: -0.01em;
+    line-height: 1.1;
+    margin: 0 0 8px;
+  }
+  .cine-brand-mark em { font-style: italic; font-weight: 400; }
+  .cine-brand-sub {
+    font-size: 9px;
+    color: var(--cin-text-faint);
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    font-weight: 500;
+    line-height: 1.55;
+    margin: 0;
+  }
+  .cine-brand-sub strong {
+    color: var(--cin-text-muted);
+    display: block;
+    font-weight: 500;
+    margin-bottom: 3px;
+  }
+
+  .cine-progress {
+    padding: 18px 22px;
+    border-bottom: 1px solid var(--cin-border);
+  }
+  .cine-progress-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+  }
+  .cine-progress-label {
+    font-size: 9px;
+    color: var(--cin-text-faint);
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    font-weight: 600;
+  }
+  .cine-progress-pct {
+    font-size: 14px;
+    color: var(--brand-primary);
+    font-weight: 600;
+  }
+  .cine-progress-bar {
+    height: 3px;
+    background: var(--cin-border);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-bottom: 8px;
+  }
+  .cine-progress-fill {
+    height: 100%;
+    background: var(--brand-primary);
+    border-radius: 2px;
+    transition: width 0.6s ease;
+  }
+  .cine-progress-meta {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    color: var(--cin-text-faint);
+  }
+
+  .cine-stages {
+    padding: 10px 0;
+    flex: 1;
+  }
+  .cine-stage {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 11px 22px;
+    background: transparent;
+    border: none;
+    width: 100%;
+    text-align: left;
+    cursor: pointer;
+    font-family: var(--font-sans);
+    color: var(--cin-text-muted);
+    font-size: 13.5px;
+    font-weight: 500;
+    position: relative;
+    transition: all 0.15s;
+  }
+  .cine-stage[disabled] { cursor: not-allowed; color: var(--cin-text-faint); }
+  .cine-stage:hover:not([disabled]):not(.active) {
+    background: color-mix(in srgb, var(--brand-primary) 5%, transparent);
+    color: var(--cin-text);
+  }
+  .cine-stage.active {
+    background: var(--cin-surface);
+    color: var(--cin-text);
+  }
+  .cine-stage.active::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 3px;
+    background: var(--brand-primary);
+  }
+  .cine-stage-icon {
+    width: 20px; height: 20px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 15px;
+    opacity: 0.85;
+  }
+  .cine-stage[disabled] .cine-stage-icon { opacity: 0.4; filter: grayscale(0.6); }
+  .cine-stage-label { flex: 1; }
+  .cine-stage-status { flex-shrink: 0; opacity: 0.6; color: var(--cin-text-faint); }
+  .cine-stage.done .cine-stage-status { color: var(--brand-primary); opacity: 1; }
+
+  .cine-advisor {
+    margin: 0 22px;
+    padding: 16px 0 0;
+    border-top: 1px solid var(--cin-border);
+  }
+  .cine-advisor-eyebrow {
+    font-size: 9px;
+    color: var(--cin-text-faint);
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    font-weight: 600;
+    margin-bottom: 6px;
+  }
+  .cine-advisor-name {
+    font-size: 14px;
+    color: var(--cin-text);
+    font-weight: 600;
+    margin: 0 0 2px;
+  }
+  .cine-advisor-role {
+    font-size: 11.5px;
+    color: var(--brand-primary);
+    margin: 0 0 6px;
+    line-height: 1.35;
+    font-weight: 500;
+  }
+  .cine-advisor-email {
+    font-size: 11.5px;
+    color: var(--cin-text-muted);
+    margin: 0;
+  }
+
+  /* v18: left sidebar stop list (brought back from v16 style) */
+  .cine-stops {
+    padding: 8px 0;
+    flex: 1;
+    overflow-y: auto;
+  }
+  .cine-stop {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 11px 22px;
+    background: transparent;
+    border: none;
+    width: 100%;
+    text-align: left;
+    cursor: pointer;
+    font-family: var(--font-sans);
+    color: var(--cin-text-muted);
+    font-size: 13.5px;
+    font-weight: 500;
+    position: relative;
+    transition: all 0.15s;
+  }
+  .cine-stop[disabled] { cursor: not-allowed; color: var(--cin-text-faint); }
+  .cine-stop:hover:not([disabled]):not(.active) {
+    background: color-mix(in srgb, var(--brand-primary) 5%, transparent);
+    color: var(--cin-text);
+  }
+  .cine-stop.active {
+    background: var(--cin-surface);
+    color: var(--cin-text);
+  }
+  .cine-stop.active::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 3px;
+    background: var(--brand-primary);
+  }
+  .cine-stop-icon {
+    width: 20px; height: 20px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 15px;
+    opacity: 0.85;
+  }
+  .cine-stop[disabled] .cine-stop-icon { opacity: 0.4; filter: grayscale(0.6); }
+  .cine-stop-label { flex: 1; }
+  .cine-stop-status { flex-shrink: 0; opacity: 0.6; color: var(--cin-text-faint); }
+  .cine-stop.done .cine-stop-status { color: var(--brand-primary); opacity: 1; }
+
+  /* v18: top step strip — shows steps of the selected stop */
+  .cine-stepbar {
+    background: var(--cin-surface);
+    border-bottom: 1px solid var(--cin-border);
+    padding: 14px 28px 0;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  .cine-stepbar-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 10px;
+  }
+  .cine-stepbar-title {
+    font-size: 11px;
+    color: var(--cin-text-faint);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    font-weight: 600;
+  }
+  .cine-stepbar-title strong {
+    color: var(--cin-text);
+    font-weight: 600;
+  }
+  .cine-stepbar-count {
+    font-size: 11px;
+    color: var(--cin-text-faint);
+    font-weight: 500;
+  }
+  .cine-steps {
+    display: flex;
+    gap: 0;
+    overflow-x: auto;
+    scrollbar-width: thin;
+  }
+  .cine-step {
+    flex: 1;
+    min-width: 140px;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 14px 14px;
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+    font-family: var(--font-sans);
+    text-align: left;
+    color: var(--cin-text-muted);
+    transition: all 0.15s;
+    position: relative;
+  }
+  .cine-step[disabled] { cursor: not-allowed; opacity: 0.55; }
+  .cine-step:hover:not([disabled]):not(.active) {
+    background: color-mix(in srgb, var(--brand-primary) 4%, transparent);
+    color: var(--cin-text);
+  }
+  .cine-step.active {
+    border-bottom-color: var(--brand-primary);
+    color: var(--cin-text);
+  }
+  .cine-step-num {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--surface);
+    border: 1.5px solid var(--border-strong);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--cin-text-muted);
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+  .cine-step.done .cine-step-num {
+    background: var(--brand-primary);
+    border-color: var(--brand-primary);
+    color: white;
+  }
+  .cine-step.active .cine-step-num {
+    border-color: var(--brand-primary);
+    color: var(--brand-primary);
+  }
+  .cine-step-body { flex: 1; min-width: 0; }
+  .cine-step-label {
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.3;
+    margin: 0 0 2px;
+  }
+  .cine-step-desc {
+    font-size: 11.5px;
+    color: var(--cin-text-faint);
+    line-height: 1.35;
+    margin: 0;
+  }
+
+  /* v18: step content wrapper */
+  .cine-step-content {
+    padding: 36px 40px;
+  }
+  .cine-step-content-header {
+    margin-bottom: 24px;
+  }
+  .cine-step-content-eyebrow {
+    font-size: 11px;
+    color: var(--brand-primary);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+  .cine-step-content-title {
+    font-size: 26px;
+    font-weight: 600;
+    color: var(--cin-text);
+    line-height: 1.15;
+    letter-spacing: -0.015em;
+    margin: 0 0 10px;
+  }
+  .cine-step-content-desc {
+    font-size: 15px;
+    color: var(--cin-text-muted);
+    line-height: 1.6;
+    margin: 0;
+    max-width: 560px;
+  }
+
+  /* v18: placeholder block for not-yet-built step types */
+  .cine-placeholder {
+    background: var(--surface-subtle);
+    border: 1px dashed var(--border-strong);
+    border-radius: var(--radius-md);
+    padding: 40px 32px;
+    text-align: center;
+  }
+  .cine-placeholder-icon {
+    font-size: 36px;
+    line-height: 1;
+    margin-bottom: 12px;
+    opacity: 0.6;
+  }
+  .cine-placeholder h4 {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--cin-text);
+    margin: 0 0 8px;
+  }
+  .cine-placeholder p {
+    font-size: 13px;
+    color: var(--cin-text-muted);
+    margin: 0 0 20px;
+    line-height: 1.55;
+    max-width: 420px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .cine-placeholder-type {
+    display: inline-block;
+    padding: 4px 10px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    font-size: 10px;
+    color: var(--cin-text-faint);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-weight: 600;
+  }
+
+  /* Step complete button area */
+  .cine-step-footer {
+    margin-top: 32px;
+    padding-top: 24px;
+    border-top: 1px solid var(--cin-border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 14px;
+  }
+  .cine-step-nav {
+    display: flex;
+    gap: 10px;
+  }
+  .cine-step-btn {
+    background: var(--brand-primary);
+    color: white;
+    border: none;
+    padding: 10px 18px;
+    border-radius: var(--radius-md);
+    font-size: 13.5px;
+    font-weight: 500;
+    cursor: pointer;
+    font-family: var(--font-sans);
+    transition: all 0.15s;
+  }
+  .cine-step-btn:hover { opacity: 0.92; }
+  .cine-step-btn[disabled] { opacity: 0.4; cursor: not-allowed; }
+  .cine-step-btn.secondary {
+    background: transparent;
+    color: var(--cin-text);
+    border: 1px solid var(--border-strong);
+  }
+
+  /* Right: cinematic content */
+  .cine-content {
+    overflow-y: auto;
+    min-height: 680px;
+  }
+
+  /* v17: horizontal stage strip at top of content area */
+  .cine-stagestrip {
+    display: flex;
+    align-items: stretch;
+    background: var(--cin-surface);
+    border-bottom: 1px solid var(--cin-border);
+    padding: 0;
+    overflow-x: auto;
+    scrollbar-width: thin;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  .cine-stagestrip::-webkit-scrollbar { height: 6px; }
+  .cine-stagestrip::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
+
+  .cine-strip-stage {
+    flex: 1 1 0;
+    min-width: 96px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 16px 10px 14px;
+    background: transparent;
+    border: none;
+    border-right: 1px solid var(--cin-border);
+    cursor: pointer;
+    font-family: var(--font-sans);
+    color: var(--cin-text-muted);
+    position: relative;
+    transition: all 0.15s;
+  }
+  .cine-strip-stage:last-child { border-right: none; }
+  .cine-strip-stage[disabled] {
+    cursor: not-allowed;
+    color: var(--cin-text-faint);
+    opacity: 0.7;
+  }
+  .cine-strip-stage:hover:not([disabled]):not(.active) {
+    background: color-mix(in srgb, var(--brand-primary) 4%, transparent);
+    color: var(--cin-text);
+  }
+  .cine-strip-stage.active {
+    background: var(--surface-subtle);
+    color: var(--cin-text);
+  }
+  .cine-strip-stage.active::after {
+    content: '';
+    position: absolute;
+    left: 10%;
+    right: 10%;
+    bottom: 0;
+    height: 2px;
+    background: var(--brand-primary);
+  }
+  .cine-strip-dot {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: var(--surface);
+    border: 1.5px solid var(--border-strong);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--cin-text-muted);
+    flex-shrink: 0;
+    transition: all 0.2s;
+  }
+  .cine-strip-stage.done .cine-strip-dot {
+    background: var(--brand-primary);
+    border-color: var(--brand-primary);
+    color: white;
+  }
+  .cine-strip-stage.current .cine-strip-dot {
+    border: 2px solid var(--brand-primary);
+    color: var(--brand-primary);
+    background: var(--surface);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--brand-primary) 14%, transparent);
+  }
+  .cine-strip-icon {
+    font-size: 13px;
+    line-height: 1;
+    margin-bottom: -2px;
+    opacity: 0.8;
+  }
+  .cine-strip-stage[disabled] .cine-strip-icon { filter: grayscale(0.7); opacity: 0.5; }
+  .cine-strip-label {
+    font-size: 11.5px;
+    font-weight: 600;
+    text-align: center;
+    line-height: 1.2;
+    white-space: nowrap;
+  }
+  .cine-strip-num {
+    font-size: 9px;
+    color: var(--cin-text-faint);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    font-weight: 600;
+  }
+  .cine-strip-stage.current .cine-strip-num { color: var(--brand-primary); }
+  .cine-strip-stage.done .cine-strip-num { color: var(--brand-primary); opacity: 0.7; }
+
+  .cine-hero {
+    padding: 48px 52px 40px;
+    background: linear-gradient(135deg, var(--brand-soft) 0%, var(--bg) 100%);
+    position: relative;
+    overflow: hidden;
+    border-bottom: 1px solid var(--cin-border);
+  }
+  .cine-hero::before {
+    content: '';
+    position: absolute;
+    top: -60px;
+    right: -80px;
+    width: 360px;
+    height: 360px;
+    background: radial-gradient(circle, color-mix(in srgb, var(--brand-primary) 18%, transparent) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .cine-hero-eyebrow {
+    font-size: 10.5px;
+    color: var(--cin-accent);
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    font-weight: 600;
+    margin-bottom: 18px;
+    position: relative;
+  }
+  .cine-hero-title {
+    font-family: var(--font-sans);
+    font-size: 40px;
+    font-weight: 600;
+    color: var(--cin-text);
+    line-height: 1.08;
+    letter-spacing: -0.02em;
+    margin: 0 0 22px;
+    max-width: 560px;
+    position: relative;
+  }
+  .cine-hero-title em {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-weight: 400;
+    color: var(--brand-primary);
+  }
+  .cine-hero-body {
+    font-size: 15px;
+    color: var(--cin-text-muted);
+    line-height: 1.65;
+    max-width: 540px;
+    margin: 0 0 30px;
+    position: relative;
+  }
+  .cine-stats {
+    display: flex;
+    gap: 44px;
+    flex-wrap: wrap;
+    position: relative;
+  }
+  .cine-stat-num {
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--cin-accent);
+    line-height: 1;
+    margin-bottom: 5px;
+    letter-spacing: -0.01em;
+  }
+  .cine-stat-label {
+    font-size: 9.5px;
+    color: var(--cin-text-faint);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    font-weight: 600;
+  }
+
+  .cine-section {
+    padding: 40px 52px;
+  }
+  .cine-section + .cine-section { border-top: 1px solid var(--cin-border); }
+  .cine-section h3 {
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--cin-text);
+    margin: 0 0 14px;
+    letter-spacing: -0.01em;
+  }
+  .cine-section-body {
+    font-size: 14px;
+    color: var(--cin-text-muted);
+    line-height: 1.65;
+    margin: 0 0 28px;
+    max-width: 720px;
+  }
+
+  .cine-concepts {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+  }
+  .cine-concept {
+    background: var(--cin-surface);
+    border: 1px solid var(--cin-border);
+    border-radius: var(--radius-md);
+    padding: 20px 20px 22px;
+  }
+  .cine-concept-icon {
+    font-size: 22px;
+    margin-bottom: 12px;
+    line-height: 1;
+  }
+  .cine-concept h4 {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--cin-text);
+    margin: 0 0 8px;
+  }
+  .cine-concept p {
+    font-size: 13px;
+    color: var(--cin-text-muted);
+    line-height: 1.55;
+    margin: 0;
+  }
+
+  /* Stage detail (when user selects a stage tab) */
+  .cine-stage-detail {
+    padding: 44px 52px;
+    max-width: 760px;
+  }
+  .cine-stage-eyebrow {
+    font-size: 11px;
+    color: var(--brand-primary);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    font-weight: 600;
+    margin-bottom: 10px;
+  }
+  .cine-stage-title {
+    font-size: 30px;
+    font-weight: 600;
+    color: var(--cin-text);
+    line-height: 1.15;
+    letter-spacing: -0.015em;
+    margin: 0 0 16px;
+  }
+  .cine-stage-body {
+    font-size: 15px;
+    color: var(--cin-text-muted);
+    line-height: 1.65;
+    margin: 0 0 20px;
+  }
+  .cine-stage-meta {
+    font-size: 12px;
+    color: var(--cin-text-faint);
+    margin-bottom: 28px;
+    font-style: italic;
+  }
+  .cine-stage-btn {
+    background: var(--brand-primary);
+    color: white;
+    border: none;
+    padding: 13px 24px;
+    border-radius: var(--radius-md);
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    font-family: var(--font-sans);
+    transition: all 0.15s;
+  }
+  .cine-stage-btn:hover { opacity: 0.92; }
+  .cine-stage-btn.secondary {
+    background: transparent;
+    color: var(--cin-text);
+    border: 1px solid var(--border-strong);
+  }
+  .cine-stage-proto {
+    margin-top: 32px;
+    padding-top: 22px;
+    border-top: 1px dashed var(--cin-border);
+  }
+  .cine-stage-seal {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 18px;
+    background: var(--brand-wash);
+    border: 1px solid color-mix(in srgb, var(--brand-primary) 25%, transparent);
+    border-radius: var(--radius-md);
+    font-size: 13px;
+    color: var(--cin-text);
+    margin-bottom: 22px;
+  }
+  .cine-stage-seal svg { color: var(--brand-primary); flex-shrink: 0; }
+
+  /* Journey dashboard cards */
+  .dash-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .dashcard {
+    background: var(--surface);
+    border-radius: var(--radius-lg);
+    padding: 18px 22px;
+    transition: all 0.2s;
+  }
+  .dashcard.primary {
+    border: 2px solid var(--brand-primary);
+    position: relative;
+  }
+  .dashcard.secondary {
+    border: 1px solid var(--border);
+    padding: 14px 18px;
+  }
+  .dashcard.locked {
+    background: var(--surface-subtle);
+    border: 1px dashed var(--border-strong);
+    padding: 14px 18px;
+    opacity: 0.75;
+  }
+  .dashcard-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 4px;
+  }
+  .dashcard-badge {
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    border-radius: 999px;
+  }
+  .dashcard-badge.current {
+    background: var(--brand-wash);
+    color: var(--brand-primary);
+  }
+  .dashcard-badge.done {
+    background: var(--surface-soft);
+    color: var(--text-muted);
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .dashcard-badge.locked {
+    background: transparent;
+    color: var(--text-faint);
+    padding: 3px 0;
+  }
+  .dashcard-meta-line {
+    margin-left: auto;
+    font-size: 11px;
+    color: var(--text-faint);
+  }
+  .dashcard.primary h3 {
+    font-size: 19px;
+    font-weight: 500;
+    margin: 6px 0 6px;
+    letter-spacing: -0.01em;
+  }
+  .dashcard.secondary h4 {
+    font-size: 14px;
+    font-weight: 500;
+    margin: 0;
+    color: var(--text);
+  }
+  .dashcard.primary p {
+    font-size: 14px;
+    color: var(--text-muted);
+    margin: 0 0 16px;
+    line-height: 1.55;
+  }
+  .dashcard-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .dashcard-row-icon {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: var(--surface-soft);
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .dashcard.secondary .dashcard-row-icon {
+    background: var(--brand-wash);
+    color: var(--brand-primary);
+  }
+  .dashcard.locked .dashcard-row-icon {
+    background: var(--surface);
+    color: var(--text-faint);
+  }
+  .dashcard-row-body {
+    flex: 1;
+    min-width: 0;
+  }
+  .dashcard-row-body h4 {
+    font-size: 14px;
+    font-weight: 500;
+    margin: 0;
+    color: var(--text);
+  }
+  .dashcard-row-body p {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin: 2px 0 0;
+    line-height: 1.4;
+  }
+  .dashcard.locked .dashcard-row-body h4 {
+    color: var(--text-muted);
+  }
+  .dashcard-row-action {
+    background: transparent;
+    border: 1px solid var(--border-strong);
+    color: var(--text);
+    padding: 6px 12px;
+    border-radius: var(--radius-sm);
+    font-size: 12px;
+    cursor: pointer;
+    font-family: var(--font-sans);
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .dashcard-row-action:hover { background: var(--surface-soft); }
+  .dashcard.primary .primary-btn {
+    background: var(--brand-primary);
+    color: white;
+    border: none;
+    padding: 11px 20px;
+    border-radius: var(--radius-md);
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    font-family: var(--font-sans);
+    transition: all 0.15s;
+  }
+  .dashcard.primary .primary-btn:hover { opacity: 0.92; }
+  .dashcard-progress-inline {
+    font-size: 12px;
+    color: var(--brand-primary);
+    margin-top: 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 500;
+  }
+  .dashcard-progress-bar {
+    flex: 1;
+    height: 3px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+    max-width: 180px;
+  }
+  .dashcard-progress-bar-fill {
+    height: 100%;
+    background: var(--brand-primary);
+    border-radius: 2px;
+  }
+
+  /* Sub-meta shown below action button (stage cards only) */
+  .dashcard-meta-sub {
+    font-size: 12px;
+    color: var(--text-faint);
+    margin-top: 12px;
+    line-height: 1.5;
+  }
+
+  /* Prototype advance button (only shown in the prototype) */
+  .dashcard-proto {
+    margin-top: 16px;
+    padding-top: 12px;
+    border-top: 1px dashed var(--border);
+  }
+  .proto-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-faint);
+    font-size: 11px;
+    cursor: pointer;
+    padding: 4px 0;
+    font-family: var(--font-sans);
+    letter-spacing: 0.02em;
+    transition: color 0.15s;
+  }
+  .proto-btn:hover { color: var(--brand-primary); }
+
+  /* Journey teaser (shown pre-submit to preview the 5 stages) */
+  .journey-teaser {
+    margin-top: 4px;
+    padding: 16px 18px;
+    background: linear-gradient(135deg, var(--surface-subtle), var(--surface));
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+  }
+  .teaser-eyebrow {
+    font-size: 11px;
+    color: var(--text-muted);
+    letter-spacing: 0.04em;
+    margin-bottom: 10px;
+    font-weight: 500;
+  }
+  .teaser-stages {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .teaser-stage {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+  .teaser-num {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--surface);
+    border: 1px solid var(--border-strong);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 500;
+    color: var(--text-muted);
+  }
+  .teaser-label {
+    font-size: 12px;
+    color: var(--text-muted);
+    font-weight: 500;
+  }
+  .teaser-dash {
+    color: var(--text-faint);
+    font-size: 11px;
+  }
+
+  /* Arrival: email mockup + splash */
+  .arrival-stage {
+    padding: 36px 36px 40px;
+    background: var(--surface-subtle);
+    position: relative;
+    min-height: 500px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .arrival-step-label {
+    font-size: 11px;
+    color: var(--text-faint);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-weight: 500;
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .arrival-step-label::before,
+  .arrival-step-label::after {
+    content: '';
+    height: 1px;
+    background: var(--border);
+    flex: 1;
+    min-width: 24px;
+  }
+
+  .email-mockup {
+    width: 100%;
+    max-width: 560px;
+    background: var(--surface);
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border);
+    overflow: hidden;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.06);
+  }
+  .email-client-bar {
+    background: var(--surface-soft);
+    padding: 8px 14px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 11px;
+    color: var(--text-faint);
+  }
+  .email-dots { display: flex; gap: 4px; }
+  .email-dots span { width: 8px; height: 8px; border-radius: 50%; background: var(--border-strong); }
+  .email-meta {
+    padding: 16px 22px 14px;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+  }
+  .email-meta-row {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 6px;
+    line-height: 1.5;
+  }
+  .email-meta-row:last-child { margin-bottom: 0; }
+  .email-meta-label {
+    font-weight: 500;
+    color: var(--text-faint);
+    min-width: 56px;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .email-meta-value { color: var(--text); flex: 1; min-width: 0; }
+  .email-subject { font-weight: 500; color: var(--text); font-size: 14px; }
+  .email-preheader { color: var(--text-muted); font-size: 12px; margin-top: 2px; }
+  .email-body {
+    padding: 0;
+  }
+  .email-brand-header {
+    background: var(--brand-primary);
+    padding: 28px 28px 24px;
+    color: white;
+    text-align: center;
+  }
+  .email-brand-header .mark {
+    display: inline-flex;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.15);
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 10px;
+  }
+  .email-brand-header h3 {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+  }
+  .email-brand-header p {
+    margin: 4px 0 0;
+    font-size: 13px;
+    opacity: 0.88;
+  }
+  .email-content {
+    padding: 26px 28px 28px;
+    font-size: 14px;
+    line-height: 1.65;
+    color: var(--text);
+  }
+  .email-content p { margin: 0 0 14px; }
+  .email-content p:last-of-type { margin-bottom: 0; }
+  .email-cta-wrap {
+    margin: 22px 0;
+    text-align: center;
+  }
+  .email-cta {
+    display: inline-block;
+    padding: 13px 28px;
+    background: var(--brand-primary);
+    color: white;
+    border: none;
+    border-radius: var(--radius-md);
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    font-family: var(--font-sans);
+    text-decoration: none;
+    transition: opacity 0.15s;
+  }
+  .email-cta:hover { opacity: 0.92; }
+  .email-sign {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-top: 18px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border);
+  }
+  .email-partner {
+    font-size: 11px;
+    color: var(--text-faint);
+    margin-top: 4px;
+  }
+  .email-footer {
+    background: var(--surface-subtle);
+    padding: 14px 28px;
+    font-size: 11px;
+    color: var(--text-faint);
+    text-align: center;
+    line-height: 1.5;
+    border-top: 1px solid var(--border);
+  }
+
+  /* Splash */
+  .splash-screen {
+    position: absolute;
+    inset: 0;
+    background: var(--brand-primary);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 24px;
+    color: white;
+    z-index: 50;
+    border-radius: var(--radius-lg);
+    animation: splashFadeIn 0.4s ease;
+  }
+  .splash-screen.closing {
+    animation: splashFadeOut 0.5s ease forwards;
+  }
+  @keyframes splashFadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes splashFadeOut {
+    from { opacity: 1; transform: scale(1); }
+    to { opacity: 0; transform: scale(1.02); }
+  }
+  .splash-screen .logo-lockup {
+    animation: splashMarkScale 0.7s cubic-bezier(0.2, 1.3, 0.4, 1);
+  }
+  .splash-mark {
+    width: 88px;
+    height: 88px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.15);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    animation: splashMarkScale 0.7s cubic-bezier(0.2, 1.3, 0.4, 1);
+  }
+  @keyframes splashMarkScale {
+    from { transform: scale(0); opacity: 0; }
+    60% { transform: scale(1.1); opacity: 1; }
+    to { transform: scale(1); opacity: 1; }
+  }
+  .splash-welcome {
+    text-align: center;
+    animation: splashTextRise 0.6s ease 0.3s both;
+  }
+  .splash-welcome h2 {
+    margin: 0 0 6px;
+    font-size: 22px;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+  }
+  .splash-welcome p {
+    margin: 0;
+    font-size: 13px;
+    opacity: 0.88;
+  }
+  @keyframes splashTextRise {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: none; }
+  }
+  .splash-dots {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+    animation: splashTextRise 0.6s ease 0.5s both;
+  }
+  .splash-dots span {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.5);
+    animation: dotPulse 1.2s ease-in-out infinite;
+  }
+  .splash-dots span:nth-child(2) { animation-delay: 0.2s; }
+  .splash-dots span:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes dotPulse {
+    0%, 100% { opacity: 0.3; transform: scale(0.8); }
+    50% { opacity: 1; transform: scale(1.1); }
+  }
+  .splash-skip {
+    position: absolute;
+    top: 20px;
+    right: 22px;
+    background: rgba(255,255,255,0.12);
+    color: white;
+    border: 1px solid rgba(255,255,255,0.2);
+    padding: 6px 14px;
+    border-radius: 999px;
+    font-size: 11px;
+    cursor: pointer;
+    font-family: var(--font-sans);
+    backdrop-filter: blur(4px);
+    animation: splashTextRise 0.6s ease 0.7s both;
+  }
+  .splash-skip:hover { background: rgba(255,255,255,0.2); }
+
+  .arrival-annotations {
+    margin-top: 28px;
+    font-size: 12px;
+    color: var(--text-muted);
+    line-height: 1.6;
+    max-width: 560px;
+    padding: 14px 18px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+  }
+  .arrival-annotations strong { color: var(--text); font-weight: 500; }
+
+  /* Logo lockup */
+  .logo-lockup {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--brand-primary);
+  }
+  .logo-lockup.on-brand { color: white; }
+  .logo-lockup.on-brand .logo-mark-wrap { background: rgba(255,255,255,0.18); color: white; }
+  .logo-lockup.on-brand .wordmark-sub { color: rgba(255,255,255,0.75); }
+  .logo-lockup.vertical {
+    flex-direction: column;
+    gap: 12px;
+    text-align: center;
+  }
+  .logo-mark-wrap {
+    border-radius: 50%;
+    background: var(--brand-wash);
+    color: var(--brand-primary);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .logo-lockup.sz-sm .logo-mark-wrap { width: 32px; height: 32px; }
+  .logo-lockup.sz-md .logo-mark-wrap { width: 48px; height: 48px; }
+  .logo-lockup.sz-lg .logo-mark-wrap { width: 64px; height: 64px; }
+  .logo-lockup.sz-xl .logo-mark-wrap { width: 88px; height: 88px; }
+  .logo-lockup.bordered .logo-mark-wrap { background: var(--surface); border: 2px solid var(--brand-primary); }
+  .wordmark {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.1;
+  }
+  .wordmark-text {
+    font-weight: 500;
+    color: currentColor;
+    letter-spacing: normal;
+  }
+  .wordmark-text.sans { font-family: var(--font-sans); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
+  .wordmark-text.serif { font-family: var(--font-serif); font-style: italic; font-weight: 500; letter-spacing: -0.005em; }
+  .logo-lockup.sz-sm .wordmark-text { font-size: 13px; }
+  .logo-lockup.sz-md .wordmark-text { font-size: 16px; }
+  .logo-lockup.sz-lg .wordmark-text { font-size: 20px; }
+  .logo-lockup.sz-xl .wordmark-text { font-size: 24px; }
+  .wordmark-sub {
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    color: var(--text-faint);
+    margin-top: 3px;
+    font-family: var(--font-sans);
+    font-weight: 500;
+  }
+  .whatsnew {
+    display: flex;
+    gap: 16px;
+    margin-top: 24px;
+    flex-wrap: wrap;
+  }
+  .whatsnew-card {
+    flex: 1;
+    min-width: 280px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 16px 20px;
+  }
+  .whatsnew-label {
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #0C447C;
+    background: #E6F1FB;
+    padding: 2px 7px;
+    border-radius: 3px;
+    display: inline-block;
+    font-weight: 500;
+    margin-bottom: 8px;
+  }
+  .whatsnew-card h5 { font-size: 14px; font-weight: 500; margin: 0 0 6px; color: var(--text); }
+  .whatsnew-card p { font-size: 13px; color: var(--text-muted); margin: 0; line-height: 1.55; }
+</style>
+</head>
+<body style="background: var(--bg); padding: 0; margin: 0;">
+
+<style>
+  .portal-only-pill {
+    padding: 5px 12px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--surface);
+    cursor: pointer;
+    font-size: 12px;
+    font-family: var(--font-sans);
+    color: var(--text-muted);
+    transition: all 0.15s;
+  }
+  .portal-only-pill:hover { border-color: var(--border-strong); color: var(--text); }
+  .portal-only-pill.active {
+    background: var(--brand-primary);
+    color: white;
+    border-color: var(--brand-primary);
+  }
+</style>
+
+<div style="padding: 14px 20px; background: var(--surface); border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 16px; flex-wrap: wrap;">
+  <span style="font-size: 11px; color: var(--text-faint); letter-spacing: 0.1em; text-transform: uppercase; font-weight: 600;">Preview as</span>
+  <div style="display: flex; gap: 6px;">
+    <button class="brand-pill portal-only-pill active" data-brand="ht">Hounds Town</button>
+    <button class="brand-pill portal-only-pill" data-brand="ct">Cruisin&rsquo; Tikis</button>
+  </div>
+  <div style="flex: 1;"></div>
+  <span style="font-size: 11px; color: var(--text-faint);">v18 &middot; portal only</span>
+</div>
+
+<div class="portal" id="portal" style="width: 100%; max-width: none; border-radius: 0; margin: 0;"></div>
+
+<script>
+const BRANDS = {
+  ht: {
+    primary: '#008aba',
+    secondary: '#bddc04',
+    accent: '#ff6c2f',
+    dark: '#266783',
+    soft: '#ace3ef',
+    name: 'Hounds Town',
+    tagline: 'Where dogs are themselves',
+    mark: '<ellipse cx="14" cy="24" rx="5.5" ry="11" transform="rotate(-15 14 24)"/><ellipse cx="50" cy="24" rx="5.5" ry="11" transform="rotate(15 50 24)"/><circle cx="32" cy="32" r="17"/><circle cx="26" cy="30" r="2" fill="#fff"/><circle cx="38" cy="30" r="2" fill="#fff"/><ellipse cx="32" cy="39" rx="3" ry="2.5" fill="#fff"/><circle cx="26" cy="30" r="0.9" fill="currentColor"/><circle cx="38" cy="30" r="0.9" fill="currentColor"/>',
+    wordmark: { text: 'HOUNDS TOWN', sub: 'USA', family: 'sans', weight: 700, tracking: '0.06em', case: 'upper' },
+    info: [
+      { label: 'Founded', value: '2001' },
+      { label: 'Locations', value: '100+' },
+      { label: 'Dogs served yearly', value: '200K+' },
+      { label: 'Policy', value: 'No breed discrimination', accent: true }
+    ],
+    email: {
+      subject: 'Welcome to Hounds Town \u2014 your journey starts here',
+      preheader: 'Five minutes of story before we ask you a thing.',
+      from: 'Hounds Town <hello@houndstownusa.com>',
+      welcome: 'Welcome to the pack',
+      sub: 'A short tour before anything else',
+      body: [
+        'Hi Jamie,',
+        'Thanks for raising your hand about Hounds Town. Before we schedule calls or ask you to fill anything out, we want you to know what you\u2019d be getting into.',
+        'We built you a short, honest brand tour \u2014 about five minutes \u2014 that tells the Hounds Town story in our own words. After the tour, there\u2019s a short application. Eight minutes, saves as you go.',
+        'No decks. No high pressure. Just the story and a chance to tell us yours.'
+      ],
+      cta: 'Start your tour',
+      sign: '\u2014 The team at Hounds Town',
+      partner: 'Powered by Blue Maven'
+    }
+  },
+  ct: {
+    primary: '#f86e4f',
+    secondary: '#213976',
+    accent: '#1edee4',
+    dark: '#213976',
+    soft: '#35acef',
+    name: "Cruisin' Tikis",
+    parentBrand: 'TourScale',
+    tagline: 'Hop on the bar',
+    mark: '<path d="M14 12 L34 12 L38 18 L36 46 Q36 54 24 54 Q12 54 12 46 L10 18 Z"/><rect x="15" y="22" width="6" height="2.5" rx="1" fill="#fff"/><rect x="27" y="22" width="6" height="2.5" rx="1" fill="#fff"/><path d="M15 34 L33 34 L32 42 Q32 44 24 44 Q16 44 16 42 Z" fill="#fff"/><rect x="18" y="34" width="1.5" height="4" fill="currentColor"/><rect x="21.5" y="34" width="1.5" height="4" fill="currentColor"/><rect x="25" y="34" width="1.5" height="4" fill="currentColor"/><rect x="28.5" y="34" width="1.5" height="4" fill="currentColor"/><path d="M14 12 L34 12 L38 18 L32 16 L28 12 L24 14 L20 12 L16 16 L10 18 Z" fill="#fff" opacity="0.2"/>',
+    wordmark: { text: "Cruisin' Tikis", family: 'serif', italic: true, weight: 500, tracking: '-0.005em' },
+    info: [
+      { label: 'Founded', value: '2015' },
+      { label: 'Boats', value: '100+' },
+      { label: 'Cities', value: '40+' },
+      { label: 'Fleet', value: 'USCG certified', accent: true }
+    ],
+    email: {
+      subject: "Hop on the tiki \u2014 your Cruisin' Tikis journey starts here",
+      preheader: 'Five minutes of story before anything else.',
+      from: "Cruisin' Tikis <hello@cruisintikis.com>",
+      welcome: 'Welcome aboard',
+      sub: 'A short tour before anything else',
+      body: [
+        'Hi Jamie,',
+        'Thanks for reaching out about Cruisin\u2019 Tikis. Before we jump on a call or ask you to fill anything out, we want you to know what you\u2019d be getting into.',
+        'We built you a short, honest brand tour \u2014 about five minutes \u2014 that tells the Cruisin\u2019 Tikis story in our own words. After the tour, there\u2019s a short application. Eight minutes, saves as you go.',
+        'No high pressure. No captain-first requirement. Just the story and a chance to tell us yours.'
+      ],
+      cta: 'Start your tour',
+      sign: "\u2014 The team at Cruisin' Tikis",
+      partner: 'Powered by Blue Maven'
+    }
+  }
+};
+
+const CHAPTERS = {
+  ht: [
+    { type: 'title', eyebrow: '2001 · Long Island, NY', headline: 'A decade of pack culture', sub: 'Where dogs come to play, not just stay.', caption: 'Our story starts with a realization: dogs are happiest in a pack, and packs need purpose-built spaces to thrive.' },
+    { type: 'pillars', eyebrow: 'What we stand for', headline: 'Three things, every location', items: [{n:'01',l:'Pack',b:'Socialization first, always.'},{n:'02',l:'Purpose',b:'Built for dogs, not converted.'},{n:'03',l:'People',b:'Trained teams who know every dog.'}], caption: 'These aren\u2019t marketing pillars — they\u2019re hiring filters. Every franchisee, every team member lives them.' },
+    { type: 'video', eyebrow: 'Meet the pack', title: 'A day at Hounds Town', sub: 'Two minutes inside one of our purpose-built daycares.', duration: '2:14', caption: 'The best way to understand the model is to see it in motion. This is a typical Tuesday at our flagship location.' },
+    { type: 'quote', eyebrow: 'From a current franchisee', quote: 'Our team knows every dog by name. That\u2019s not an accident — it\u2019s the system working.', attr: 'Maria R., owner since 2019', caption: 'You\u2019re not buying a license. You\u2019re joining a network of operators who trade notes every week.' },
+    { type: 'pillars', eyebrow: 'What you get on day one', headline: 'The support stack', items: [{n:'01',l:'Site selection',b:'We help find the right building.'},{n:'02',l:'Pack training',b:'Certification before you open.'},{n:'03',l:'Local launch',b:'Marketing playbook, week one.'}], caption: 'This is where most questions surface. The application will ask which of these matter most to you.' },
+    { type: 'cta', eyebrow: 'Chapter 1 wraps here', headline: 'Ready to build your pack?', sub: 'The application is short, honest, and built around finding the right fit — not selling you a franchise.', caption: '' }
+  ],
+  ct: [
+    { type: 'title', eyebrow: '2015 · Fort Lauderdale, FL', headline: 'Hop on the bar', sub: 'The original floating tiki bar, now in 40+ cities.', caption: 'We started with one boat and a hunch that people would rather sip a cocktail on the water than at a bar.' },
+    { type: 'pillars', eyebrow: 'What makes us different', headline: 'Three anchors, every location', items: [{n:'01',l:'Captain',b:'Coast Guard licensed from day one.'},{n:'02',l:'Community',b:'Built around local waterfronts.'},{n:'03',l:'Coast',b:'Turnkey permits and licensing.'}], caption: 'The licensing piece is the moat. We\u2019ve already walked it for you in every market we enter.' },
+    { type: 'video', eyebrow: 'Watch the story', title: 'From one boat to a fleet', sub: 'How Cruisin\u2019 Tikis went from a Fort Lauderdale experiment to 100+ boats.', duration: '2:38', caption: 'The founder tells this story better than any deck could. Worth the two minutes.' },
+    { type: 'quote', eyebrow: 'From a current captain', quote: 'I opened my boat on a Friday and by Sunday had four charters booked. The demand is real.', attr: 'James K., captain since 2022', caption: 'Most captains come from hospitality or corporate exits. Few were boaters first — that part, we teach.' },
+    { type: 'pillars', eyebrow: 'What you get on day one', headline: 'The launch kit', items: [{n:'01',l:'Licensing',b:'Full permit stack handled.'},{n:'02',l:'Captain school',b:'Coast Guard prep included.'},{n:'03',l:'Bookings',b:'Central reservation system.'}], caption: 'Licensing alone can take a year if you go solo. We cut that to weeks.' },
+    { type: 'cta', eyebrow: 'Chapter 1 wraps here', headline: 'Ready to set sail?', sub: 'The application is short, honest, and built around whether this life fits yours \u2014 not selling you a boat.', caption: '' }
+  ]
+};
+
+const STAGES = [
+  { id: 'explore',    label: 'Explore',    name: 'Education & qualification' },
+  { id: 'first_chat', label: 'First chat', name: 'Discovery call' },
+  { id: 'deep_dive',  label: 'Deep dive',  name: 'Education webinar' },
+  { id: 'playbook',   label: 'Playbook',   name: 'FDD exploration' },
+  { id: 'verify',     label: 'Verify',     name: 'Verification' },
+  { id: 'visit',      label: 'Visit',      name: 'Discovery Day' },
+  { id: 'award',      label: 'Welcome',    name: 'Franchise award' }
+];
+
+const STAGE_CONTENT = {
+  explore: {
+    badge: 'Current \u00b7 Explore',
+    headline: 'Get to know us',
+    body: 'Two things in this first stage \u2014 a short brand tour and a light application so we get to know each other. Both save as you go.',
+    button: 'Open the tour \u2192',
+    meta: 'About 15 minutes total',
+    completedTitle: 'Brand tour & application done',
+    completedSub: 'Stage 1 complete \u2014 you\u2019re officially in the process',
+    lockedTitle: 'Get to know us',
+    lockedSub: 'Brand tour + light application'
+  },
+  first_chat: {
+    badge: 'Current \u00b7 First chat',
+    headline: 'Book your first chat',
+    body: '30 minutes with our franchise team. No decks, no hard sell \u2014 just a real conversation about what you\u2019re looking for and whether we\u2019re a fit.',
+    button: 'Find a time \u2192',
+    meta: 'Most candidates pick a weekday morning',
+    completedTitle: 'First chat complete',
+    completedSub: 'You talked with the team',
+    lockedTitle: 'First chat',
+    lockedSub: 'Your kickoff call with the team'
+  },
+  deep_dive: {
+    badge: 'Current \u00b7 Deep dive',
+    headline: 'Time for the real deep dive',
+    body: 'An hour with our founder and a current franchisee. Live Tuesdays at 2pm ET, or watch on-demand whenever. Ask anything \u2014 that\u2019s the whole point.',
+    button: 'Register or watch \u2192',
+    meta: 'Covers the model, support, unit economics, a day in the life',
+    completedTitle: 'Deep dive complete',
+    completedSub: 'You know the model inside and out',
+    lockedTitle: 'Education webinar',
+    lockedSub: 'Deep dive into the business'
+  },
+  playbook: {
+    badge: 'Current \u00b7 The playbook',
+    headline: 'Under the hood',
+    body: 'The FDD looks scary but it\u2019s just our franchise in document form. We\u2019ve broken it into readable sections \u2014 and we\u2019ll answer any question, no matter how small it feels.',
+    button: 'Start with section 1 \u2192',
+    meta: '23 sections \u00b7 read in order or jump around \u00b7 Q&A anytime',
+    completedTitle: 'FDD reviewed',
+    completedSub: 'All 23 sections, read and understood',
+    lockedTitle: 'FDD exploration',
+    lockedSub: 'The full franchise disclosure, unlocked'
+  },
+  verify: {
+    badge: 'Current \u00b7 Verify',
+    headline: 'The verification round',
+    body: 'The formal bit \u2014 background checks, financial verification, and a few validation calls with current franchisees. Most of it happens quietly in the background. Your only real task: pick two or three franchisees to talk to.',
+    button: 'Start verification \u2192',
+    meta: 'Background \u00b7 Financial verification \u00b7 Franchisee validation calls',
+    completedTitle: 'All checks cleared',
+    completedSub: 'You\u2019re fully verified on both sides',
+    lockedTitle: 'Verification',
+    lockedSub: 'Background, financial & franchisee validation checks'
+  },
+  visit: {
+    badge: 'Current \u00b7 Discovery Day',
+    headline: 'Come see us in person',
+    body: 'Your day at HQ. Meet the whole team, see operations live, walk the path of a typical day. Lunch is on us. This is the confirmation step on both sides \u2014 everyone leaves sure.',
+    button: 'Plan your visit \u2192',
+    meta: 'One day \u00b7 usually a Tuesday \u00b7 we cover travel',
+    completedTitle: 'Visit complete',
+    completedSub: 'You came, you saw, we\u2019re aligned',
+    lockedTitle: 'Discovery Day',
+    lockedSub: 'The in-person confirmation visit'
+  },
+  award: {
+    badge: 'Current \u00b7 Welcome day',
+    headline: 'Ready to make it official?',
+    body: 'The last step \u2014 we sign the franchise agreement and you\u2019re one of us. Territory locked in, training scheduled, doors ahead.',
+    button: 'Review the agreement \u2192',
+    meta: 'Territory \u00b7 Franchise fee \u00b7 First 90 days',
+    completedTitle: 'You\u2019re a franchisee',
+    completedSub: 'Welcome to the family',
+    lockedTitle: 'Franchise award',
+    lockedSub: 'The official welcome \u2014 and the beginning'
+  }
+};
+
+function renderLogo(brand, opts) {
+  opts = opts || {};
+  const size = opts.size || 'md';
+  const orientation = opts.vertical ? ' vertical' : '';
+  const onBrand = opts.onBrand ? ' on-brand' : '';
+  const bordered = opts.bordered ? ' bordered' : '';
+  const showWordmark = opts.wordmark !== false;
+  const iconSize = size === 'sm' ? 18 : size === 'md' ? 28 : size === 'lg' ? 40 : 54;
+
+  const markHtml =
+    '<span class="logo-mark-wrap">' +
+      '<svg width="' + iconSize + '" height="' + iconSize + '" viewBox="0 0 64 64" fill="currentColor">' + brand.mark + '</svg>' +
+    '</span>';
+
+  let wordmarkHtml = '';
+  if (showWordmark && brand.wordmark) {
+    const w = brand.wordmark;
+    const cls = w.family === 'serif' ? 'serif' : 'sans';
+    wordmarkHtml =
+      '<span class="wordmark">' +
+        '<span class="wordmark-text ' + cls + '">' + w.text + '</span>' +
+        (w.sub ? '<span class="wordmark-sub">' + w.sub + '</span>' : '') +
+      '</span>';
+  }
+
+  return '<div class="logo-lockup sz-' + size + orientation + onBrand + bordered + '">' + markHtml + wordmarkHtml + '</div>';
+}
+
+// Per-brand cinematic marketing content (hero, stats, concepts)
+const BRAND_MARKETING = {
+  ht: {
+    eyebrow: 'Franchise Ownership Discovery Portal',
+    title: 'Where every dog is <em>family.</em><br>Are you ready to lead the pack?',
+    body: 'America\u2019s most trusted cage-free dog daycare. A limited number of metro markets remain open for the right operators. This portal is your personal guide through every stage of ownership with Hounds Town USA.',
+    stats: [
+      { num: '100+', label: 'Open locations' },
+      { num: '$1.2M', label: 'Avg unit volume' },
+      { num: '$2.4M', label: 'Top performer' },
+      { num: '20+', label: 'Years proven' }
+    ],
+    concepts: [
+      { icon: '\ud83d\udc3e', title: 'Explore', body: 'Understand the market opportunity, our pack-based model, and what daily ownership actually looks like.' },
+      { icon: '\ud83d\udcac', title: 'Connect', body: 'Speak with our development team, validate with existing franchisees, and get real answers from real owners.' },
+      { icon: '\ud83c\udfaf', title: 'Decide', body: 'Meet the full support team on Discovery Day, finalize your territory, and complete the ownership process with clarity.' }
+    ],
+    leaderName: 'Zac Celaya',
+    leaderRole: 'Blue Maven Franchise Development',
+    leaderEmail: 'hounds@bmave.com'
+  },
+  ct: {
+    eyebrow: 'Franchise Ownership Discovery Portal',
+    title: 'The Water <em>Is Calling.</em><br>Are You Built for This?',
+    body: 'America\u2019s #1 floating tiki bar franchise. A limited number of waterfront markets remain open for the right investors. This portal is your personal guide through every stage of evaluating ownership with Cruisin\u2019 Tikis.',
+    stats: [
+      { num: '44+', label: 'Open locations' },
+      { num: '$99K', label: 'Avg rev/vessel' },
+      { num: '$265K+', label: 'Top performer' },
+      { num: '62K+', label: 'Five-star reviews' }
+    ],
+    concepts: [
+      { icon: '\ud83c\udf0a', title: 'Explore', body: 'Understand the market opportunity, the vessel-based business model, and what daily ownership actually looks like.' },
+      { icon: '\ud83d\udcac', title: 'Connect', body: 'Speak with our development team, validate with existing franchisees, and have a direct conversation with our Co-CEOs.' },
+      { icon: '\ud83c\udfaf', title: 'Decide', body: 'Meet the full support team on Confirmation Day, finalize your territory, and complete the ownership process with clarity.' }
+    ],
+    leaderName: 'Zac Celaya',
+    leaderRole: 'Blue Maven Franchise Development',
+    leaderEmail: 'tourscale@bmave.com'
+  }
+};
+
+// Per-stage emoji icons for the cinematic sidebar
+const STAGE_ICONS = {
+  explore:    '\u2728',
+  first_chat: '\ud83d\udcde',
+  deep_dive:  '\ud83c\udfa5',
+  playbook:   '\ud83d\udcd6',
+  verify:     '\u2705',
+  visit:      '\ud83d\udccd',
+  award:      '\ud83c\udfc6'
+};
+
+// v18: Each stop has a list of steps. Each step has a content type.
+// Content types supported: 'slides', 'static', 'application', 'schedule', 'video', 'document', 'checklist'
+const STOP_STEPS = {
+  explore: [
+    { id: 'tour',   label: 'Brand tour',        type: 'slides',      desc: 'A short walk through who we are' },
+    { id: 'app',    label: 'Light application', type: 'application', desc: 'Quick questions so we can get to know you' }
+  ],
+  first_chat: [
+    { id: 'prep',     label: 'Before the call', type: 'static',   desc: 'What to expect, who you\u2019ll meet' },
+    { id: 'schedule', label: 'Pick a time',     type: 'schedule', desc: 'Book a 30-minute call' },
+    { id: 'recap',    label: 'Call notes',      type: 'static',   desc: 'Summary + next steps (available after the call)' }
+  ],
+  deep_dive: [
+    { id: 'register', label: 'Register',    type: 'schedule', desc: 'Tuesday 2pm ET, or watch on demand' },
+    { id: 'webinar',  label: 'The webinar', type: 'video',    desc: 'One hour with the founder' },
+    { id: 'qa',       label: 'Ask anything', type: 'static',  desc: 'Follow-up questions, answered within 24 hours' }
+  ],
+  playbook: [
+    { id: 'intro',    label: 'How to read the FDD', type: 'static',   desc: 'A quick primer on the document' },
+    { id: 'document', label: 'The FDD',             type: 'document', desc: '23 sections, broken up for readability' },
+    { id: 'questions', label: 'Your questions',     type: 'checklist', desc: 'Mark what you want clarity on' }
+  ],
+  verify: [
+    { id: 'background',    label: 'Background check',  type: 'checklist', desc: 'Consent form + ID verification' },
+    { id: 'financial',     label: 'Financial review',  type: 'checklist', desc: 'Upload or connect to verify' },
+    { id: 'validation',    label: 'Validation calls',  type: 'static',    desc: 'Roster of franchisees to call' }
+  ],
+  visit: [
+    { id: 'invite',  label: 'Your invitation', type: 'static',   desc: 'Date, time, and logistics' },
+    { id: 'travel',  label: 'Travel + stay',   type: 'static',   desc: 'Flights, hotel, everything handled' },
+    { id: 'agenda',  label: 'The agenda',      type: 'static',   desc: 'Hour by hour for your day at HQ' }
+  ],
+  award: [
+    { id: 'review',  label: 'Review the agreement', type: 'document', desc: 'The final franchise agreement' },
+    { id: 'sign',    label: 'Sign',                 type: 'static',   desc: 'E-signature when you\u2019re ready' },
+    { id: 'welcome', label: 'Welcome!',             type: 'static',   desc: 'First 90 days, training schedule, your team' }
+  ]
+};
+
+
+const APP_CHAPTERS = [
+  { id: 'basics', title: 'The basics' },
+  { id: 'world', title: 'Your world today' },
+  { id: 'numbers', title: 'The money conversation' },
+  { id: 'plan', title: 'Your franchise vision' },
+  { id: 'story', title: 'Your story' },
+  { id: 'submit', title: 'Make it official' }
+];
+
+const APPLICATION = [
+  {
+    type: 'intro',
+    title: "Let's get to know you",
+    body: "Twenty-ish questions, grouped into six short chapters. Saves as you go, so you can pause whenever.",
+    meta: ['About 10 minutes', 'Auto-saves', 'Pause anytime']
+  },
+
+  // Chapter 1: The basics
+  { type: 'chapter_intro', chapter: 0, body: 'First things first \u2014 how to reach you.' },
+  {
+    type: 'field_pair', chapter: 0,
+    question: "What should we call you?",
+    hint: 'The basics \u2014 first name, last name.',
+    fields: [
+      { key: 'firstName', label: 'First name', placeholder: 'Jamie' },
+      { key: 'lastName', label: 'Last name', placeholder: 'Parker' }
+    ]
+  },
+  { type: 'short_text', chapter: 0, question: "What\u2019s the best email for you?", hint: "We\u2019ll send a copy of everything here.", inputType: 'email', placeholder: 'jamie@example.com' },
+  { type: 'short_text', chapter: 0, question: 'And your phone?', hint: "We\u2019ll text before we call \u2014 promise.", inputType: 'tel', placeholder: '(555) 123-4567' },
+  { type: 'short_text', chapter: 0, question: 'When were you born?', hint: 'Needed for franchise disclosure paperwork.', inputType: 'date' },
+  {
+    type: 'address_block', chapter: 0,
+    question: 'Where do you call home?',
+    hint: 'Your current residence \u2014 not where you\u2019re thinking of opening.'
+  },
+
+  // Chapter 2: Your world today
+  { type: 'chapter_intro', chapter: 1, body: 'A quick look at your current setup.' },
+  {
+    type: 'single_select', chapter: 1,
+    question: 'How would you describe your home life?',
+    options: [
+      { id: 'single', label: 'Single' },
+      { id: 'married', label: 'Married' },
+      { id: 'partnered', label: 'Partnered' },
+      { id: 'divorced', label: 'Divorced' },
+      { id: 'widowed', label: 'Widowed' }
+    ]
+  },
+  {
+    type: 'single_select', chapter: 1,
+    question: 'Do you have children?',
+    options: [
+      { id: 'no', label: 'No' },
+      { id: 'yes', label: 'Yes' },
+      { id: 'expecting', label: 'Not yet, but on the way' }
+    ]
+  },
+  {
+    type: 'field_pair', chapter: 1,
+    question: 'What do you do now?',
+    hint: 'Your current employer and role.',
+    fields: [
+      { key: 'employer', label: 'Current employer', placeholder: 'Company name' },
+      { key: 'occupation', label: 'Role', placeholder: 'e.g. VP of Operations' }
+    ]
+  },
+
+  // Chapter 3: The money conversation
+  { type: 'chapter_intro', chapter: 2, body: 'Brief and a little awkward \u2014 the numbers part. Ranges are fine, no exact figures needed. This stays confidential.' },
+  {
+    type: 'single_select', chapter: 2,
+    question: "What\u2019s your approximate household income?",
+    hint: 'Pick the range that\u2019s closest.',
+    options: [
+      { id: 'u100', label: 'Under $100K' },
+      { id: '100-200', label: '$100K \u2013 $200K' },
+      { id: '200-500', label: '$200K \u2013 $500K' },
+      { id: '500-1m', label: '$500K \u2013 $1M' },
+      { id: 'over1m', label: 'Over $1M' }
+    ]
+  },
+  {
+    type: 'single_select', chapter: 2,
+    question: 'How much could you invest if the right opportunity came along?',
+    hint: 'Liquid capital only \u2014 cash, brokerage, etc. Not your 401(k) or home equity.',
+    options: [
+      { id: 'u100', label: 'Under $100K' },
+      { id: '100-250', label: '$100K \u2013 $250K' },
+      { id: '250-500', label: '$250K \u2013 $500K' },
+      { id: '500-1m', label: '$500K \u2013 $1M' },
+      { id: 'over1m', label: 'Over $1M' }
+    ]
+  },
+  {
+    type: 'single_select', chapter: 2,
+    question: 'And your approximate net worth?',
+    hint: 'Everything \u2014 stocks, bonds, cash, home equity, retirement accounts, real estate.',
+    options: [
+      { id: 'u500', label: 'Under $500K' },
+      { id: '500-1m', label: '$500K \u2013 $1M' },
+      { id: '1-3m', label: '$1M \u2013 $3M' },
+      { id: '3-10m', label: '$3M \u2013 $10M' },
+      { id: 'over10m', label: 'Over $10M' }
+    ]
+  },
+  {
+    type: 'single_select', chapter: 2,
+    question: "What\u2019s your credit score ballpark?",
+    options: [
+      { id: 'below650', label: 'Below 650' },
+      { id: '650-699', label: '650 \u2013 699' },
+      { id: '700-749', label: '700 \u2013 749' },
+      { id: '750-799', label: '750 \u2013 799' },
+      { id: '800plus', label: '800+' },
+      { id: 'unsure', label: "I\u2019m not sure" }
+    ]
+  },
+  {
+    type: 'single_select', chapter: 2,
+    question: 'Have you ever filed for bankruptcy?',
+    hint: "We ask because we have to \u2014 it won\u2019t automatically disqualify you.",
+    options: [
+      { id: 'no', label: 'No' },
+      { id: 'old', label: 'Yes, more than 7 years ago' },
+      { id: 'recent', label: 'Yes, within the last 7 years' }
+    ]
+  },
+  {
+    type: 'single_select', chapter: 2,
+    question: 'Any criminal convictions, for you or a spouse?',
+    hint: "Same reason \u2014 required disclosure. Nothing here gets shared outside our vetting team.",
+    options: [
+      { id: 'no', label: 'No' },
+      { id: 'yes', label: "Yes \u2014 happy to explain on a call" }
+    ]
+  },
+
+  // Chapter 4: Your franchise vision
+  { type: 'chapter_intro', chapter: 3, body: 'What you\u2019re picturing for your operation.' },
+  {
+    type: 'short_text', chapter: 3,
+    question: 'Any territories you\u2019re eyeing?',
+    hint: 'Cities, regions, or just "open to suggestions."',
+    placeholder: 'Austin, Denver, or open...',
+    optional: true
+  },
+  {
+    type: 'single_select', chapter: 3,
+    question: 'How soon would you want to move forward?',
+    options: [
+      { id: 'asap', label: 'As soon as possible' },
+      { id: '3mo', label: 'Within 3 months' },
+      { id: '6mo', label: 'Within 6 months' },
+      { id: '12mo', label: '6 \u2013 12 months out' },
+      { id: 'explore', label: 'Just exploring right now' }
+    ]
+  },
+  {
+    type: 'single_select', chapter: 3,
+    question: 'Will you need financing?',
+    hint: 'Completely normal \u2014 most owners do. We partner with lenders who know franchising.',
+    options: [
+      { id: 'no', label: 'No, I\u2019m self-funded' },
+      { id: 'yes', label: 'Yes, I\u2019ll need lending' },
+      { id: 'maybe', label: 'Maybe \u2014 help me figure it out' }
+    ]
+  },
+  {
+    type: 'single_select', chapter: 3,
+    question: 'Any partners or investors besides a spouse?',
+    options: [
+      { id: 'solo', label: 'Just me (or me and my spouse)' },
+      { id: 'partner', label: 'Yes, a business partner' },
+      { id: 'investor', label: 'Yes, a passive investor' }
+    ]
+  },
+
+  // Chapter 5: Your story
+  { type: 'chapter_intro', chapter: 4, body: 'The good stuff \u2014 your voice, in your words.' },
+  {
+    type: 'long_text', chapter: 4,
+    question: 'Why do you want to start a business?',
+    hint: 'A few sentences is plenty. Honest works best.',
+    placeholder: 'Start wherever feels natural...'
+  },
+  {
+    type: 'long_text', chapter: 4,
+    question: 'Tell us about yourself.',
+    hint: 'Career, family, hobbies, what drives you \u2014 however you want to frame it.',
+    placeholder: 'Your story...',
+    prompts: [
+      'What you do now and what you\u2019re ready to change',
+      'What a good week looks like for you',
+      'What success looks like in five years'
+    ]
+  },
+
+  // Chapter 6: Make it official
+  { type: 'chapter_intro', chapter: 5, body: 'Almost done. One quick agreement and you\u2019re sent.' },
+  {
+    type: 'agreement', chapter: 5,
+    question: 'A quick agreement before you submit',
+    hint: 'Required to keep things clean on both sides.',
+    title: 'Confidential on our end, too',
+    body: "Everything you share stays between you, us, and any partners you\u2019d like us to loop in for specific conversations. Nothing gets shared outside that circle without your okay.",
+    checkbox: 'I understand and agree.'
+  },
+  { type: 'submit_confirm', title: 'Ready to send this over?', body: 'Our team gets notified the moment you hit submit. We\u2019ll reach out within two business days to book your first chat \u2014 the kickoff of your journey.' },
+  { type: 'success', title: "Got it \u2014 the journey begins", body: 'Your application is in. First chat is up next \u2014 we\u2019ll reach out within two business days to pick a time.' }
+];
+
+let currentBrand = 'ht';
+let currentView = 'journey';
+let slideIdx = 0;
+let isComplete = false;
+let appIdx = 0;
+let appAnswers = {};
+let arrivalStep = 'email';
+let isAppSubmitted = false;
+let currentStageIdx = 0; // 0-6 = respective stage current (0 = Explore, includes tour + app), 7 = all done
+let selectedStopIdx = 0; // Which stop is being viewed in the sidebar (can differ from currentStageIdx)
+let selectedStepIdx = 0; // Which step within the selected stop is active (top strip)
+
+function getJourneyState() {
+  // Stage 0 (Explore) is the starting stage and contains tour + app as sub-activities
+  // Submitting the application advances currentStageIdx from 0 to 1
+  // allDone when currentStageIdx >= STAGES.length (7)
+  const allDone = currentStageIdx >= STAGES.length;
+  const done = STAGES.map((_, i) => i < currentStageIdx);
+
+  return {
+    done: done,
+    current: Math.min(currentStageIdx, STAGES.length - 1),
+    allDone: allDone
+  };
+}
+
+function renderJourneyRail() {
+  const state = getJourneyState();
+  const completedCount = state.done.filter(Boolean).length;
+  // Fill scales to just-before the current stage dot (last-index / (total - 1))
+  const fillPct = completedCount === 0 ? 0 : (completedCount / (STAGES.length - 1)) * 100 * 0.88;
+
+  const stagesHtml = STAGES.map((s, i) => {
+    let cls = 'jrail-stage';
+    let icon;
+    const isDone = state.done[i];
+    const isCurrent = i === state.current && !isDone;
+
+    if (isDone) {
+      cls += ' done';
+      icon = '<svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3 8l3.5 3.5L13 5"/></svg>';
+    } else if (isCurrent) {
+      cls += ' current';
+      icon = String(i + 1);
+    } else {
+      cls += ' locked';
+      icon = '<svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity="0.55"><rect x="3" y="7" width="10" height="7" rx="1.5"/><path d="M5 7V5a3 3 0 0 1 6 0v2"/></svg>';
+    }
+
+    const clickable = isDone || isCurrent;
+    return '<button class="' + cls + '"' + (clickable ? ' data-stage="' + i + '"' : ' disabled') + ' title="' + s.name + '">' +
+             '<div class="jrail-dot">' + icon + '</div>' +
+             '<div class="jrail-label">' + s.label + '</div>' +
+           '</button>';
+  }).join('');
+
+  return '<div class="jrail">' +
+    '<div class="jrail-track"></div>' +
+    '<div class="jrail-fill" style="width: ' + fillPct + '%;"></div>' +
+    '<div class="jrail-stages">' + stagesHtml + '</div>' +
+  '</div>';
+}
+
+function wireJourneyRail() {
+  document.querySelectorAll('.jrail-stage[data-stage]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      // Rail clicks always return to journey overview so candidates can see all cards
+      setView('journey');
+    });
+  });
+}
+
+const portal = document.getElementById('portal');
+
+function markHtml(b, size) {
+  size = size || 40;
+  return '<div class="slide-mark"><svg width="' + size + '" height="' + size + '" viewBox="0 0 64 64" fill="var(--brand-primary)">' + b.mark + '</svg></div>';
+}
+
+function renderSlide(s, b) {
+  if (s.type === 'title') {
+    return '<div class="slide-eyebrow">' + s.eyebrow + '</div>' +
+           '<h3 class="slide-headline">' + s.headline + '</h3>' +
+           '<p class="slide-sub">' + s.sub + '</p>' + markHtml(b, 42);
+  }
+  if (s.type === 'cta') {
+    return '<div class="cta-inner"><div class="slide-eyebrow">' + s.eyebrow + '</div>' +
+           '<h3 class="slide-headline">' + s.headline + '</h3>' +
+           '<p class="slide-sub">' + s.sub + '</p></div>' + markHtml(b, 38);
+  }
+  if (s.type === 'pillars') {
+    return '<div class="slide-eyebrow">' + s.eyebrow + '</div>' +
+           '<h3 class="slide-headline" style="font-size:20px;margin-bottom:14px;">' + s.headline + '</h3>' +
+           '<div class="pillars">' + s.items.map(p => '<div class="pillar"><div class="pillar-num">' + p.n + '</div><div class="pillar-label">' + p.l + '</div><div class="pillar-body">' + p.b + '</div></div>').join('') + '</div>';
+  }
+  if (s.type === 'quote') {
+    return '<div class="slide-eyebrow">' + s.eyebrow + '</div>' +
+           '<p class="quote-text">&ldquo;' + s.quote + '&rdquo;</p>' +
+           '<div class="quote-attr">— ' + s.attr + '</div>';
+  }
+  if (s.type === 'video') {
+    return '<div class="video-frame" id="video-frame">' +
+             '<div class="video-mark-bg"><svg width="260" height="260" viewBox="0 0 64 64" fill="currentColor">' + b.mark + '</svg></div>' +
+             '<span class="video-duration">' + s.duration + '</span>' +
+             '<button class="play-btn" id="play-btn" aria-label="Play video">' +
+               '<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>' +
+             '</button>' +
+             '<div class="video-info">' +
+               '<div class="slide-eyebrow">' + s.eyebrow + '</div>' +
+               '<h3 class="video-title">' + s.title + '</h3>' +
+               '<p class="video-sub">' + s.sub + '</p>' +
+             '</div>' +
+             '<div class="video-playing">Playing… (real embed goes here)</div>' +
+           '</div>';
+  }
+  return '';
+}
+
+function renderStaticInfo(b) {
+  return '<div class="static-info">' +
+    b.info.map(i => '<div class="info-cell"><div class="info-label">' + i.label + '</div><div class="info-value">' + (i.accent ? '<span class="accent">' + i.value + '</span>' : i.value) + '</div></div>').join('') +
+    '</div>';
+}
+
+function renderChapterView() {
+  const b = BRANDS[currentBrand];
+  const slides = CHAPTERS[currentBrand];
+  const dots = slides.map((s, i) => {
+    let cls = 'dot';
+    if (i === slideIdx) cls += ' active';
+    else if (i < slideIdx) cls += ' done';
+    if (s.type === 'video') cls += ' video';
+    return '<button class="' + cls + '" data-idx="' + i + '" aria-label="Slide ' + (i+1) + (s.type === 'video' ? ' (video)' : '') + '"></button>';
+  }).join('');
+
+  const prevDisabled = slideIdx === 0 ? 'disabled' : '';
+  const nextLabel = slideIdx === slides.length - 1 ? 'Complete chapter ✓' : 'Next →';
+  const slide = slides[slideIdx];
+  const canvasClass = slide.type === 'video' ? 'slide-canvas video-canvas' : 'slide-canvas';
+
+  const innerContent =
+    '<div class="breadcrumb">' +
+      '<div class="crumb-left">' +
+        '<button class="crumb-back">← Journey</button>' +
+        '<span class="crumb-chapter">Stage 1 · Brand tour · Slide ' + (slideIdx + 1) + ' of ' + slides.length + '</span>' +
+      '</div>' +
+    '</div>' +
+    '<div class="stage-area">' +
+      '<div class="' + canvasClass + '" id="slide-canvas">' + renderSlide(slide, b) + '</div>' +
+    '</div>' +
+    renderStaticInfo(b) +
+    (slide.caption ? '<div class="caption">' + slide.caption + '</div>' : '') +
+    '<div class="controls">' +
+      '<button class="nav-btn" id="prev-btn" ' + prevDisabled + '>← Back</button>' +
+      '<div class="dots">' + dots + '</div>' +
+      '<button class="nav-btn primary" id="next-btn">' + nextLabel + '</button>' +
+    '</div>';
+
+  renderCinematicShell(innerContent);
+
+  document.getElementById('prev-btn').addEventListener('click', prev);
+  document.getElementById('next-btn').addEventListener('click', next);
+  document.querySelectorAll('.dot').forEach(d => d.addEventListener('click', () => jumpTo(parseInt(d.dataset.idx))));
+  document.querySelector('.crumb-back').addEventListener('click', () => setView('journey'));
+
+  const playBtn = document.getElementById('play-btn');
+  if (playBtn) {
+    playBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      document.getElementById('video-frame').classList.add('playing');
+    });
+  }
+}
+
+// v17: Cinematic shell that wraps any view content with the persistent sidebar + stage strip
+// v18 cinematic shell: stops sidebar (left) + step strip + step content (right)
+function renderCinematicShell(innerContent) {
+  const b = BRANDS[currentBrand];
+  const state = getJourneyState();
+  const marketing = BRAND_MARKETING[currentBrand];
+
+  if (selectedStopIdx > currentStageIdx) selectedStopIdx = currentStageIdx;
+  if (selectedStopIdx < 0) selectedStopIdx = 0;
+
+  const completedCount = state.done.filter(Boolean).length;
+  const progressPct = Math.round((completedCount / STAGES.length) * 100);
+  const weeksLeft = Math.max(2, STAGES.length - completedCount + 1);
+
+  let brandMarkHtml;
+  if (currentBrand === 'ct') brandMarkHtml = 'Cruisin\u2019 <em>Tikis</em>';
+  else if (currentBrand === 'ht') brandMarkHtml = 'Hounds Town <em>USA</em>';
+  else brandMarkHtml = b.name;
+  const brandSubHtml = b.parentBrand
+    ? '<strong>Powered by ' + b.parentBrand + '</strong>Franchise Discovery Portal'
+    : 'Franchise Discovery Portal';
+
+  // Left sidebar: stops list
+  const stopsHtml = STAGES.map((stage, i) => {
+    const isDone = state.done[i];
+    const isCurrent = state.current === i && !state.allDone && !isDone;
+    const isLocked = !isDone && !isCurrent;
+    const isActive = selectedStopIdx === i;
+    const clickable = isDone || isCurrent;
+
+    let cls = 'cine-stop';
+    if (isDone) cls += ' done';
+    if (isCurrent) cls += ' current';
+    if (isLocked) cls += ' locked';
+    if (isActive) cls += ' active';
+
+    const icon = STAGE_ICONS[stage.id] || '\u2022';
+    let statusSvg;
+    if (isDone) {
+      statusSvg = '<svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3 8l3.5 3.5L13 5"/></svg>';
+    } else if (isCurrent) {
+      statusSvg = '<svg width="8" height="8" viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="8" r="5"/></svg>';
+    } else {
+      statusSvg = '<svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><rect x="3" y="7" width="10" height="7" rx="1.5"/><path d="M5 7V5a3 3 0 0 1 6 0v2"/></svg>';
+    }
+
+    return '<button class="' + cls + '"' + (clickable ? ' data-stop="' + i + '"' : ' disabled') + ' title="' + stage.name + '">' +
+             '<span class="cine-stop-icon">' + icon + '</span>' +
+             '<span class="cine-stop-label">' + stage.label + '</span>' +
+             '<span class="cine-stop-status">' + statusSvg + '</span>' +
+           '</button>';
+  }).join('');
+
+  // Top: step strip for the selected stop
+  const selStage = STAGES[selectedStopIdx];
+  const steps = STOP_STEPS[selStage.id] || [];
+  if (selectedStepIdx >= steps.length) selectedStepIdx = 0;
+
+  const stepsHtml = steps.map((step, i) => {
+    // Steps don't have their own done/current state yet in this prototype —
+    // if the parent stop is done, all its steps show done. If it's the current stop, step 0 is current.
+    const stopIsDone = state.done[selectedStopIdx];
+    const isDone = stopIsDone || (selectedStopIdx === state.current && i < selectedStepIdx);
+    const isActive = selectedStepIdx === i;
+
+    let cls = 'cine-step';
+    if (isDone) cls += ' done';
+    if (isActive) cls += ' active';
+
+    const numInner = isDone
+      ? '<svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3 8l3.5 3.5L13 5"/></svg>'
+      : String(i + 1);
+
+    return '<button class="' + cls + '" data-step="' + i + '">' +
+             '<span class="cine-step-num">' + numInner + '</span>' +
+             '<span class="cine-step-body">' +
+               '<span class="cine-step-label">' + step.label + '</span>' +
+               '<span class="cine-step-desc">' + step.desc + '</span>' +
+             '</span>' +
+           '</button>';
+  }).join('');
+
+  portal.style.setProperty('--brand-primary', b.primary);
+  document.documentElement.style.setProperty('--brand-primary', b.primary);
+
+  portal.innerHTML =
+    '<div class="portal-cinematic">' +
+      '<div class="cine-sidebar">' +
+        '<div class="cine-brand">' +
+          '<div class="cine-brand-mark">' + brandMarkHtml + '</div>' +
+          '<div class="cine-brand-sub">' + brandSubHtml + '</div>' +
+        '</div>' +
+        '<div class="cine-progress">' +
+          '<div class="cine-progress-head">' +
+            '<div class="cine-progress-label">Your journey</div>' +
+            '<div class="cine-progress-pct">' + progressPct + '%</div>' +
+          '</div>' +
+          '<div class="cine-progress-bar"><div class="cine-progress-fill" style="width: ' + progressPct + '%"></div></div>' +
+          '<div class="cine-progress-meta">' +
+            '<span>' + completedCount + ' of ' + STAGES.length + ' stops</span>' +
+            '<span>' + (state.allDone ? 'Complete' : '~' + weeksLeft + ' weeks left') + '</span>' +
+          '</div>' +
+        '</div>' +
+        '<div class="cine-stops">' + stopsHtml + '</div>' +
+        '<div class="cine-advisor">' +
+          '<div class="cine-advisor-eyebrow">Your franchise growth leader</div>' +
+          '<h4 class="cine-advisor-name">' + marketing.leaderName + '</h4>' +
+          '<p class="cine-advisor-role">' + marketing.leaderRole + '</p>' +
+          '<p class="cine-advisor-email">' + marketing.leaderEmail + '</p>' +
+        '</div>' +
+      '</div>' +
+      '<div class="cine-content">' +
+        (steps.length > 0 ?
+          '<div class="cine-stepbar">' +
+            '<div class="cine-stepbar-head">' +
+              '<div class="cine-stepbar-title">Stop ' + (selectedStopIdx + 1) + ' \u00b7 <strong>' + selStage.name + '</strong></div>' +
+              '<div class="cine-stepbar-count">' + steps.length + ' step' + (steps.length === 1 ? '' : 's') + '</div>' +
+            '</div>' +
+            '<div class="cine-steps">' + stepsHtml + '</div>' +
+          '</div>'
+          : '') +
+        innerContent +
+      '</div>' +
+    '</div>';
+
+  // Wire stop clicks (left sidebar)
+  document.querySelectorAll('.cine-stop[data-stop]').forEach(stop => {
+    stop.addEventListener('click', () => {
+      selectedStopIdx = parseInt(stop.dataset.stop);
+      selectedStepIdx = 0;
+      setView('journey');
+    });
+  });
+
+  // Wire step clicks (top strip)
+  document.querySelectorAll('.cine-step[data-step]').forEach(step => {
+    step.addEventListener('click', () => {
+      selectedStepIdx = parseInt(step.dataset.step);
+      setView('journey');
+    });
+  });
+}
+function renderJourneyView() {
+  const b = BRANDS[currentBrand];
+  const state = getJourneyState();
+  const marketing = BRAND_MARKETING[currentBrand];
+
+  if (selectedStopIdx > currentStageIdx) selectedStopIdx = currentStageIdx;
+  if (selectedStopIdx < 0) selectedStopIdx = 0;
+
+  const selStage = STAGES[selectedStopIdx];
+  const selContent = STAGE_CONTENT[selStage.id];
+  const steps = STOP_STEPS[selStage.id] || [];
+  if (selectedStepIdx >= steps.length) selectedStepIdx = 0;
+  if (selectedStepIdx < 0) selectedStepIdx = 0;
+  const step = steps[selectedStepIdx];
+
+  const selIsDone = state.done[selectedStopIdx];
+  const selIsCurrent = state.current === selectedStopIdx && !state.allDone && !selIsDone;
+  const selIsLocked = !selIsDone && !selIsCurrent;
+
+  // Build the step content area based on step.type
+  let contentBody;
+
+  if (selIsLocked) {
+    // Should not happen because locked stops aren't clickable, but defensive
+    contentBody = '<div class="cine-placeholder">' +
+      '<div class="cine-placeholder-icon">\ud83d\udd12</div>' +
+      '<h4>' + selContent.lockedTitle + '</h4>' +
+      '<p>' + selContent.lockedSub + '</p>' +
+    '</div>';
+  } else if (!step) {
+    contentBody = '<p>No steps defined for this stop yet.</p>';
+  } else if (step.type === 'slides') {
+    // Embed the chapter slides (brand tour)
+    const slides = CHAPTERS[currentBrand];
+    const currentSlide = slides[slideIdx] || slides[0];
+    const prevDisabled = slideIdx === 0 ? 'disabled' : '';
+    const nextLabel = slideIdx === slides.length - 1 ? 'Finish tour \u2713' : 'Next \u2192';
+    const canvasClass = currentSlide.type === 'video' ? 'slide-canvas video-canvas' : 'slide-canvas';
+    const dots = slides.map((s, i) => {
+      let cls = 'dot';
+      if (i === slideIdx) cls += ' active';
+      else if (i < slideIdx) cls += ' done';
+      if (s.type === 'video') cls += ' video';
+      return '<button class="' + cls + '" data-idx="' + i + '" aria-label="Slide ' + (i+1) + '"></button>';
+    }).join('');
+
+    contentBody =
+      '<div class="stage-area" style="padding: 0 0 16px;">' +
+        '<div class="' + canvasClass + '" id="slide-canvas">' + renderSlide(currentSlide, b) + '</div>' +
+      '</div>' +
+      (currentSlide.caption ? '<div class="caption">' + currentSlide.caption + '</div>' : '') +
+      '<div class="controls" style="padding: 12px 0 0;">' +
+        '<button class="nav-btn" id="slide-prev" ' + prevDisabled + '>\u2190 Back</button>' +
+        '<div class="dots">' + dots + '</div>' +
+        '<button class="nav-btn primary" id="slide-next">' + nextLabel + '</button>' +
+      '</div>';
+  } else if (step.type === 'application') {
+    // Show an entry point to the application (which takes over its own view)
+    const answeredCount = Object.keys(appAnswers).length;
+    const totalQuestions = APPLICATION.filter(s => s.type !== 'intro' && s.type !== 'submit_confirm' && s.type !== 'success' && s.type !== 'chapter_intro').length;
+    const hasProgress = answeredCount > 0;
+    const pct = totalQuestions > 0 ? (answeredCount / totalQuestions) * 100 : 0;
+
+    contentBody =
+      '<div class="cine-placeholder" style="text-align: left;">' +
+        '<h4 style="text-align: center;">' + (hasProgress ? 'Pick up where you left off' : 'Your application is ready') + '</h4>' +
+        '<p style="text-align: center;">' + (hasProgress ? 'Auto-saved where you left off. ' + answeredCount + ' of ' + totalQuestions + ' answered.' : 'Six short chapters, about ten minutes. Conversational, ranges over exact numbers, pause anytime.') + '</p>' +
+        (hasProgress ? '<div style="max-width: 300px; margin: 0 auto 18px;"><div style="height: 3px; background: var(--border); border-radius: 2px; overflow: hidden;"><div style="height: 100%; background: var(--brand-primary); width: ' + pct + '%;"></div></div></div>' : '') +
+        '<div style="text-align: center;"><button class="cine-step-btn" id="open-app-btn">' + (hasProgress ? 'Continue application' : 'Start application') + ' \u2192</button></div>' +
+      '</div>';
+  } else if (step.type === 'static') {
+    contentBody =
+      '<div class="cine-placeholder">' +
+        '<div class="cine-placeholder-icon">\ud83d\udcc4</div>' +
+        '<h4>Static info page</h4>' +
+        '<p>A static content page lives here \u2014 copy, images, maybe a video. Per-stop, per-step editable.</p>' +
+        '<span class="cine-placeholder-type">type: static</span>' +
+      '</div>';
+  } else if (step.type === 'schedule') {
+    contentBody =
+      '<div class="cine-placeholder">' +
+        '<div class="cine-placeholder-icon">\ud83d\udcc5</div>' +
+        '<h4>Scheduling widget</h4>' +
+        '<p>Calendly-style embed or custom picker. Writes to Zoho Calendar.</p>' +
+        '<span class="cine-placeholder-type">type: schedule</span>' +
+      '</div>';
+  } else if (step.type === 'video') {
+    contentBody =
+      '<div class="cine-placeholder">' +
+        '<div class="cine-placeholder-icon">\ud83c\udfa5</div>' +
+        '<h4>Video player</h4>' +
+        '<p>Embedded webinar recording or live stream. Plays inline, tracks completion.</p>' +
+        '<span class="cine-placeholder-type">type: video</span>' +
+      '</div>';
+  } else if (step.type === 'document') {
+    contentBody =
+      '<div class="cine-placeholder">' +
+        '<div class="cine-placeholder-icon">\ud83d\udcd6</div>' +
+        '<h4>Document reader</h4>' +
+        '<p>FDD sections rendered readably, with Q&amp;A annotations and a side ToC.</p>' +
+        '<span class="cine-placeholder-type">type: document</span>' +
+      '</div>';
+  } else if (step.type === 'checklist') {
+    contentBody =
+      '<div class="cine-placeholder">' +
+        '<div class="cine-placeholder-icon">\u2705</div>' +
+        '<h4>Checklist / verification</h4>' +
+        '<p>Items to complete \u2014 upload documents, consent forms, mark tasks done. Tracked per candidate.</p>' +
+        '<span class="cine-placeholder-type">type: checklist</span>' +
+      '</div>';
+  } else {
+    contentBody =
+      '<div class="cine-placeholder">' +
+        '<div class="cine-placeholder-icon">\u2728</div>' +
+        '<h4>' + step.label + '</h4>' +
+        '<p>Content coming soon \u2014 this step is still being built.</p>' +
+      '</div>';
+  }
+
+  // Special case: if this is the very first arrival (Stage 1, nothing done), show marketing hero above the step
+  const showMarketingHero = selectedStopIdx === 0 && state.current === 0 && !isComplete && selectedStepIdx === 0 && Object.keys(appAnswers).length === 0;
+
+  let heroHtml = '';
+  if (showMarketingHero) {
+    const statsHtml = marketing.stats.map(s =>
+      '<div><div class="cine-stat-num">' + s.num + '</div><div class="cine-stat-label">' + s.label + '</div></div>'
+    ).join('');
+    heroHtml =
+      '<div class="cine-hero">' +
+        '<div class="cine-hero-eyebrow">' + marketing.eyebrow + '</div>' +
+        '<h2 class="cine-hero-title">' + marketing.title + '</h2>' +
+        '<p class="cine-hero-body">' + marketing.body + '</p>' +
+        '<div class="cine-stats">' + statsHtml + '</div>' +
+      '</div>';
+  }
+
+  // Assemble
+  const innerContent =
+    heroHtml +
+    '<div class="cine-step-content">' +
+      (step ?
+        '<div class="cine-step-content-header">' +
+          '<div class="cine-step-content-eyebrow">Step ' + (selectedStepIdx + 1) + ' of ' + steps.length + '</div>' +
+          '<h2 class="cine-step-content-title">' + step.label + '</h2>' +
+          '<p class="cine-step-content-desc">' + step.desc + '</p>' +
+        '</div>'
+        : '') +
+      contentBody +
+      (selIsCurrent && step && step.type !== 'slides' && step.type !== 'application' ?
+        '<div class="cine-step-footer">' +
+          '<div class="cine-step-nav">' +
+            (selectedStepIdx > 0 ? '<button class="cine-step-btn secondary" id="step-prev-btn">\u2190 Previous step</button>' : '') +
+          '</div>' +
+          (selectedStepIdx < steps.length - 1 ?
+            '<button class="cine-step-btn" id="step-next-btn">Next step \u2192</button>' :
+            '<button class="cine-step-btn" id="stop-complete-btn">Finish this stop \u2713</button>') +
+        '</div>'
+        : '') +
+    '</div>';
+
+  renderCinematicShell(innerContent);
+
+  // Wire handlers
+  const openAppBtn = document.getElementById('open-app-btn');
+  if (openAppBtn) openAppBtn.addEventListener('click', () => {
+    if (Object.keys(appAnswers).length === 0) appIdx = 0;
+    setView('application');
+  });
+
+  const slidePrev = document.getElementById('slide-prev');
+  if (slidePrev) slidePrev.addEventListener('click', () => {
+    if (slideIdx > 0) { slideIdx -= 1; renderJourneyView(); }
+  });
+  const slideNext = document.getElementById('slide-next');
+  if (slideNext) slideNext.addEventListener('click', () => {
+    const slides = CHAPTERS[currentBrand];
+    if (slideIdx < slides.length - 1) { slideIdx += 1; renderJourneyView(); }
+    else {
+      // Tour complete: mark isComplete, advance to next step in the stop (the application)
+      isComplete = true;
+      if (selectedStepIdx < steps.length - 1) selectedStepIdx += 1;
+      renderJourneyView();
+    }
+  });
+  document.querySelectorAll('.dot[data-idx]').forEach(d =>
+    d.addEventListener('click', () => { slideIdx = parseInt(d.dataset.idx); renderJourneyView(); })
+  );
+  const playBtn = document.getElementById('play-btn');
+  if (playBtn) playBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const vf = document.getElementById('video-frame');
+    if (vf) vf.classList.add('playing');
+  });
+
+  const stepPrevBtn = document.getElementById('step-prev-btn');
+  if (stepPrevBtn) stepPrevBtn.addEventListener('click', () => {
+    if (selectedStepIdx > 0) { selectedStepIdx -= 1; renderJourneyView(); }
+  });
+  const stepNextBtn = document.getElementById('step-next-btn');
+  if (stepNextBtn) stepNextBtn.addEventListener('click', () => {
+    if (selectedStepIdx < steps.length - 1) { selectedStepIdx += 1; renderJourneyView(); }
+  });
+  const stopCompleteBtn = document.getElementById('stop-complete-btn');
+  if (stopCompleteBtn) stopCompleteBtn.addEventListener('click', () => {
+    fireConfetti(stopCompleteBtn);
+    setTimeout(() => {
+      currentStageIdx += 1;
+      if (currentStageIdx < STAGES.length) {
+        selectedStopIdx = currentStageIdx;
+        selectedStepIdx = 0;
+      }
+      renderJourneyView();
+      if (currentStageIdx >= STAGES.length) fireConfettiFromCenter();
+    }, 250);
+  });
+}
+// Dashboard card builder helpers
+function primaryCard(opts) {
+  return '<div class="dashcard primary">' +
+    '<div class="dashcard-header">' +
+      '<span class="dashcard-badge current">' + opts.badge + '</span>' +
+      (opts.meta ? '<span class="dashcard-meta-line">' + opts.meta + '</span>' : '') +
+    '</div>' +
+    '<h3>' + opts.headline + '</h3>' +
+    '<p>' + opts.body + '</p>' +
+    '<button class="primary-btn" id="' + opts.buttonId + '">' + opts.buttonLabel + '</button>' +
+    (opts.progressHtml || '') +
+  '</div>';
+}
+
+function stagePrimaryCard(stage, content, idx) {
+  return '<div class="dashcard primary">' +
+    '<div class="dashcard-header">' +
+      '<span class="dashcard-badge current">' + content.badge + '</span>' +
+      '<span class="dashcard-meta-line">Stage ' + (idx + 1) + ' of ' + STAGES.length + '</span>' +
+    '</div>' +
+    '<h3>' + content.headline + '</h3>' +
+    '<p>' + content.body + '</p>' +
+    '<button class="primary-btn" id="stage-action-btn">' + content.button + '</button>' +
+    '<div class="dashcard-meta-sub">' + content.meta + '</div>' +
+    '<div class="dashcard-proto"><button id="advance-stage-btn" class="proto-btn">\u21b1 Prototype: mark ' + stage.name + ' complete</button></div>' +
+  '</div>';
+}
+
+function secondaryRow(icon, title, sub, btnId, btnLabel) {
+  const iconSvg = icon === 'check'
+    ? '<svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3 8l3.5 3.5L13 5"/></svg>'
+    : '';
+  const btnHtml = btnId ? '<button class="dashcard-row-action" id="' + btnId + '">' + btnLabel + '</button>' : '';
+  return '<div class="dashcard secondary">' +
+    '<div class="dashcard-row">' +
+      '<div class="dashcard-row-icon">' + iconSvg + '</div>' +
+      '<div class="dashcard-row-body">' +
+        '<h4>' + title + '</h4>' +
+        '<p>' + sub + '</p>' +
+      '</div>' +
+      btnHtml +
+    '</div>' +
+  '</div>';
+}
+
+function lockedRow(title, sub) {
+  return '<div class="dashcard locked">' +
+    '<div class="dashcard-row">' +
+      '<div class="dashcard-row-icon"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="3" y="7" width="10" height="7" rx="1.5"/><path d="M5 7V5a3 3 0 0 1 6 0v2"/></svg></div>' +
+      '<div class="dashcard-row-body">' +
+        '<h4>' + title + '</h4>' +
+        '<p>' + sub + '</p>' +
+      '</div>' +
+    '</div>' +
+  '</div>';
+}
+
+function journeyTeaser(b) {
+  const stagesHtml = STAGES.map((s, i) =>
+    '<div class="teaser-stage">' +
+      '<div class="teaser-num">' + (i + 1) + '</div>' +
+      '<div class="teaser-label">' + s.label + '</div>' +
+    '</div>'
+  ).join('<div class="teaser-dash">\u2014</div>');
+
+  return '<div class="journey-teaser">' +
+    '<div class="teaser-eyebrow">Once you submit, your journey starts</div>' +
+    '<div class="teaser-stages">' + stagesHtml + '</div>' +
+  '</div>';
+}
+
+function fireConfettiFromCenter() {
+  const rect = portal.getBoundingClientRect();
+  const fakeEl = { getBoundingClientRect: () => ({ left: rect.left + rect.width / 2 - 20, top: rect.top + 100, width: 40, height: 40 }) };
+  fireConfetti(fakeEl);
+}
+
+function renderCompleteState() {
+  const b = BRANDS[currentBrand];
+  const inner =
+    '<div class="breadcrumb">' +
+      '<div class="crumb-left">' +
+        '<button class="crumb-back">← Journey</button>' +
+        '<span class="crumb-chapter">Stage 1 · Brand tour complete</span>' +
+      '</div>' +
+    '</div>' +
+    '<div class="complete-state">' +
+      '<div class="seal"><svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l4 4 10-10"/></svg></div>' +
+      '<h3>Brand tour complete</h3>' +
+      '<p>You&rsquo;ve met ' + b.name + '. Your application is now open — about 10 minutes, saves as you go.</p>' +
+      '<button class="nav-btn primary" style="padding:10px 22px;" id="go-app-btn">Start the application →</button>' +
+      '<div class="complete-sub">Or take a break — we&rsquo;ll remember where you left off.</div>' +
+    '</div>';
+  renderCinematicShell(inner);
+  document.querySelector('.crumb-back').addEventListener('click', () => { slideIdx = 0; setView('journey'); });
+  const goBtn = document.getElementById('go-app-btn');
+  if (goBtn) goBtn.addEventListener('click', () => { appIdx = 0; setView('application'); });
+}
+
+function fireConfetti(originEl) {
+  const btnRect = originEl.getBoundingClientRect();
+  const colors = ['#F5C4B3','#FAC775','#9FE1CB','#B5D4F4','#F4C0D1','#CECBF6'];
+  for (let i = 0; i < 28; i++) {
+    const c = document.createElement('div');
+    c.className = 'confetti';
+    c.style.background = colors[i % colors.length];
+    c.style.left = (btnRect.left + Math.random() * btnRect.width) + 'px';
+    c.style.top = (btnRect.top + window.scrollY + 4) + 'px';
+    c.style.position = 'absolute';
+    const dx = (Math.random() - 0.5) * 260;
+    const dy = 100 + Math.random() * 120;
+    c.animate([
+      { transform: 'translate(0,0) rotate(0)', opacity: 1 },
+      { transform: 'translate(' + dx + 'px,' + dy + 'px) rotate(' + (Math.random() * 540) + 'deg)', opacity: 0 }
+    ], { duration: 1400 + Math.random() * 400, easing: 'cubic-bezier(.2,.7,.3,1)', fill: 'forwards' });
+    document.body.appendChild(c);
+    setTimeout(() => c.remove(), 2000);
+  }
+}
+
+function transition(newIdx, dir) {
+  const canvas = document.getElementById('slide-canvas');
+  if (!canvas) return;
+  canvas.classList.add(dir === 'forward' ? 'leaving-left' : 'leaving-right');
+  setTimeout(() => {
+    slideIdx = newIdx;
+    renderChapterView();
+  }, 280);
+}
+
+function jumpTo(idx) { if (idx !== slideIdx) transition(idx, idx > slideIdx ? 'forward' : 'back'); }
+function next() {
+  const slides = CHAPTERS[currentBrand];
+  if (slideIdx === slides.length - 1) return completeChapter();
+  transition(slideIdx + 1, 'forward');
+}
+function prev() { if (slideIdx > 0) transition(slideIdx - 1, 'back'); }
+
+function completeChapter() {
+  const nextBtn = document.getElementById('next-btn');
+  if (nextBtn) fireConfetti(nextBtn);
+  isComplete = true;
+  setTimeout(() => renderCompleteState(), 200);
+}
+
+function renderApplicationView() {
+  const step = APPLICATION[appIdx];
+  const isQuestion = step.type !== 'intro' && step.type !== 'submit_confirm' && step.type !== 'success' && step.type !== 'chapter_intro';
+  const totalQuestions = APPLICATION.filter(s => s.type !== 'intro' && s.type !== 'submit_confirm' && s.type !== 'success' && s.type !== 'chapter_intro').length;
+  const questionsBefore = APPLICATION.slice(0, appIdx).filter(s => s.type !== 'intro' && s.type !== 'submit_confirm' && s.type !== 'success' && s.type !== 'chapter_intro').length;
+  let progressPct = 0;
+  if (step.type === 'success') progressPct = 100;
+  else if (step.type === 'intro') progressPct = 0;
+  else if (isQuestion) progressPct = (questionsBefore / totalQuestions) * 100;
+  else if (step.type === 'chapter_intro') progressPct = (questionsBefore / totalQuestions) * 100;
+  else progressPct = (questionsBefore / totalQuestions) * 100;
+
+  let headerHtml = '';
+  if (step.type !== 'success') {
+    let counterLabel;
+    if (step.type === 'intro') counterLabel = 'Ready to start';
+    else if (step.type === 'submit_confirm') counterLabel = 'Ready to submit';
+    else counterLabel = (questionsBefore + (isQuestion ? 1 : 0)) + ' of ' + totalQuestions;
+
+    headerHtml = '<div class="app-header">' +
+      '<button class="crumb-back" id="app-exit">\u2190 Journey</button>' +
+      '<div class="app-progress-wrap"><div class="app-progress-fill" style="width:' + progressPct + '%"></div></div>' +
+      '<div class="app-counter">' + counterLabel + '</div>' +
+    '</div>';
+  }
+
+  let stageHtml = '';
+  const chapterNum = step.chapter;
+  const chapterMeta = chapterNum !== undefined && APP_CHAPTERS[chapterNum]
+    ? '<div class="app-chapter-meta">Chapter ' + (chapterNum + 1) + ' of ' + APP_CHAPTERS.length + ' \u00b7 ' + APP_CHAPTERS[chapterNum].title + '</div>'
+    : '';
+
+  if (step.type === 'intro') {
+    stageHtml = '<div class="app-intro-stage">' +
+      '<div class="app-intro-mark"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l2.2 6.6L21 9l-5.4 4.6L17 20l-5-3.6L7 20l1.4-6.4L3 9l6.8-.4z"/></svg></div>' +
+      '<h2>' + step.title + '</h2>' +
+      '<p>' + step.body + '</p>' +
+      '<div class="app-intro-meta">' + step.meta.map(m => '<span>' + m + '</span>').join('') + '</div>' +
+      '<button class="app-btn-large" id="app-begin">Begin \u2192</button>' +
+    '</div>';
+  } else if (step.type === 'chapter_intro') {
+    const ch = APP_CHAPTERS[chapterNum];
+    stageHtml = '<div class="app-chapter-intro">' +
+      '<div class="app-chapter-mark">' + (chapterNum + 1) + '</div>' +
+      '<div class="app-chapter-number">Chapter ' + (chapterNum + 1) + ' of ' + APP_CHAPTERS.length + '</div>' +
+      '<h2>' + ch.title + '</h2>' +
+      '<p>' + step.body + '</p>' +
+      '<button class="app-btn-large" id="app-continue-chapter">Continue \u2192</button>' +
+    '</div>';
+  } else if (step.type === 'single_select') {
+    const selected = appAnswers[appIdx];
+    stageHtml = '<div class="app-stage">' +
+      chapterMeta +
+      '<h3 class="app-question">' + step.question + '</h3>' +
+      (step.hint ? '<p class="app-hint">' + step.hint + '</p>' : '') +
+      '<div class="app-answer"><div class="app-options">' +
+        step.options.map(o => {
+          const isSel = selected === o.id;
+          return '<button class="app-option' + (isSel ? ' selected' : '') + '" data-id="' + o.id + '">' +
+                   '<span class="app-option-indicator">' + (isSel ? '<svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M3 8l3.5 3.5L13 5"/></svg>' : '') + '</span>' +
+                   '<span class="app-option-label">' + o.label + '</span>' +
+                 '</button>';
+        }).join('') +
+      '</div></div>' +
+    '</div>';
+  } else if (step.type === 'multi_select') {
+    const selected = appAnswers[appIdx] || [];
+    stageHtml = '<div class="app-stage">' +
+      chapterMeta +
+      '<h3 class="app-question">' + step.question + '</h3>' +
+      (step.hint ? '<p class="app-hint">' + step.hint + '</p>' : '') +
+      '<div class="app-answer"><div class="app-options">' +
+        step.options.map(o => {
+          const isSel = selected.indexOf(o.id) !== -1;
+          return '<button class="app-option multi' + (isSel ? ' selected' : '') + '" data-id="' + o.id + '">' +
+                   '<span class="app-option-indicator">' + (isSel ? '<svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M3 8l3.5 3.5L13 5"/></svg>' : '') + '</span>' +
+                   '<span class="app-option-label">' + o.label + '</span>' +
+                 '</button>';
+        }).join('') +
+      '</div>' +
+      '<div class="app-multi-counter"><span class="count">' + selected.length + '</span> of ' + step.max + ' selected</div>' +
+      '</div>' +
+    '</div>';
+  } else if (step.type === 'slider') {
+    const val = appAnswers[appIdx] || step.min;
+    const pct = ((val - step.min) / (step.max - step.min)) * 100;
+    stageHtml = '<div class="app-stage">' +
+      chapterMeta +
+      '<h3 class="app-question">' + step.question + '</h3>' +
+      (step.hint ? '<p class="app-hint">' + step.hint + '</p>' : '') +
+      '<div class="app-answer">' +
+        '<div class="app-slider-readout"><span class="value">' + step.labels[val - 1] + '</span></div>' +
+        '<div class="app-slider-wrap">' +
+          '<div class="app-slider-track-bg">' +
+            '<div class="app-slider-track-fill" style="width:' + pct + '%;"></div>' +
+            '<input type="range" class="app-slider-input" id="app-slider" min="' + step.min + '" max="' + step.max + '" step="' + step.step + '" value="' + val + '" />' +
+          '</div>' +
+          '<div class="app-slider-labels"><span>' + step.leftLabel + '</span><span>' + step.rightLabel + '</span></div>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  } else if (step.type === 'short_text') {
+    const val = appAnswers[appIdx] || '';
+    stageHtml = '<div class="app-stage">' +
+      chapterMeta +
+      '<h3 class="app-question">' + step.question + (step.optional ? ' <span style="font-size:13px;color:var(--text-faint);font-weight:400;">\u00b7 optional</span>' : '') + '</h3>' +
+      (step.hint ? '<p class="app-hint">' + step.hint + '</p>' : '') +
+      '<div class="app-answer">' +
+        '<input type="' + (step.inputType || 'text') + '" class="app-input" id="app-short" placeholder="' + (step.placeholder || '') + '" value="' + val + '" />' +
+      '</div>' +
+    '</div>';
+  } else if (step.type === 'long_text') {
+    const val = appAnswers[appIdx] || '';
+    const promptsHtml = step.prompts ? '<div class="app-prompts"><span class="app-prompts-label">You might touch on</span><ul>' + step.prompts.map(p => '<li>' + p + '</li>').join('') + '</ul></div>' : '';
+    stageHtml = '<div class="app-stage">' +
+      chapterMeta +
+      '<h3 class="app-question">' + step.question + (step.optional ? ' <span style="font-size:13px;color:var(--text-faint);font-weight:400;">\u00b7 optional</span>' : '') + '</h3>' +
+      (step.hint ? '<p class="app-hint">' + step.hint + '</p>' : '') +
+      '<div class="app-answer">' +
+        '<textarea class="app-input app-textarea" id="app-long" placeholder="' + (step.placeholder || '') + '">' + val + '</textarea>' +
+        promptsHtml +
+      '</div>' +
+    '</div>';
+  } else if (step.type === 'field_pair') {
+    const vals = appAnswers[appIdx] || {};
+    stageHtml = '<div class="app-stage">' +
+      chapterMeta +
+      '<h3 class="app-question">' + step.question + '</h3>' +
+      (step.hint ? '<p class="app-hint">' + step.hint + '</p>' : '') +
+      '<div class="app-answer"><div class="app-field-row">' +
+        step.fields.map(f =>
+          '<div class="app-field-wrap"><label class="app-field-label">' + f.label + '</label>' +
+          '<input type="text" class="app-input app-field-input" data-key="' + f.key + '" placeholder="' + (f.placeholder || '') + '" value="' + (vals[f.key] || '') + '" /></div>'
+        ).join('') +
+      '</div></div>' +
+    '</div>';
+  } else if (step.type === 'address_block') {
+    const vals = appAnswers[appIdx] || {};
+    stageHtml = '<div class="app-stage">' +
+      chapterMeta +
+      '<h3 class="app-question">' + step.question + '</h3>' +
+      (step.hint ? '<p class="app-hint">' + step.hint + '</p>' : '') +
+      '<div class="app-answer app-field-group">' +
+        '<div class="app-field-wrap"><label class="app-field-label">Street address</label>' +
+        '<input type="text" class="app-input app-field-input" data-key="street" placeholder="123 Main St" value="' + (vals.street || '') + '" /></div>' +
+        '<div class="app-field-wrap"><label class="app-field-label">Apt / unit \u00b7 optional</label>' +
+        '<input type="text" class="app-input app-field-input" data-key="unit" placeholder="" value="' + (vals.unit || '') + '" /></div>' +
+        '<div class="app-field-row three-col">' +
+          '<div class="app-field-wrap"><label class="app-field-label">City</label>' +
+          '<input type="text" class="app-input app-field-input" data-key="city" placeholder="" value="' + (vals.city || '') + '" /></div>' +
+          '<div class="app-field-wrap"><label class="app-field-label">State</label>' +
+          '<input type="text" class="app-input app-field-input" data-key="state" placeholder="TX" value="' + (vals.state || '') + '" /></div>' +
+          '<div class="app-field-wrap"><label class="app-field-label">ZIP</label>' +
+          '<input type="text" class="app-input app-field-input" data-key="zip" placeholder="78701" value="' + (vals.zip || '') + '" /></div>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  } else if (step.type === 'agreement') {
+    const checked = !!appAnswers[appIdx];
+    stageHtml = '<div class="app-stage">' +
+      chapterMeta +
+      '<h3 class="app-question">' + step.question + '</h3>' +
+      (step.hint ? '<p class="app-hint">' + step.hint + '</p>' : '') +
+      '<div class="app-answer">' +
+        '<div class="app-agreement">' +
+          '<h4>' + step.title + '</h4>' +
+          '<p>' + step.body + '</p>' +
+          '<button class="app-agreement-check' + (checked ? ' checked' : '') + '" id="app-agree-check">' +
+            '<span class="app-agreement-check-box">' + (checked ? '<svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M3 8l3.5 3.5L13 5"/></svg>' : '') + '</span>' +
+            '<span class="app-agreement-check-label">' + step.checkbox + '</span>' +
+          '</button>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  } else if (step.type === 'submit_confirm') {
+    stageHtml = '<div class="app-intro-stage">' +
+      '<div class="app-intro-mark"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4z"/></svg></div>' +
+      '<h2>' + step.title + '</h2>' +
+      '<p>' + step.body + '</p>' +
+      '<button class="app-btn-large" id="app-submit">Submit application \u2713</button>' +
+    '</div>';
+  } else if (step.type === 'success') {
+    stageHtml = '<div class="complete-state"><div class="seal"><svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l4 4 10-10"/></svg></div>' +
+      '<h3>' + step.title + '</h3>' +
+      '<p>' + step.body + '</p>' +
+      '<button class="nav-btn primary" style="padding:10px 22px;" id="app-done">Back to journey \u2192</button>' +
+    '</div>';
+  }
+
+  let navHtml = '';
+  if (step.type !== 'intro' && step.type !== 'success' && step.type !== 'chapter_intro') {
+    const canAdvance = canAdvanceApp();
+    const backDisabled = appIdx === 1 ? 'disabled' : '';
+    const nextLabel = step.type === 'submit_confirm' ? 'Submit \u2713' : 'Continue \u2192';
+    navHtml = '<div class="app-nav">' +
+      '<button class="nav-btn" id="app-prev" ' + backDisabled + '>\u2190 Back</button>' +
+      '<div class="autosave">Saved</div>' +
+      '<button class="nav-btn primary" id="app-next"' + (canAdvance ? '' : ' disabled') + '>' + nextLabel + '</button>' +
+    '</div>';
+  }
+
+  renderCinematicShell(headerHtml + stageHtml + navHtml);
+
+  // Wire up interactions
+  const exitBtn = document.getElementById('app-exit');
+  if (exitBtn) exitBtn.addEventListener('click', () => setView('journey'));
+
+  const beginBtn = document.getElementById('app-begin');
+  if (beginBtn) beginBtn.addEventListener('click', () => advanceApp(1));
+
+  const continueBtn = document.getElementById('app-continue-chapter');
+  if (continueBtn) continueBtn.addEventListener('click', () => advanceApp(1));
+
+  const doneBtn = document.getElementById('app-done');
+  if (doneBtn) doneBtn.addEventListener('click', () => { appIdx = 0; setView('journey'); });
+
+  const submitBtn = document.getElementById('app-submit');
+  if (submitBtn) submitBtn.addEventListener('click', () => {
+    fireConfetti(submitBtn);
+    isAppSubmitted = true;
+    currentStageIdx = 1; // Stage 1 (Explore) complete, Stage 2 (First chat) now current
+    selectedStopIdx = 1;
+    setTimeout(() => advanceApp(1), 250);
+  });
+
+  const prevBtn = document.getElementById('app-prev');
+  if (prevBtn) prevBtn.addEventListener('click', () => advanceApp(-1));
+  const nextBtn = document.getElementById('app-next');
+  if (nextBtn) nextBtn.addEventListener('click', () => advanceApp(1));
+
+  if (step.type === 'single_select') {
+    document.querySelectorAll('.app-option').forEach(o => o.addEventListener('click', () => {
+      appAnswers[appIdx] = o.dataset.id;
+      renderApplicationView();
+      setTimeout(() => advanceApp(1), 350);
+    }));
+  }
+  if (step.type === 'multi_select') {
+    document.querySelectorAll('.app-option').forEach(o => o.addEventListener('click', () => {
+      const current = appAnswers[appIdx] || [];
+      const id = o.dataset.id;
+      const idx = current.indexOf(id);
+      if (idx !== -1) current.splice(idx, 1);
+      else if (current.length < step.max) current.push(id);
+      appAnswers[appIdx] = current;
+      renderApplicationView();
+    }));
+  }
+  if (step.type === 'slider') {
+    const slider = document.getElementById('app-slider');
+    if (slider) {
+      slider.addEventListener('input', () => {
+        appAnswers[appIdx] = parseInt(slider.value);
+        const readout = document.querySelector('.app-slider-readout .value');
+        const fill = document.querySelector('.app-slider-track-fill');
+        if (readout) readout.textContent = step.labels[slider.value - 1];
+        if (fill) fill.style.width = ((slider.value - step.min) / (step.max - step.min)) * 100 + '%';
+        const nextBtn = document.getElementById('app-next');
+        if (nextBtn) nextBtn.disabled = false;
+      });
+      if (appAnswers[appIdx] === undefined) appAnswers[appIdx] = step.min;
+    }
+  }
+  if (step.type === 'short_text') {
+    const input = document.getElementById('app-short');
+    if (input) {
+      input.addEventListener('input', () => {
+        appAnswers[appIdx] = input.value;
+        const nextBtn = document.getElementById('app-next');
+        if (nextBtn) nextBtn.disabled = !canAdvanceApp();
+      });
+    }
+  }
+  if (step.type === 'long_text') {
+    const input = document.getElementById('app-long');
+    if (input) {
+      input.addEventListener('input', () => {
+        appAnswers[appIdx] = input.value;
+        const nextBtn = document.getElementById('app-next');
+        if (nextBtn) nextBtn.disabled = !canAdvanceApp();
+      });
+    }
+  }
+  if (step.type === 'field_pair' || step.type === 'address_block') {
+    document.querySelectorAll('.app-field-input').forEach(input => {
+      input.addEventListener('input', () => {
+        const current = appAnswers[appIdx] || {};
+        current[input.dataset.key] = input.value;
+        appAnswers[appIdx] = current;
+        const nextBtn = document.getElementById('app-next');
+        if (nextBtn) nextBtn.disabled = !canAdvanceApp();
+      });
+    });
+  }
+  if (step.type === 'agreement') {
+    const check = document.getElementById('app-agree-check');
+    if (check) check.addEventListener('click', () => {
+      appAnswers[appIdx] = !appAnswers[appIdx];
+      renderApplicationView();
+    });
+  }
+}
+
+function canAdvanceApp() {
+  const step = APPLICATION[appIdx];
+  const answer = appAnswers[appIdx];
+  if (step.type === 'chapter_intro') return true;
+  if (step.type === 'single_select') return !!answer;
+  if (step.type === 'multi_select') return answer && answer.length > 0;
+  if (step.type === 'slider') return answer !== undefined;
+  if (step.type === 'short_text') return step.optional || (answer && answer.trim().length > 0);
+  if (step.type === 'long_text') return step.optional || (answer && answer.trim().length > 0);
+  if (step.type === 'field_pair') {
+    if (!answer) return false;
+    return step.fields.every(f => answer[f.key] && answer[f.key].trim().length > 0);
+  }
+  if (step.type === 'address_block') {
+    if (!answer) return false;
+    return answer.street && answer.city && answer.state && answer.zip;
+  }
+  if (step.type === 'agreement') return !!answer;
+  return true;
+}
+
+function advanceApp(direction) {
+  const newIdx = appIdx + direction;
+  if (newIdx < 0 || newIdx >= APPLICATION.length) return;
+  appIdx = newIdx;
+  renderApplicationView();
+}
+
+function setView(v) {
+  currentView = v;
+  if (v === 'application') { appIdx = 0; }
+  if (v === 'arrival') { arrivalStep = 'email'; }
+  document.querySelectorAll('.view-chip').forEach(c => c.classList.toggle('active', c.dataset.view === v));
+  render();
+}
+
+function setBrand(id) {
+  currentBrand = id;
+  slideIdx = 0;
+  isComplete = false;
+  appIdx = 0;
+  appAnswers = {};
+  arrivalStep = 'email';
+  isAppSubmitted = false;
+  currentStageIdx = 0;
+  selectedStopIdx = 0;
+  document.querySelectorAll('.brand-pill').forEach(p => p.classList.toggle('active', p.dataset.brand === id));
+  const b = BRANDS[id];
+  const nowViewingEl = document.getElementById('now-viewing-brand');
+  if (nowViewingEl) {
+    nowViewingEl.textContent = b.parentBrand ? (b.name + ' (' + b.parentBrand + ' palette)') : b.name;
+  }
+  const swatchEl = document.getElementById('palette-swatches');
+  if (swatchEl) {
+    const swatchColors = [b.primary, b.secondary, b.accent, b.dark].filter(Boolean);
+    swatchEl.innerHTML = swatchColors.map(c => '<span title="' + c + '" style="width: 14px; height: 14px; border-radius: 3px; background: ' + c + '; border: 0.5px solid rgba(0,0,0,0.1);"></span>').join('');
+  }
+  render();
+}
+
+function render() {
+  if (isComplete && currentView === 'chapter') return renderCompleteState();
+  if (currentView === 'arrival') renderArrivalView();
+  else if (currentView === 'journey') renderJourneyView();
+  else if (currentView === 'application') renderApplicationView();
+  else renderChapterView();
+}
+
+function renderArrivalView() {
+  const b = BRANDS[currentBrand];
+  const e = b.email;
+  portal.style.setProperty('--brand-primary', b.primary);
+  document.documentElement.style.setProperty('--brand-primary', b.primary);
+
+  if (arrivalStep === 'email') {
+    portal.innerHTML =
+      '<div class="arrival-stage">' +
+        '<div class="arrival-step-label">Step 1 \u00b7 Invite email from Zoho</div>' +
+        '<div class="email-mockup">' +
+          '<div class="email-client-bar">' +
+            '<div class="email-dots"><span></span><span></span><span></span></div>' +
+            '<span>Inbox \u00b7 Just now</span>' +
+          '</div>' +
+          '<div class="email-meta">' +
+            '<div class="email-meta-row"><span class="email-meta-label">From</span><span class="email-meta-value">' + e.from + '</span></div>' +
+            '<div class="email-meta-row"><span class="email-meta-label">To</span><span class="email-meta-value">jamie@example.com</span></div>' +
+            '<div class="email-meta-row" style="margin-top: 8px;"><span class="email-meta-label" style="opacity:0;">.</span><span class="email-meta-value"><div class="email-subject">' + e.subject + '</div><div class="email-preheader">' + e.preheader + '</div></span></div>' +
+          '</div>' +
+          '<div class="email-body">' +
+            '<div class="email-brand-header">' +
+              '<div style="margin-bottom: 8px;">' + renderLogo(b, { size: 'md', vertical: true, onBrand: true }) + '</div>' +
+              '<h3>' + e.welcome + '</h3>' +
+              '<p>' + e.sub + '</p>' +
+            '</div>' +
+            '<div class="email-content">' +
+              e.body.map(p => '<p>' + p + '</p>').join('') +
+              '<div class="email-cta-wrap"><button class="email-cta" id="email-cta">' + e.cta + ' \u2192</button></div>' +
+              '<div class="email-sign">' + e.sign + '<div class="email-partner">' + e.partner + '</div></div>' +
+            '</div>' +
+            '<div class="email-footer">You\u2019re getting this because you inquired about ' + b.name + '. This link is personal to you \u2014 your progress saves as you go.</div>' +
+          '</div>' +
+        '</div>' +
+        '<div class="arrival-annotations">' +
+          '<strong>What to review:</strong> tone of voice (is this the Blue Maven voice we want?), subject/preheader, CTA copy, the "No pressure / no deck" promise, sign-off attribution (brand + "Powered by Blue Maven").' +
+        '</div>' +
+      '</div>';
+
+    document.getElementById('email-cta').addEventListener('click', () => {
+      arrivalStep = 'splash';
+      renderArrivalView();
+    });
+  } else if (arrivalStep === 'splash') {
+    portal.innerHTML =
+      '<div class="arrival-stage" style="padding: 0; min-height: 500px;">' +
+        '<div class="splash-screen" id="splash">' +
+          '<button class="splash-skip" id="splash-skip">Skip \u2192</button>' +
+          renderLogo(b, { size: 'xl', vertical: true, onBrand: true, wordmark: false }) +
+          '<div class="splash-welcome"><h2>Welcome, Jamie</h2><p>' + b.tagline + '</p></div>' +
+          '<div class="splash-dots"><span></span><span></span><span></span></div>' +
+        '</div>' +
+      '</div>';
+
+    const finishSplash = () => {
+      const splash = document.getElementById('splash');
+      if (!splash) return;
+      splash.classList.add('closing');
+      setTimeout(() => {
+        arrivalStep = 'email';
+        setView('journey');
+      }, 450);
+    };
+
+    document.getElementById('splash-skip').addEventListener('click', finishSplash);
+    setTimeout(() => { if (arrivalStep === 'splash') finishSplash(); }, 3200);
+  }
+}
+
+
+document.querySelectorAll('.brand-pill').forEach(p => p.addEventListener('click', () => setBrand(p.dataset.brand)));
+document.querySelectorAll('.view-chip').forEach(c => c.addEventListener('click', () => setView(c.dataset.view)));
+
+setBrand(currentBrand);
+</script>
+
+</body>
+</html>
