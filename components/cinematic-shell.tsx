@@ -1,7 +1,9 @@
 "use client";
 
 import Image from "next/image";
-import { useState, type CSSProperties } from "react";
+import { useRouter } from "next/navigation";
+import { useState, useTransition, type CSSProperties } from "react";
+import { SlidesRenderer, type Slide } from "@/components/content-types/slides-renderer";
 
 // Default logo height for all brands. Per-brand overrides below.
 const DEFAULT_LOGO_HEIGHT = 60;
@@ -73,6 +75,8 @@ export interface ShellProps {
   currentStopIdx: number;
   initialStopIdx: number;
   initialStepIdx: number;
+  // Bound server action — page binds the candidate's token into it.
+  onTourComplete: (nextStepIdx: number) => Promise<void>;
 }
 
 export function CinematicShell({
@@ -89,7 +93,10 @@ export function CinematicShell({
   currentStopIdx,
   initialStopIdx,
   initialStepIdx,
+  onTourComplete,
 }: ShellProps) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
   const [selectedStopIdx, setSelectedStopIdx] = useState(initialStopIdx);
   const [selectedStepIdx, setSelectedStepIdx] = useState(initialStepIdx);
 
@@ -102,6 +109,18 @@ export function CinematicShell({
   const weeksLeft = Math.max(2, stops.length - completedCount + 1);
 
   const logoHeight = LOGO_HEIGHT_OVERRIDE[brandSlug] ?? DEFAULT_LOGO_HEIGHT;
+
+  const handleTourComplete = () => {
+    const nextIdx =
+      selectedStepIdx + 1 < steps.length ? selectedStepIdx + 1 : selectedStepIdx;
+    // Optimistic UI update — move to the next step immediately.
+    setSelectedStepIdx(nextIdx);
+    // Persist, then refetch server data so current_step + is_tour_complete match.
+    startTransition(async () => {
+      await onTourComplete(nextIdx);
+      router.refresh();
+    });
+  };
 
   const shellStyle: Record<string, string> = {
     "--brand-primary": colors.primary,
@@ -272,7 +291,12 @@ export function CinematicShell({
 
         <div className="cine-step-content">
           {selectedStep ? (
-            <StepRenderer step={selectedStep} stopNumber={selectedStopIdx + 1} />
+            <StepRenderer
+              step={selectedStep}
+              stopNumber={selectedStopIdx + 1}
+              onTourComplete={handleTourComplete}
+              tourPending={pending}
+            />
           ) : (
             <p>No steps configured for this stop yet.</p>
           )}
@@ -282,7 +306,28 @@ export function CinematicShell({
   );
 }
 
-function StepRenderer({ step, stopNumber }: { step: Step; stopNumber: number }) {
+function StepRenderer({
+  step,
+  stopNumber,
+  onTourComplete,
+  tourPending,
+}: {
+  step: Step;
+  stopNumber: number;
+  onTourComplete: () => void;
+  tourPending: boolean;
+}) {
+  if (step.content_type === "slides") {
+    const raw = step.config?.slides;
+    const slides = (Array.isArray(raw) ? raw : []) as Slide[];
+    return (
+      <SlidesRenderer
+        slides={slides}
+        onComplete={onTourComplete}
+        disabled={tourPending}
+      />
+    );
+  }
   if (step.content_type === "static") {
     const body = typeof step.config?.body === "string" ? step.config.body : "";
     return <StaticStep step={step} stopNumber={stopNumber} body={body} />;
