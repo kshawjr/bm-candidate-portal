@@ -29,6 +29,8 @@ interface CommonProps {
 export function FactForm({
   value,
   onChange,
+  brandSlug,
+  upload,
 }: { value: FactCardData; onChange: (v: FactCardData) => void } & CommonProps) {
   return (
     <>
@@ -49,6 +51,15 @@ export function FactForm({
           onChange={(e) => onChange({ ...value, body: e.target.value })}
         />
       </Field>
+      <ImageUpload
+        label="Image (optional)"
+        value={value.image_url ?? null}
+        onChange={(url) =>
+          onChange({ ...value, image_url: url ?? undefined })
+        }
+        brandSlug={brandSlug}
+        onUpload={upload}
+      />
       <Field label="Source (optional)">
         <input
           type="text"

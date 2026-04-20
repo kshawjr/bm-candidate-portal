@@ -1,6 +1,5 @@
 import { notFound } from "next/navigation";
 import { Baloo_2, Nunito_Sans, Montserrat } from "next/font/google";
-import { DevBrandSwitcher } from "@/components/dev/brand-switcher";
 import { createAppServiceClient } from "@/lib/supabase-app";
 import { createCoreClient } from "@/lib/core-client";
 import {
@@ -258,13 +257,6 @@ export default async function PortalTokenPage({
     params.token,
   );
 
-  // Dev-only brand switcher. Build-time constants — when neither evaluates
-  // true (prod build without the env var), the JSX is unreachable and the
-  // import is dead-code-eliminated.
-  const showDevSwitcher =
-    process.env.NODE_ENV === "development" ||
-    process.env.NEXT_PUBLIC_SHOW_DEV_BRAND_SWITCHER === "true";
-
   return (
     <main className={`portal-page ${fontClasses}`}>
       <CinematicShell
@@ -296,7 +288,6 @@ export default async function PortalTokenPage({
         initialApplicationAnswers={initialApplicationAnswers}
         isApplicationSubmitted={Boolean(session.is_app_submitted)}
       />
-      {showDevSwitcher && <DevBrandSwitcher currentToken={params.token} />}
     </main>
   );
 }

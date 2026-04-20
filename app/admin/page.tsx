@@ -1,8 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getAdminUser } from "@/lib/supabase-auth";
-import { createCoreClient } from "@/lib/core-client";
-import { BrandSelector, type AdminBrand } from "@/components/admin/brand-selector";
 
 export const dynamic = "force-dynamic";
 
@@ -10,26 +8,15 @@ interface Props {
   searchParams?: { brand?: string };
 }
 
+// The dashboard used to host a pill-based BrandSelector (PR 12a). Now that
+// the top-bar AdminBrandSwitcher lives in the admin layout and persists
+// across every admin page, a second brand selector on this landing page is
+// redundant. Decision: drop the pills, keep this page as a short welcome +
+// CTA that bounces the user into the content editor with whatever brand the
+// switcher has currently selected (or the first brand if nothing's picked).
 export default async function AdminDashboard({ searchParams }: Props) {
-  // Middleware already gated this route, but belt-and-suspenders: re-check
-  // here so server component state is never "user-less".
   const user = await getAdminUser();
-  if (!user) {
-    redirect("/admin/sign-in");
-  }
-
-  const core = createCoreClient();
-  const { data: brandsRaw } = await core
-    .from("brands")
-    .select("id, slug, name")
-    .order("name");
-  const brands = (brandsRaw ?? []) as AdminBrand[];
-
-  const requestedSlug = searchParams?.brand;
-  const selectedSlug =
-    (requestedSlug && brands.find((b) => b.slug === requestedSlug)?.slug) ??
-    brands[0]?.slug ??
-    "";
+  if (!user) redirect("/admin/sign-in");
 
   const displayName =
     (user.user_metadata?.full_name as string | undefined) ??
@@ -37,34 +24,30 @@ export default async function AdminDashboard({ searchParams }: Props) {
     "there";
   const firstName = displayName.split(" ")[0] || "there";
 
+  const brandParam = searchParams?.brand;
+  const editorHref = brandParam
+    ? `/admin/content?brand=${encodeURIComponent(brandParam)}`
+    : "/admin/content";
+
   return (
     <div className="admin-page">
       <h1 className="admin-h1">Welcome back, {firstName}</h1>
       <p className="admin-muted">
-        Pick a brand, then pick what you want to edit.
+        Pick a brand in the top bar, then jump into the editor.
       </p>
-
-      <section className="admin-section">
-        <div className="admin-section-label">Brand</div>
-        <BrandSelector brands={brands} selectedSlug={selectedSlug} />
-      </section>
 
       <section className="admin-placeholder-card">
         <div className="admin-placeholder-icon" aria-hidden="true">
           ✎
         </div>
-        <h2 className="admin-placeholder-title">
-          {selectedSlug ? "Edit content cards" : "Pick a brand to begin"}
-        </h2>
-        {selectedSlug && (
-          <Link
-            href={`/admin/content?brand=${selectedSlug}`}
-            className="admin-brand-pill active"
-            style={{ marginTop: 14, display: "inline-block" }}
-          >
-            Open editor →
-          </Link>
-        )}
+        <h2 className="admin-placeholder-title">Edit content cards</h2>
+        <p className="admin-muted">
+          Browse each stop + step for the selected brand and update the cards
+          that show up in the candidate portal.
+        </p>
+        <Link href={editorHref} className="admin-open-editor">
+          Open editor →
+        </Link>
       </section>
     </div>
   );
