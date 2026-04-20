@@ -3,6 +3,16 @@
 import Image from "next/image";
 import { useState, type CSSProperties } from "react";
 
+// Default logo height for all brands. Per-brand overrides below.
+const DEFAULT_LOGO_HEIGHT = 60;
+
+// Per-brand logo height overrides, keyed by brands.slug. Add an entry here
+// when a brand's horizontal wordmark reads visually small/large at the
+// default height and needs tuning.
+const LOGO_HEIGHT_OVERRIDE: Record<string, number> = {
+  "cruisin-tikis": 68,
+};
+
 export type ContentType =
   | "slides"
   | "static"
@@ -47,8 +57,8 @@ export interface BrandTypography {
 
 export interface ShellProps {
   brandName: string;
+  brandSlug: string;
   brandMarkHtml: string;
-  parentBrand: string | null;
   logoUrl: string | null;
   colors: BrandColors;
   palette: Record<string, string>;
@@ -67,8 +77,8 @@ export interface ShellProps {
 
 export function CinematicShell({
   brandName,
+  brandSlug,
   brandMarkHtml,
-  parentBrand,
   logoUrl,
   colors,
   palette,
@@ -91,14 +101,7 @@ export function CinematicShell({
   const progressPct = Math.round((completedCount / stops.length) * 100);
   const weeksLeft = Math.max(2, stops.length - completedCount + 1);
 
-  const brandSub = parentBrand ? (
-    <>
-      <strong>Powered by {parentBrand}</strong>
-      Franchise Discovery Portal
-    </>
-  ) : (
-    <>Franchise Discovery Portal</>
-  );
+  const logoHeight = LOGO_HEIGHT_OVERRIDE[brandSlug] ?? DEFAULT_LOGO_HEIGHT;
 
   const shellStyle: Record<string, string> = {
     "--brand-primary": colors.primary,
@@ -116,27 +119,30 @@ export function CinematicShell({
   }
 
   return (
-    <div className="portal-cinematic" style={shellStyle as CSSProperties}>
+    <div
+      className="portal-cinematic"
+      data-brand-slug={brandSlug}
+      style={shellStyle as CSSProperties}
+    >
       <aside className="cine-sidebar">
         <div className="cine-brand">
           {logoUrl ? (
-            <div className="cine-brand-logo">
-              <Image
-                src={logoUrl}
-                alt={brandName}
-                width={480}
-                height={180}
-                priority
-                sizes="236px"
-              />
-            </div>
+            <Image
+              className="cine-brand-logo"
+              src={logoUrl}
+              alt={brandName}
+              width={480}
+              height={180}
+              priority
+              style={{ height: logoHeight, width: "auto" }}
+            />
           ) : (
             <div
               className="cine-brand-mark"
               dangerouslySetInnerHTML={{ __html: brandMarkHtml }}
             />
           )}
-          <p className="cine-brand-sub">{brandSub}</p>
+          <p className="cine-brand-sub">Franchise Discovery Portal</p>
         </div>
 
         <div className="cine-progress">
@@ -256,7 +262,6 @@ export function CinematicShell({
                     </span>
                     <span className="cine-step-body">
                       <span className="cine-step-label">{step.label}</span>
-                      <span className="cine-step-desc">{step.description}</span>
                     </span>
                   </button>
                 );
