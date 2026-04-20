@@ -72,7 +72,7 @@ body {
   border-right: 1px solid var(--cin-border);
   display: flex;
   flex-direction: column;
-  padding: 22px 0 20px;
+  padding: 12px 0 20px;
 }
 .cine-brand {
   padding: 0 22px 20px;
@@ -98,7 +98,7 @@ body {
 }
 .cine-brand-logo img {
   object-fit: contain;
-  object-position: left center;
+  object-position: left top;
 }
 .cine-brand-sub {
   font-size: 9px;
