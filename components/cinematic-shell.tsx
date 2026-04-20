@@ -122,7 +122,7 @@ export function CinematicShell({
               width={480}
               height={180}
               priority
-              style={{ height: 48, width: "auto" }}
+              style={{ height: 60, width: "auto" }}
             />
           ) : (
             <div
