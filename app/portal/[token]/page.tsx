@@ -15,6 +15,7 @@ import {
   saveApplicationAnswerAction,
   submitApplicationAction,
 } from "./actions";
+import { resolveJourneyCardState } from "@/components/sidebar/journey-card";
 
 export const dynamic = "force-dynamic";
 
@@ -88,7 +89,9 @@ export default async function PortalTokenPage({
   const app = createAppServiceClient();
   const { data: session } = await app
     .from("candidates_in_portal")
-    .select("id, candidate_id, current_stop, current_step, is_app_submitted")
+    .select(
+      "id, candidate_id, current_stop, current_step, is_app_submitted, last_activity_at",
+    )
     .eq("token", params.token)
     .maybeSingle();
   if (!session) notFound();
@@ -115,6 +118,7 @@ export default async function PortalTokenPage({
     { data: stopsRows },
     { data: stepsRows },
     { data: applicationRows },
+    { data: progressRows },
   ] = await Promise.all([
     core
       .from("portal_content")
@@ -127,13 +131,19 @@ export default async function PortalTokenPage({
       .order("position"),
     app
       .from("steps_config")
-      .select("stop_key, position, step_key, label, description, content_type, config")
+      .select(
+        "stop_key, position, step_key, label, description, content_type, config, content_cards",
+      )
       .eq("brand_id", brand.id)
       .order("stop_key")
       .order("position"),
     app
       .from("application_responses")
       .select("field_key, field_value")
+      .eq("candidate_in_portal_id", session.id),
+    app
+      .from("candidate_progress")
+      .select("stop_key, step_key, completed_at")
       .eq("candidate_in_portal_id", session.id),
   ]);
 
@@ -150,19 +160,6 @@ export default async function PortalTokenPage({
     role: pickText(content, "leader_role", ""),
     email: pickText(content, "leader_email", ""),
   };
-
-  // Sidebar "By the numbers" card — 3 stats. Empty num drops the row.
-  const sidebarStats = [1, 2, 3]
-    .map((n) => ({
-      num: pickText(content, `sidebar_stat_${n}_num`),
-      label: pickText(content, `sidebar_stat_${n}_label`),
-    }))
-    .filter((s) => s.num.length > 0);
-  const sidebarStatsHeading = pickText(
-    content,
-    "sidebar_stats_heading",
-    "By the numbers",
-  );
 
   // Stop 1 hero strip — 4 stats. Empty num drops the row.
   const heroStats = [1, 2, 3, 4]
@@ -195,6 +192,7 @@ export default async function PortalTokenPage({
       description: row.description,
       content_type: row.content_type as ContentType,
       config: (row.config ?? {}) as Record<string, unknown>,
+      content_cards: Array.isArray(row.content_cards) ? row.content_cards : [],
     };
     (stepsByStop[row.stop_key] ??= []).push(step);
   }
@@ -215,6 +213,39 @@ export default async function PortalTokenPage({
   for (const row of applicationRows ?? []) {
     initialApplicationAnswers[row.field_key] = row.field_value;
   }
+
+  // --- Journey card state ---
+  // Recent activity: any step completion within the last 2 days.
+  const progressList = progressRows ?? [];
+  const twoDaysAgo = Date.now() - 2 * 24 * 60 * 60 * 1000;
+  const recentlyActive = progressList.some(
+    (r) => r.completed_at && new Date(r.completed_at).getTime() >= twoDaysAgo,
+  );
+  // Count distinct step_keys completed in the CURRENT stop — feeds the
+  // "between stops" variant.
+  const currentStop = stops[currentStopIdx];
+  const currentStopKey = currentStop?.stop_key;
+  const currentStopCompletedKeys = new Set(
+    progressList
+      .filter((r) => r.stop_key === currentStopKey)
+      .map((r) => r.step_key)
+      .filter((k): k is string => typeof k === "string"),
+  );
+  const currentStopStepCount =
+    currentStopKey && stepsByStop[currentStopKey]
+      ? stepsByStop[currentStopKey].length
+      : 0;
+  const lastActivityAt = session.last_activity_at
+    ? new Date(session.last_activity_at)
+    : null;
+  const journeyState = resolveJourneyCardState({
+    currentStopIdx,
+    stops,
+    lastActivityAt,
+    recentlyActive,
+    currentStopStepsCompleted: currentStopCompletedKeys.size,
+    currentStopStepCount,
+  });
 
   const onTourComplete = completeTourAction.bind(null, params.token);
   const onSaveApplicationAnswer = saveApplicationAnswerAction.bind(
@@ -237,8 +268,7 @@ export default async function PortalTokenPage({
         palette={palette}
         typography={typography}
         leader={leader}
-        sidebarStats={sidebarStats}
-        sidebarStatsHeading={sidebarStatsHeading}
+        journeyState={journeyState}
         heroStats={heroStats}
         heroStripHeading={heroStripHeading}
         stops={stops}

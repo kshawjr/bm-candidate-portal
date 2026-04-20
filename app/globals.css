@@ -229,43 +229,54 @@ body {
   opacity: 1;
 }
 
-/* ---- sidebar "By the numbers" stats card ---- */
-.cine-sidebar-stats {
+/* ---- sidebar context-aware journey card ---- */
+.cine-sidebar-journey {
   margin: 12px 22px 0;
   padding: 14px 14px 12px;
-  background: color-mix(in srgb, var(--brand-primary) 7%, var(--surface));
-  border: 1px solid color-mix(in srgb, var(--brand-primary) 18%, var(--cin-border));
+  border: 1px solid var(--cin-border);
   border-radius: var(--radius-md);
 }
-.cine-sidebar-stats-heading {
+.cine-sidebar-journey-tone-brand {
+  background: color-mix(in srgb, var(--brand-primary) 8%, var(--surface));
+  border-color: color-mix(in srgb, var(--brand-primary) 20%, var(--cin-border));
+}
+.cine-sidebar-journey-tone-soft {
+  background: color-mix(in srgb, var(--brand-primary) 4%, var(--surface-subtle));
+  border-color: var(--cin-border);
+}
+.cine-sidebar-journey-tone-muted {
+  background: var(--surface-subtle);
+  border-color: var(--cin-border);
+}
+.cine-sidebar-journey-tone-success {
+  background: color-mix(in srgb, var(--brand-primary) 6%, var(--surface));
+  border-color: color-mix(in srgb, var(--brand-primary) 18%, var(--cin-border));
+}
+.cine-sidebar-journey-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.cine-sidebar-journey-icon {
+  font-size: 16px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.cine-sidebar-journey-heading {
   font-family: var(--font-body);
-  font-size: 9px;
+  font-size: 10px;
   color: var(--cin-text-muted);
   letter-spacing: 0.14em;
   text-transform: uppercase;
   font-weight: 600;
-  margin-bottom: 10px;
 }
-.cine-sidebar-stats-row {
-  margin-bottom: 10px;
-}
-.cine-sidebar-stats-row:last-child {
-  margin-bottom: 0;
-}
-.cine-sidebar-stats-num {
-  font-family: var(--font-heading);
-  font-size: 20px;
-  font-weight: var(--heading-weight);
-  color: var(--brand-primary);
-  line-height: 1.05;
-  letter-spacing: -0.01em;
-}
-.cine-sidebar-stats-label {
+.cine-sidebar-journey-body {
   font-family: var(--font-body);
-  font-size: 11.5px;
-  color: var(--cin-text-muted);
-  line-height: 1.35;
-  margin-top: 2px;
+  font-size: 12.5px;
+  color: var(--cin-text);
+  line-height: 1.4;
+  margin: 0;
 }
 
 .cine-advisor {
@@ -936,6 +947,205 @@ body {
 }
 .app-success-next li {
   margin-bottom: 6px;
+}
+
+/* ---- content cards strip (below step content) ---- */
+.cc-strip {
+  margin-top: 48px;
+  padding-top: 32px;
+  border-top: 1px solid var(--cin-border);
+}
+.cc-strip-eyebrow {
+  font-family: var(--font-body);
+  font-size: 10px;
+  color: var(--cin-text-muted);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  font-weight: 600;
+  margin-bottom: 18px;
+}
+.cc-strip-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+.cc-strip-cell-full {
+  grid-column: 1 / -1;
+}
+@media (max-width: 760px) {
+  .cc-strip-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.cc-card {
+  background: var(--surface);
+  border: 1px solid var(--cin-border);
+  border-radius: var(--radius-md);
+  padding: 20px 22px;
+  font-family: var(--font-body);
+}
+
+/* fact card */
+.cc-fact-headline {
+  font-family: var(--font-heading);
+  font-size: 20px;
+  font-weight: var(--heading-weight);
+  color: var(--brand-primary);
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  margin: 0 0 6px;
+}
+.cc-fact-body {
+  font-size: 14px;
+  color: var(--cin-text);
+  line-height: 1.5;
+  margin: 0;
+}
+.cc-fact-source {
+  font-size: 11px;
+  color: var(--cin-text-faint);
+  margin: 10px 0 0;
+}
+
+/* quote card */
+.cc-quote-body {
+  font-family: var(--font-body);
+  font-size: 15px;
+  color: var(--cin-text);
+  line-height: 1.5;
+  margin: 0 0 16px;
+  font-style: italic;
+}
+.cc-quote-attribution {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.cc-quote-photo {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+.cc-quote-author {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--cin-text);
+}
+.cc-quote-role {
+  font-size: 12px;
+  color: var(--cin-text-muted);
+}
+
+/* awards card */
+.cc-awards-eyebrow {
+  font-size: 10px;
+  color: var(--cin-text-muted);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+.cc-awards-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px 16px;
+}
+.cc-awards-item {
+  display: flex;
+  flex-direction: column;
+}
+.cc-awards-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--cin-text);
+}
+.cc-awards-year {
+  font-size: 11px;
+  color: var(--cin-text-muted);
+}
+
+/* personas card */
+.cc-personas-eyebrow {
+  font-size: 10px;
+  color: var(--cin-text-muted);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-weight: 600;
+  margin-bottom: 14px;
+}
+.cc-personas-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+@media (max-width: 960px) {
+  .cc-personas-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (max-width: 520px) {
+  .cc-personas-grid {
+    grid-template-columns: 1fr;
+  }
+}
+.cc-persona {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.cc-persona-photo {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--surface-subtle);
+}
+.cc-persona-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.cc-persona-name {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--cin-text);
+}
+.cc-persona-caption {
+  font-size: 12px;
+  color: var(--cin-text-muted);
+  line-height: 1.4;
+}
+
+/* photo card */
+.cc-photo {
+  padding: 0;
+  overflow: hidden;
+}
+.cc-photo-frame {
+  aspect-ratio: 16 / 9;
+  background: var(--surface-subtle);
+}
+.cc-photo-frame img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.cc-photo-caption {
+  font-size: 13px;
+  color: var(--cin-text-muted);
+  line-height: 1.4;
+  margin: 0;
+  padding: 14px 18px;
+  border-top: 1px solid var(--cin-border);
 }
 
 /* ---- page wrapper ---- */
