@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { Fredoka, Nunito, Oswald, Open_Sans } from "next/font/google";
+import { Baloo_2, Nunito_Sans, Montserrat } from "next/font/google";
 import { createAppServiceClient } from "@/lib/supabase-app";
 import { createCoreClient } from "@/lib/core-client";
 import {
@@ -13,38 +13,34 @@ import {
 
 export const dynamic = "force-dynamic";
 
-const fredoka = Fredoka({
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
-  variable: "--font-fredoka",
-  display: "swap",
-});
-const nunito = Nunito({
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
-  variable: "--font-nunito",
-  display: "swap",
-});
-const oswald = Oswald({
+// Real per-brand display + body fonts.
+// Hounds Town: Baloo 2 (heading, chunky rounded) + Nunito Sans (body).
+// Cruisin' Tikis: Montserrat (heading + body, geometric sans).
+const baloo2 = Baloo_2({
   subsets: ["latin"],
   weight: ["400", "500", "600", "700"],
-  variable: "--font-oswald",
+  variable: "--font-baloo-2",
   display: "swap",
 });
-const openSans = Open_Sans({
+const nunitoSans = Nunito_Sans({
   subsets: ["latin"],
-  weight: ["400", "500", "600"],
-  variable: "--font-open-sans",
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-nunito-sans",
+  display: "swap",
+});
+const montserrat = Montserrat({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-montserrat",
   display: "swap",
 });
 
-// Maps brand.font_overrides.heading_font / body_font strings to the CSS vars
-// that next/font registered above. Unknown family names fall back to Inter.
+// Maps brand.font_overrides family names to the CSS vars registered above.
+// Unknown names fall back to Inter (loaded in the root layout).
 const FONT_VAR: Record<string, string> = {
-  Fredoka: "var(--font-fredoka)",
-  Nunito: "var(--font-nunito)",
-  Oswald: "var(--font-oswald)",
-  "Open Sans": "var(--font-open-sans)",
+  "Baloo 2": "var(--font-baloo-2)",
+  "Nunito Sans": "var(--font-nunito-sans)",
+  Montserrat: "var(--font-montserrat)",
   Inter: "var(--font-inter)",
 };
 
@@ -59,6 +55,10 @@ interface FontOverrides {
   heading_weight?: string;
   body_font?: string;
   heading_transform?: string;
+}
+
+interface BrandColorsWithPalette extends BrandColors {
+  palette?: Record<string, string>;
 }
 
 function pickText(rows: PortalContentRow[], key: string, fallback = ""): string {
@@ -98,7 +98,9 @@ export default async function PortalTokenPage({
 
   const { data: brand } = await core
     .from("brands")
-    .select("id, slug, name, parent_brand, tagline, colors, font_overrides")
+    .select(
+      "id, slug, name, parent_brand, tagline, colors, font_overrides, logo_url",
+    )
     .eq("id", candidate.brand_id)
     .maybeSingle();
   if (!brand) notFound();
@@ -161,13 +163,14 @@ export default async function PortalTokenPage({
     stepsByStop[key].sort((a, b) => a.position - b.position);
   }
 
-  const colors = brand.colors as BrandColors;
+  const colors = brand.colors as BrandColorsWithPalette;
+  const palette = colors.palette ?? {};
   const typography = resolveTypography(brand.font_overrides as FontOverrides | null);
   const currentStopIdx = Math.min(session.current_stop ?? 0, stops.length - 1);
   const initialStopIdx = currentStopIdx;
   const initialStepIdx = Math.max(0, session.current_step ?? 0);
 
-  const fontClasses = `${fredoka.variable} ${nunito.variable} ${oswald.variable} ${openSans.variable}`;
+  const fontClasses = `${baloo2.variable} ${nunitoSans.variable} ${montserrat.variable}`;
 
   return (
     <main className={`portal-page ${fontClasses}`}>
@@ -175,7 +178,9 @@ export default async function PortalTokenPage({
         brandName={brand.name}
         brandMarkHtml={brandMarkHtml}
         parentBrand={brand.parent_brand}
+        logoUrl={brand.logo_url ?? null}
         colors={colors}
+        palette={palette}
         typography={typography}
         leader={leader}
         stops={stops}

@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useState, type CSSProperties } from "react";
 
 export type ContentType =
@@ -48,7 +49,9 @@ export interface ShellProps {
   brandName: string;
   brandMarkHtml: string;
   parentBrand: string | null;
+  logoUrl: string | null;
   colors: BrandColors;
+  palette: Record<string, string>;
   typography: BrandTypography;
   leader: {
     name: string;
@@ -63,9 +66,12 @@ export interface ShellProps {
 }
 
 export function CinematicShell({
+  brandName,
   brandMarkHtml,
   parentBrand,
+  logoUrl,
   colors,
+  palette,
   typography,
   leader,
   stops,
@@ -94,26 +100,42 @@ export function CinematicShell({
     <>Franchise Discovery Portal</>
   );
 
-  const shellStyle: CSSProperties = {
-    ["--brand-primary" as string]: colors.primary,
-    ["--brand-secondary" as string]: colors.secondary,
-    ["--brand-accent" as string]: colors.accent,
-    ["--brand-dark" as string]: colors.dark,
-    ["--brand-soft" as string]: colors.soft,
-    ["--font-heading" as string]: typography.headingFontVar,
-    ["--font-body" as string]: typography.bodyFontVar,
-    ["--heading-weight" as string]: typography.headingWeight,
-    ["--heading-transform" as string]: typography.headingTransform,
+  const shellStyle: Record<string, string> = {
+    "--brand-primary": colors.primary,
+    "--brand-secondary": colors.secondary,
+    "--brand-accent": colors.accent,
+    "--brand-dark": colors.dark,
+    "--brand-soft": colors.soft,
+    "--font-heading": typography.headingFontVar,
+    "--font-body": typography.bodyFontVar,
+    "--heading-weight": typography.headingWeight,
+    "--heading-transform": typography.headingTransform,
   };
+  for (const [name, value] of Object.entries(palette)) {
+    shellStyle[`--brand-palette-${name.replace(/_/g, "-")}`] = value;
+  }
 
   return (
-    <div className="portal-cinematic" style={shellStyle}>
+    <div className="portal-cinematic" style={shellStyle as CSSProperties}>
       <aside className="cine-sidebar">
         <div className="cine-brand">
-          <div
-            className="cine-brand-mark"
-            dangerouslySetInnerHTML={{ __html: brandMarkHtml }}
-          />
+          {logoUrl ? (
+            <div className="cine-brand-logo">
+              <Image
+                src={logoUrl}
+                alt={brandName}
+                width={480}
+                height={180}
+                priority
+                sizes="236px"
+              />
+            </div>
+          ) : (
+            <div
+              className="cine-brand-mark"
+              dangerouslySetInnerHTML={{ __html: brandMarkHtml }}
+            />
+          )}
           <p className="cine-brand-sub">{brandSub}</p>
         </div>
 
