@@ -176,6 +176,7 @@ export default async function PortalTokenPage({
     <main className={`portal-page ${fontClasses}`}>
       <CinematicShell
         brandName={brand.name}
+        brandSlug={brand.slug}
         brandMarkHtml={brandMarkHtml}
         logoUrl={brand.logo_url ?? null}
         colors={colors}

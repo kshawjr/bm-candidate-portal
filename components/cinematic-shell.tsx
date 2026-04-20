@@ -47,6 +47,7 @@ export interface BrandTypography {
 
 export interface ShellProps {
   brandName: string;
+  brandSlug: string;
   brandMarkHtml: string;
   logoUrl: string | null;
   colors: BrandColors;
@@ -66,6 +67,7 @@ export interface ShellProps {
 
 export function CinematicShell({
   brandName,
+  brandSlug,
   brandMarkHtml,
   logoUrl,
   colors,
@@ -105,7 +107,11 @@ export function CinematicShell({
   }
 
   return (
-    <div className="portal-cinematic" style={shellStyle as CSSProperties}>
+    <div
+      className="portal-cinematic"
+      data-brand-slug={brandSlug}
+      style={shellStyle as CSSProperties}
+    >
       <aside className="cine-sidebar">
         <div className="cine-brand">
           {logoUrl ? (

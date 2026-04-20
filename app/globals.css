@@ -72,7 +72,7 @@ body {
   border-right: 1px solid var(--cin-border);
   display: flex;
   flex-direction: column;
-  padding: 12px 0 20px;
+  padding: 22px 0 20px;
 }
 .cine-brand {
   padding: 0 22px 20px;
@@ -99,6 +99,13 @@ body {
 .cine-brand-logo img {
   object-fit: contain;
   object-position: left top;
+}
+/* Cruisin' Tikis hand-drawn wordmark sits visually low inside its PNG
+   bounding box and reads heavier at default size. Shrink + lift for CT
+   specifically; other brands keep the defaults above. */
+[data-brand-slug="cruisin-tikis"] .cine-brand-logo {
+  height: 56px;
+  margin-top: -4px;
 }
 .cine-brand-sub {
   font-size: 9px;
