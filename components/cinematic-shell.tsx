@@ -4,6 +4,10 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useState, useTransition, type CSSProperties } from "react";
 import { SlidesRenderer, type Slide } from "@/components/content-types/slides-renderer";
+import {
+  ApplicationRenderer,
+  type ApplicationCandidate,
+} from "@/components/content-types/application-renderer";
 
 // Default logo height for all brands. Per-brand overrides below.
 const DEFAULT_LOGO_HEIGHT = 60;
@@ -75,8 +79,17 @@ export interface ShellProps {
   currentStopIdx: number;
   initialStopIdx: number;
   initialStepIdx: number;
-  // Bound server action — page binds the candidate's token into it.
+  // Bound server actions — page binds the candidate's token into each.
   onTourComplete: (nextStepIdx: number) => Promise<void>;
+  onSaveApplicationAnswer: (
+    fieldKey: string,
+    fieldValue: unknown,
+  ) => Promise<void>;
+  onSubmitApplication: (finalAnswers: Record<string, unknown>) => Promise<void>;
+  // Application runtime inputs
+  candidate: ApplicationCandidate;
+  initialApplicationAnswers: Record<string, unknown>;
+  isApplicationSubmitted: boolean;
 }
 
 export function CinematicShell({
@@ -94,6 +107,11 @@ export function CinematicShell({
   initialStopIdx,
   initialStepIdx,
   onTourComplete,
+  onSaveApplicationAnswer,
+  onSubmitApplication,
+  candidate,
+  initialApplicationAnswers,
+  isApplicationSubmitted,
 }: ShellProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -118,6 +136,17 @@ export function CinematicShell({
     // Persist, then refetch server data so current_step + is_tour_complete match.
     startTransition(async () => {
       await onTourComplete(nextIdx);
+      router.refresh();
+    });
+  };
+
+  // Called from the success screen of the application renderer. Server already
+  // advanced current_stop -> 1, current_step -> 0 as part of submit; this just
+  // syncs the shell's local view state and refetches.
+  const handleContinueAfterApplication = () => {
+    setSelectedStopIdx(1);
+    setSelectedStepIdx(0);
+    startTransition(() => {
       router.refresh();
     });
   };
@@ -296,6 +325,13 @@ export function CinematicShell({
               stopNumber={selectedStopIdx + 1}
               onTourComplete={handleTourComplete}
               tourPending={pending}
+              candidate={candidate}
+              leaderName={leader.name}
+              initialApplicationAnswers={initialApplicationAnswers}
+              isApplicationSubmitted={isApplicationSubmitted}
+              onSaveApplicationAnswer={onSaveApplicationAnswer}
+              onSubmitApplication={onSubmitApplication}
+              onContinueAfterApplication={handleContinueAfterApplication}
             />
           ) : (
             <p>No steps configured for this stop yet.</p>
@@ -311,11 +347,28 @@ function StepRenderer({
   stopNumber,
   onTourComplete,
   tourPending,
+  candidate,
+  leaderName,
+  initialApplicationAnswers,
+  isApplicationSubmitted,
+  onSaveApplicationAnswer,
+  onSubmitApplication,
+  onContinueAfterApplication,
 }: {
   step: Step;
   stopNumber: number;
   onTourComplete: () => void;
   tourPending: boolean;
+  candidate: ApplicationCandidate;
+  leaderName: string;
+  initialApplicationAnswers: Record<string, unknown>;
+  isApplicationSubmitted: boolean;
+  onSaveApplicationAnswer: (
+    fieldKey: string,
+    fieldValue: unknown,
+  ) => Promise<void>;
+  onSubmitApplication: (finalAnswers: Record<string, unknown>) => Promise<void>;
+  onContinueAfterApplication: () => void;
 }) {
   if (step.content_type === "slides") {
     const raw = step.config?.slides;
@@ -325,6 +378,19 @@ function StepRenderer({
         slides={slides}
         onComplete={onTourComplete}
         disabled={tourPending}
+      />
+    );
+  }
+  if (step.content_type === "application") {
+    return (
+      <ApplicationRenderer
+        candidate={candidate}
+        leaderName={leaderName}
+        initialAnswers={initialApplicationAnswers}
+        isAlreadySubmitted={isApplicationSubmitted}
+        onSaveAnswer={onSaveApplicationAnswer}
+        onSubmit={onSubmitApplication}
+        onContinueToNextStop={onContinueAfterApplication}
       />
     );
   }
