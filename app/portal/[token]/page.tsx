@@ -10,7 +10,11 @@ import {
   type BrandColors,
   type BrandTypography,
 } from "@/components/cinematic-shell";
-import { completeTourAction } from "./actions";
+import {
+  completeTourAction,
+  saveApplicationAnswerAction,
+  submitApplicationAction,
+} from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -84,7 +88,7 @@ export default async function PortalTokenPage({
   const app = createAppServiceClient();
   const { data: session } = await app
     .from("candidates_in_portal")
-    .select("id, candidate_id, current_stop, current_step")
+    .select("id, candidate_id, current_stop, current_step, is_app_submitted")
     .eq("token", params.token)
     .maybeSingle();
   if (!session) notFound();
@@ -92,7 +96,7 @@ export default async function PortalTokenPage({
   const core = createCoreClient();
   const { data: candidate } = await core
     .from("candidates")
-    .select("first_name, brand_id")
+    .select("first_name, last_name, email, phone, brand_id")
     .eq("id", session.candidate_id)
     .maybeSingle();
   if (!candidate) notFound();
@@ -106,24 +110,32 @@ export default async function PortalTokenPage({
     .maybeSingle();
   if (!brand) notFound();
 
-  const [{ data: portalContent }, { data: stopsRows }, { data: stepsRows }] =
-    await Promise.all([
-      core
-        .from("portal_content")
-        .select("content_key, body, data")
-        .eq("brand_id", brand.id),
-      app
-        .from("stops_config")
-        .select("stop_key, position, label, name, icon")
-        .eq("brand_id", brand.id)
-        .order("position"),
-      app
-        .from("steps_config")
-        .select("stop_key, position, step_key, label, description, content_type, config")
-        .eq("brand_id", brand.id)
-        .order("stop_key")
-        .order("position"),
-    ]);
+  const [
+    { data: portalContent },
+    { data: stopsRows },
+    { data: stepsRows },
+    { data: applicationRows },
+  ] = await Promise.all([
+    core
+      .from("portal_content")
+      .select("content_key, body, data")
+      .eq("brand_id", brand.id),
+    app
+      .from("stops_config")
+      .select("stop_key, position, label, name, icon")
+      .eq("brand_id", brand.id)
+      .order("position"),
+    app
+      .from("steps_config")
+      .select("stop_key, position, step_key, label, description, content_type, config")
+      .eq("brand_id", brand.id)
+      .order("stop_key")
+      .order("position"),
+    app
+      .from("application_responses")
+      .select("field_key, field_value")
+      .eq("candidate_in_portal_id", session.id),
+  ]);
 
   if (!stopsRows?.length) {
     throw new Error(
@@ -173,7 +185,20 @@ export default async function PortalTokenPage({
 
   const fontClasses = `${baloo2.variable} ${nunitoSans.variable} ${montserrat.variable}`;
 
+  const initialApplicationAnswers: Record<string, unknown> = {};
+  for (const row of applicationRows ?? []) {
+    initialApplicationAnswers[row.field_key] = row.field_value;
+  }
+
   const onTourComplete = completeTourAction.bind(null, params.token);
+  const onSaveApplicationAnswer = saveApplicationAnswerAction.bind(
+    null,
+    params.token,
+  );
+  const onSubmitApplication = submitApplicationAction.bind(
+    null,
+    params.token,
+  );
 
   return (
     <main className={`portal-page ${fontClasses}`}>
@@ -192,6 +217,16 @@ export default async function PortalTokenPage({
         initialStopIdx={initialStopIdx}
         initialStepIdx={initialStepIdx}
         onTourComplete={onTourComplete}
+        onSaveApplicationAnswer={onSaveApplicationAnswer}
+        onSubmitApplication={onSubmitApplication}
+        candidate={{
+          first_name: candidate.first_name ?? "",
+          last_name: candidate.last_name ?? null,
+          email: candidate.email ?? "",
+          phone: candidate.phone ?? null,
+        }}
+        initialApplicationAnswers={initialApplicationAnswers}
+        isApplicationSubmitted={Boolean(session.is_app_submitted)}
       />
     </main>
   );
