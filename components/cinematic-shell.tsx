@@ -74,6 +74,10 @@ export interface ShellProps {
     role: string;
     email: string;
   };
+  sidebarStats: Array<{ num: string; label: string }>;
+  sidebarStatsHeading: string;
+  heroStats: Array<{ num: string; label: string }>;
+  heroStripHeading: string;
   stops: Stop[];
   stepsByStop: Record<string, Step[]>;
   currentStopIdx: number;
@@ -101,6 +105,10 @@ export function CinematicShell({
   palette,
   typography,
   leader,
+  sidebarStats,
+  sidebarStatsHeading,
+  heroStats,
+  heroStripHeading,
   stops,
   stepsByStop,
   currentStopIdx,
@@ -262,6 +270,20 @@ export function CinematicShell({
           })}
         </div>
 
+        {sidebarStats.length > 0 && (
+          <div className="cine-sidebar-stats">
+            <div className="cine-sidebar-stats-heading">
+              {sidebarStatsHeading}
+            </div>
+            {sidebarStats.map((s, i) => (
+              <div key={i} className="cine-sidebar-stats-row">
+                <div className="cine-sidebar-stats-num">{s.num}</div>
+                <div className="cine-sidebar-stats-label">{s.label}</div>
+              </div>
+            ))}
+          </div>
+        )}
+
         <div className="cine-advisor">
           <div className="cine-advisor-eyebrow">
             Your franchise growth leader
@@ -273,6 +295,19 @@ export function CinematicShell({
       </aside>
 
       <section className="cine-content">
+        {selectedStop.stop_key === "explore" && heroStats.length > 0 && (
+          <div className="cine-hero-strip">
+            <div className="cine-hero-strip-heading">{heroStripHeading}</div>
+            <div className="cine-hero-strip-grid">
+              {heroStats.map((s, i) => (
+                <div key={i} className="cine-hero-strip-stat">
+                  <div className="cine-hero-strip-num">{s.num}</div>
+                  <div className="cine-hero-strip-label">{s.label}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         {steps.length > 0 && (
           <div className="cine-stepbar">
             <div className="cine-stepbar-head">

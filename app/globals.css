@@ -229,8 +229,47 @@ body {
   opacity: 1;
 }
 
+/* ---- sidebar "By the numbers" stats card ---- */
+.cine-sidebar-stats {
+  margin: 12px 22px 0;
+  padding: 14px 14px 12px;
+  background: color-mix(in srgb, var(--brand-primary) 7%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--brand-primary) 18%, var(--cin-border));
+  border-radius: var(--radius-md);
+}
+.cine-sidebar-stats-heading {
+  font-family: var(--font-body);
+  font-size: 9px;
+  color: var(--cin-text-muted);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+.cine-sidebar-stats-row {
+  margin-bottom: 10px;
+}
+.cine-sidebar-stats-row:last-child {
+  margin-bottom: 0;
+}
+.cine-sidebar-stats-num {
+  font-family: var(--font-heading);
+  font-size: 20px;
+  font-weight: var(--heading-weight);
+  color: var(--brand-primary);
+  line-height: 1.05;
+  letter-spacing: -0.01em;
+}
+.cine-sidebar-stats-label {
+  font-family: var(--font-body);
+  font-size: 11.5px;
+  color: var(--cin-text-muted);
+  line-height: 1.35;
+  margin-top: 2px;
+}
+
 .cine-advisor {
-  margin: 0 22px;
+  margin: 16px 22px 0;
   padding: 16px 0 0;
   border-top: 1px solid var(--cin-border);
 }
@@ -364,6 +403,59 @@ body {
   color: var(--cin-text-faint);
   line-height: 1.35;
   margin: 0;
+}
+
+/* ---- Stop 1 hero strip ---- */
+.cine-hero-strip {
+  background: color-mix(in srgb, var(--brand-primary) 6%, var(--surface));
+  border-bottom: 1px solid
+    color-mix(in srgb, var(--brand-primary) 14%, var(--cin-border));
+  padding: 28px 40px 24px;
+}
+.cine-hero-strip-heading {
+  font-family: var(--font-body);
+  font-size: 10px;
+  color: var(--cin-text-muted);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  font-weight: 600;
+  margin-bottom: 16px;
+}
+.cine-hero-strip-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 24px;
+}
+.cine-hero-strip-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.cine-hero-strip-num {
+  font-family: var(--font-heading);
+  font-size: 36px;
+  font-weight: var(--heading-weight);
+  color: var(--brand-primary);
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+.cine-hero-strip-label {
+  font-family: var(--font-body);
+  font-size: 12px;
+  color: var(--cin-text-muted);
+  line-height: 1.35;
+}
+@media (max-width: 960px) {
+  .cine-hero-strip {
+    padding: 22px 24px 20px;
+  }
+  .cine-hero-strip-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+  }
+  .cine-hero-strip-num {
+    font-size: 28px;
+  }
 }
 
 /* ---- content area ---- */
