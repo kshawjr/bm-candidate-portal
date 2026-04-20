@@ -1052,18 +1052,41 @@ body {
   list-style: none;
   padding: 0;
   margin: 0;
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 10px 16px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px 24px;
+  align-items: flex-start;
 }
 .cc-awards-item {
   display: flex;
   flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-width: 80px;
+  max-width: 140px;
+  flex: 0 0 auto;
+}
+.cc-awards-logo {
+  height: 48px !important;
+  width: auto !important;
+  max-width: 120px;
+  object-fit: contain;
+  object-position: center;
+}
+.cc-awards-logo-placeholder {
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  opacity: 0.5;
 }
 .cc-awards-name {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--cin-text);
+  text-align: center;
+  line-height: 1.25;
 }
 .cc-awards-year {
   font-size: 11px;
@@ -1146,6 +1169,51 @@ body {
   margin: 0;
   padding: 14px 18px;
   border-top: 1px solid var(--cin-border);
+}
+
+/* ---- dev brand switcher (fixed bottom-right, dev-only) ---- */
+.dev-switcher {
+  position: fixed;
+  bottom: 14px;
+  right: 14px;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(17, 24, 39, 0.88);
+  color: #fff;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.22);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+.dev-switcher-label {
+  opacity: 0.55;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.dev-switcher-current {
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.14);
+  padding: 2px 7px;
+  border-radius: 4px;
+}
+.dev-switcher-btn {
+  background: transparent;
+  border: none;
+  color: inherit;
+  font-family: inherit;
+  font-size: inherit;
+  cursor: pointer;
+  padding: 2px 7px;
+  border-radius: 4px;
+  transition: background 0.12s;
+}
+.dev-switcher-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
 }
 
 /* ---- page wrapper ---- */
