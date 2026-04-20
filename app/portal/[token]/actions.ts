@@ -19,6 +19,7 @@ export async function completeTourAction(
     .update({
       is_tour_complete: true,
       current_step: nextStepIdx,
+      last_activity_at: new Date().toISOString(),
     })
     .eq("token", token);
   if (error) {
@@ -70,6 +71,13 @@ export async function saveApplicationAnswerAction(
   if (error) {
     throw new Error(`saveApplicationAnswer failed: ${error.message}`);
   }
+  // Bump the candidate's last_activity_at so the journey card stays fresh
+  // (e.g., avoids showing the "stalled" variant while a candidate is
+  // actively filling out the form).
+  await app
+    .from("candidates_in_portal")
+    .update({ last_activity_at: new Date().toISOString() })
+    .eq("id", portalId);
   // No revalidatePath here — saves are high-frequency and the server side
   // doesn't need to re-render until submit.
 }
@@ -107,6 +115,7 @@ export async function submitApplicationAction(
       is_app_submitted: true,
       current_stop: 1,
       current_step: 0,
+      last_activity_at: new Date().toISOString(),
     })
     .eq("id", portalId);
   if (pErr) throw new Error(`submit flag update failed: ${pErr.message}`);

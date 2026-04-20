@@ -171,8 +171,6 @@ interface BrandMarketing {
   leaderRole: string;
   leaderEmail: string;
   brandMarkHtml: string;
-  // Sidebar "By the numbers" card — 3 compact stats, visible on every stop.
-  sidebarStats: [StatItem, StatItem, StatItem];
   // Stop 1 hero strip — 4 larger stats, visible only when the candidate is
   // on Stop 1 (Explore).
   heroStats: [StatItem, StatItem, StatItem, StatItem];
@@ -198,11 +196,6 @@ const BRAND_MARKETING: Record<BrandCode, BrandMarketing> = {
     leaderRole: "Blue Maven Franchise Development",
     leaderEmail: "hounds@bmave.com",
     brandMarkHtml: "Hounds Town",
-    sidebarStats: [
-      { num: "150+", label: "franchises awarded" },
-      { num: "80+",  label: "owners" },
-      { num: "12",   label: "states" },
-    ],
     heroStats: [
       { num: "150+", label: "franchises" },
       { num: "80+",  label: "owners" },
@@ -229,11 +222,6 @@ const BRAND_MARKETING: Record<BrandCode, BrandMarketing> = {
     leaderRole: "Blue Maven Franchise Development",
     leaderEmail: "tourscale@bmave.com",
     brandMarkHtml: "Cruisin' Tikis",
-    sidebarStats: [
-      { num: "44+",  label: "locations" },
-      { num: "$99K", label: "avg revenue / vessel" },
-      { num: "62K+", label: "five-star reviews" },
-    ],
     heroStats: [
       { num: "44+",    label: "locations" },
       { num: "$99K",   label: "avg rev/vessel" },
@@ -241,6 +229,94 @@ const BRAND_MARKETING: Record<BrandCode, BrandMarketing> = {
       { num: "62K+",   label: "5-star reviews" },
     ],
   },
+};
+
+// Content cards rendered below step content. Only Stop 1 Step 1 (brand tour)
+// gets cards in PR 8; every other step's content_cards column stays [].
+// Card schema: see components/content-cards/types.ts.
+type SeedContentCard = Record<string, unknown>;
+const BRAND_TOUR_CONTENT_CARDS: Record<BrandCode, SeedContentCard[]> = {
+  ht: [
+    {
+      type: "fact",
+      headline: "70% of US households have at least one pet",
+      body: "Pet care is a $151.9B industry growing to $250B by 2030.",
+      source: "APPA / Morgan Stanley Research",
+    },
+    {
+      type: "personas",
+      items: [
+        {
+          name: "Passionate Pet Parents",
+          photo_url: "https://placehold.co/320x320/008aba/ffffff?text=Pet+Parents",
+          caption: "Dog-first households looking for a trusted second home",
+        },
+        {
+          name: "Working Professionals",
+          photo_url: "https://placehold.co/320x320/008aba/ffffff?text=Professionals",
+          caption: "Dual-income families who need weekday daycare",
+        },
+        {
+          name: "Frequent Travelers",
+          photo_url: "https://placehold.co/320x320/008aba/ffffff?text=Travelers",
+          caption: "Repeat boarders who come back every trip",
+        },
+      ],
+    },
+    {
+      type: "quote",
+      author: "Rob Flanagan",
+      role: "CEO, Hounds Town USA",
+      body: "There is something magical about the passion and vision a founder brings to the table — and we've carried that through to every single location we award.",
+      photo_url: "https://placehold.co/200x200/266783/ffffff?text=RF",
+    },
+    {
+      type: "awards",
+      items: [
+        { name: "Franchise 500", year: "2025" },
+        { name: "Inc. 5000", year: "2025" },
+        { name: "IFA Emerging Franchisor", year: "2025" },
+        { name: "FBR Best in Category", year: "2025" },
+      ],
+    },
+  ],
+  ct: [
+    {
+      type: "fact",
+      headline: "$99K+ avg revenue per vessel",
+      body: "Our top performers are doing $265K in a single season.",
+    },
+    {
+      type: "personas",
+      items: [
+        {
+          name: "Couples & Date Night",
+          photo_url: "https://placehold.co/320x320/f86e4f/ffffff?text=Date+Night",
+          caption: "Two-hour sunset cruises are our highest-margin product",
+        },
+        {
+          name: "Bachelorette / Bachelor Parties",
+          photo_url: "https://placehold.co/320x320/f86e4f/ffffff?text=Parties",
+          caption: "Group bookings that fill midweek slots and lift tips",
+        },
+        {
+          name: "Corporate Events",
+          photo_url: "https://placehold.co/320x320/f86e4f/ffffff?text=Corporate",
+          caption: "Team outings with predictable repeat business",
+        },
+      ],
+    },
+    {
+      type: "fact",
+      headline: "62,000+ five-star reviews",
+      body: "Customers don't just try Cruisin' Tikis — they come back with friends.",
+    },
+    {
+      type: "photo",
+      image_url: "https://placehold.co/1280x720/1edee4/213976?text=Fleet+in+action+%C2%B7+Tampa+Bay",
+      caption: "The fleet in action · Tampa Bay",
+    },
+  ],
 };
 
 // Real static body copy for the proof-of-life step (first_chat/prep).
@@ -440,14 +516,11 @@ async function seedPortalContent(brandId: string, code: BrandCode) {
     { brand_id: brandId, content_key: "brand_mark_html", content_type: "markdown", body: m.brandMarkHtml },
   ];
 
-  // Flat stat keys for the sidebar "By the numbers" card (3 stats) and the
-  // Stop 1 hero strip (4 stats). Kept as atomic keys (not JSON) so admins
-  // can edit a single number via Supabase without JSON parsing.
-  m.sidebarStats.forEach((s, i) => {
-    const n = i + 1;
-    rows.push({ brand_id: brandId, content_key: `sidebar_stat_${n}_num`,   content_type: "text", body: s.num });
-    rows.push({ brand_id: brandId, content_key: `sidebar_stat_${n}_label`, content_type: "text", body: s.label });
-  });
+  // Flat stat keys for the Stop 1 hero strip (4 stats). The sidebar
+  // "By the numbers" card was replaced by a context-aware journey card in
+  // PR 8 — its sidebar_stat_* keys are no longer seeded. Existing rows on
+  // brands that had them will remain (upsert only adds/updates, doesn't
+  // delete), but they're simply unused.
   m.heroStats.forEach((s, i) => {
     const n = i + 1;
     rows.push({ brand_id: brandId, content_key: `hero_stat_${n}_num`,   content_type: "text", body: s.num });
@@ -485,6 +558,7 @@ async function seedSteps(brandId: string, code: BrandCode) {
     description: string;
     content_type: ContentType;
     config: Record<string, unknown>;
+    content_cards: SeedContentCard[];
   };
   const rows: Row[] = [];
   for (const [stopKey, steps] of Object.entries(STOP_STEPS)) {
@@ -495,6 +569,12 @@ async function seedSteps(brandId: string, code: BrandCode) {
       if (stopKey === "explore" && step.key === "tour") {
         config.slides = BRAND_TOUR_SLIDES[code];
       }
+      // Only Stop 1 Step 1 (explore/tour) ships with content cards in PR 8.
+      // Every other step gets [] so the strip renders nothing.
+      const cards: SeedContentCard[] =
+        stopKey === "explore" && step.key === "tour"
+          ? BRAND_TOUR_CONTENT_CARDS[code]
+          : [];
       rows.push({
         brand_id: brandId,
         stop_key: stopKey,
@@ -504,6 +584,7 @@ async function seedSteps(brandId: string, code: BrandCode) {
         description: step.desc,
         content_type: step.type,
         config,
+        content_cards: cards,
       });
     });
   }

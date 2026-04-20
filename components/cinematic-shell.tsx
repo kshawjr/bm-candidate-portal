@@ -8,6 +8,12 @@ import {
   ApplicationRenderer,
   type ApplicationCandidate,
 } from "@/components/content-types/application-renderer";
+import { ContentCardStrip } from "@/components/content-cards/content-card-strip";
+import type { ContentCard } from "@/components/content-cards/types";
+import {
+  JourneyCard,
+  type JourneyCardState,
+} from "@/components/sidebar/journey-card";
 
 // Default logo height for all brands. Per-brand overrides below.
 const DEFAULT_LOGO_HEIGHT = 60;
@@ -44,6 +50,7 @@ export interface Step {
   description: string;
   content_type: ContentType;
   config: Record<string, unknown>;
+  content_cards: ContentCard[];
 }
 
 export interface BrandColors {
@@ -74,8 +81,7 @@ export interface ShellProps {
     role: string;
     email: string;
   };
-  sidebarStats: Array<{ num: string; label: string }>;
-  sidebarStatsHeading: string;
+  journeyState: JourneyCardState;
   heroStats: Array<{ num: string; label: string }>;
   heroStripHeading: string;
   stops: Stop[];
@@ -105,8 +111,7 @@ export function CinematicShell({
   palette,
   typography,
   leader,
-  sidebarStats,
-  sidebarStatsHeading,
+  journeyState,
   heroStats,
   heroStripHeading,
   stops,
@@ -270,19 +275,7 @@ export function CinematicShell({
           })}
         </div>
 
-        {sidebarStats.length > 0 && (
-          <div className="cine-sidebar-stats">
-            <div className="cine-sidebar-stats-heading">
-              {sidebarStatsHeading}
-            </div>
-            {sidebarStats.map((s, i) => (
-              <div key={i} className="cine-sidebar-stats-row">
-                <div className="cine-sidebar-stats-num">{s.num}</div>
-                <div className="cine-sidebar-stats-label">{s.label}</div>
-              </div>
-            ))}
-          </div>
-        )}
+        <JourneyCard state={journeyState} />
 
         <div className="cine-advisor">
           <div className="cine-advisor-eyebrow">
@@ -355,19 +348,22 @@ export function CinematicShell({
 
         <div className="cine-step-content">
           {selectedStep ? (
-            <StepRenderer
-              step={selectedStep}
-              stopNumber={selectedStopIdx + 1}
-              onTourComplete={handleTourComplete}
-              tourPending={pending}
-              candidate={candidate}
-              leaderName={leader.name}
-              initialApplicationAnswers={initialApplicationAnswers}
-              isApplicationSubmitted={isApplicationSubmitted}
-              onSaveApplicationAnswer={onSaveApplicationAnswer}
-              onSubmitApplication={onSubmitApplication}
-              onContinueAfterApplication={handleContinueAfterApplication}
-            />
+            <>
+              <StepRenderer
+                step={selectedStep}
+                stopNumber={selectedStopIdx + 1}
+                onTourComplete={handleTourComplete}
+                tourPending={pending}
+                candidate={candidate}
+                leaderName={leader.name}
+                initialApplicationAnswers={initialApplicationAnswers}
+                isApplicationSubmitted={isApplicationSubmitted}
+                onSaveApplicationAnswer={onSaveApplicationAnswer}
+                onSubmitApplication={onSubmitApplication}
+                onContinueAfterApplication={handleContinueAfterApplication}
+              />
+              <ContentCardStrip cards={selectedStep.content_cards} />
+            </>
           ) : (
             <p>No steps configured for this stop yet.</p>
           )}
