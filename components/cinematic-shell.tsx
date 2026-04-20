@@ -115,16 +115,15 @@ export function CinematicShell({
       <aside className="cine-sidebar">
         <div className="cine-brand">
           {logoUrl ? (
-            <div className="cine-brand-logo">
-              <Image
-                src={logoUrl}
-                alt={brandName}
-                width={480}
-                height={180}
-                priority
-                sizes="236px"
-              />
-            </div>
+            <Image
+              className="cine-brand-logo"
+              src={logoUrl}
+              alt={brandName}
+              width={480}
+              height={180}
+              priority
+              style={{ height: 48, width: "auto" }}
+            />
           ) : (
             <div
               className="cine-brand-mark"

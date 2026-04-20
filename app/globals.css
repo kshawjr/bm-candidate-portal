@@ -89,23 +89,13 @@ body {
   text-transform: var(--heading-transform);
 }
 .cine-brand-logo {
-  position: relative;
-  width: 100%;
-  height: 72px;
-  /* Extra room for logos with descenders (e.g. hand-drawn Cruisin' Tikis
-     wordmark) so the subtitle underneath isn't clipped. */
-  margin: 0 0 24px;
-}
-.cine-brand-logo img {
+  display: block;
+  height: 48px;
+  width: auto;
+  max-width: 100%;
   object-fit: contain;
-  object-position: left top;
-}
-/* Cruisin' Tikis hand-drawn wordmark sits visually low inside its PNG
-   bounding box and reads heavier at default size. Shrink + lift for CT
-   specifically; other brands keep the defaults above. */
-[data-brand-slug="cruisin-tikis"] .cine-brand-logo {
-  height: 56px;
-  margin-top: -4px;
+  object-position: left center;
+  margin: 0;
 }
 .cine-brand-sub {
   font-size: 9px;
@@ -114,7 +104,7 @@ body {
   text-transform: uppercase;
   font-weight: 600;
   line-height: 1.55;
-  margin: 0;
+  margin: 8px 0 0;
   font-family: var(--font-body);
 }
 .cine-brand-sub strong {
