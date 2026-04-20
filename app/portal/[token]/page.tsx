@@ -10,6 +10,7 @@ import {
   type BrandColors,
   type BrandTypography,
 } from "@/components/cinematic-shell";
+import { completeTourAction } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -172,6 +173,8 @@ export default async function PortalTokenPage({
 
   const fontClasses = `${baloo2.variable} ${nunitoSans.variable} ${montserrat.variable}`;
 
+  const onTourComplete = completeTourAction.bind(null, params.token);
+
   return (
     <main className={`portal-page ${fontClasses}`}>
       <CinematicShell
@@ -188,6 +191,7 @@ export default async function PortalTokenPage({
         currentStopIdx={currentStopIdx}
         initialStopIdx={initialStopIdx}
         initialStepIdx={initialStepIdx}
+        onTourComplete={onTourComplete}
       />
     </main>
   );

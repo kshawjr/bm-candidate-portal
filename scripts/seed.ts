@@ -238,6 +238,33 @@ A few minutes before the call we'll email you the calendar link and a short prep
   },
 };
 
+// Brand-tour placeholder slides for the explore/tour step. Real slides will be
+// Canva PNGs uploaded to Supabase Storage; these placehold.co URLs let the
+// slides renderer exercise until then. Hex in the URL is the brand's primary
+// color (no leading #).
+interface Slide {
+  id: string;
+  image_url: string;
+  alt: string;
+  caption: string | null;
+}
+function placeholderSlides(brandName: string, hexNoHash: string, count = 5): Slide[] {
+  return Array.from({ length: count }, (_, i) => {
+    const n = i + 1;
+    const text = encodeURIComponent(`${brandName} Slide ${n}`);
+    return {
+      id: `slide-${n}`,
+      image_url: `https://placehold.co/1280x720/${hexNoHash}/ffffff?text=${text}`,
+      alt: `${brandName} brand tour slide ${n}`,
+      caption: null,
+    };
+  });
+}
+const BRAND_TOUR_SLIDES: Record<BrandCode, Slide[]> = {
+  ht: placeholderSlides("Hounds Town", "008aba"),
+  ct: placeholderSlides("Cruisin Tikis", "f86e4f"),
+};
+
 // Stable dev tokens. One per brand.
 const DEV_TOKENS: Record<BrandCode, { token: string; firstName: string; email: string }> = {
   ht: { token: "test-token-123", firstName: "Jamie", email: "test-candidate-ht@example.com" },
@@ -417,6 +444,11 @@ async function seedSteps(brandId: string, code: BrandCode) {
   for (const [stopKey, steps] of Object.entries(STOP_STEPS)) {
     steps.forEach((step, i) => {
       const body = STATIC_BODIES[code]?.[stopKey]?.[step.key];
+      const config: Record<string, unknown> = {};
+      if (body) config.body = body;
+      if (stopKey === "explore" && step.key === "tour") {
+        config.slides = BRAND_TOUR_SLIDES[code];
+      }
       rows.push({
         brand_id: brandId,
         stop_key: stopKey,
@@ -425,7 +457,7 @@ async function seedSteps(brandId: string, code: BrandCode) {
         label: step.label,
         description: step.desc,
         content_type: step.type,
-        config: body ? { body } : {},
+        config,
       });
     });
   }
@@ -465,8 +497,9 @@ async function seedDevCandidate(brandId: string, code: BrandCode) {
   const row = {
     candidate_id: candidate.id,
     token,
-    // Land the dev token on First chat / prep so the static renderer is exercised.
-    current_stop: existing?.current_stop ?? 1,
+    // Land new dev tokens on Stop 1 / Step 0 (Brand tour) so the slides
+    // renderer exercises on first load. Existing rows keep their state.
+    current_stop: existing?.current_stop ?? 0,
     current_step: existing?.current_step ?? 0,
   };
 
