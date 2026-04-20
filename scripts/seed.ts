@@ -156,16 +156,26 @@ const SLUG_TO_CODE: Record<string, BrandCode> = {
   "cruisin-tikis": "ct",
 };
 
+interface StatItem {
+  num: string;
+  label: string;
+}
+
 interface BrandMarketing {
   eyebrow: string;
   title: string;
   body: string;
-  stats: Array<{ num: string; label: string }>;
+  stats: StatItem[];
   concepts: Array<{ icon: string; title: string; body: string }>;
   leaderName: string;
   leaderRole: string;
   leaderEmail: string;
   brandMarkHtml: string;
+  // Sidebar "By the numbers" card — 3 compact stats, visible on every stop.
+  sidebarStats: [StatItem, StatItem, StatItem];
+  // Stop 1 hero strip — 4 larger stats, visible only when the candidate is
+  // on Stop 1 (Explore).
+  heroStats: [StatItem, StatItem, StatItem, StatItem];
 }
 
 const BRAND_MARKETING: Record<BrandCode, BrandMarketing> = {
@@ -188,6 +198,17 @@ const BRAND_MARKETING: Record<BrandCode, BrandMarketing> = {
     leaderRole: "Blue Maven Franchise Development",
     leaderEmail: "hounds@bmave.com",
     brandMarkHtml: "Hounds Town",
+    sidebarStats: [
+      { num: "150+", label: "franchises awarded" },
+      { num: "80+",  label: "owners" },
+      { num: "12",   label: "states" },
+    ],
+    heroStats: [
+      { num: "150+", label: "franchises" },
+      { num: "80+",  label: "owners" },
+      { num: "12",   label: "states" },
+      { num: "20+",  label: "years proven" },
+    ],
   },
   ct: {
     eyebrow: "Franchise Ownership Discovery Portal",
@@ -208,6 +229,17 @@ const BRAND_MARKETING: Record<BrandCode, BrandMarketing> = {
     leaderRole: "Blue Maven Franchise Development",
     leaderEmail: "tourscale@bmave.com",
     brandMarkHtml: "Cruisin' Tikis",
+    sidebarStats: [
+      { num: "44+",  label: "locations" },
+      { num: "$99K", label: "avg revenue / vessel" },
+      { num: "62K+", label: "five-star reviews" },
+    ],
+    heroStats: [
+      { num: "44+",    label: "locations" },
+      { num: "$99K",   label: "avg rev/vessel" },
+      { num: "$265K",  label: "top performer" },
+      { num: "62K+",   label: "5-star reviews" },
+    ],
   },
 };
 
@@ -407,6 +439,20 @@ async function seedPortalContent(brandId: string, code: BrandCode) {
     { brand_id: brandId, content_key: "leader_email",    content_type: "text",     body: m.leaderEmail },
     { brand_id: brandId, content_key: "brand_mark_html", content_type: "markdown", body: m.brandMarkHtml },
   ];
+
+  // Flat stat keys for the sidebar "By the numbers" card (3 stats) and the
+  // Stop 1 hero strip (4 stats). Kept as atomic keys (not JSON) so admins
+  // can edit a single number via Supabase without JSON parsing.
+  m.sidebarStats.forEach((s, i) => {
+    const n = i + 1;
+    rows.push({ brand_id: brandId, content_key: `sidebar_stat_${n}_num`,   content_type: "text", body: s.num });
+    rows.push({ brand_id: brandId, content_key: `sidebar_stat_${n}_label`, content_type: "text", body: s.label });
+  });
+  m.heroStats.forEach((s, i) => {
+    const n = i + 1;
+    rows.push({ brand_id: brandId, content_key: `hero_stat_${n}_num`,   content_type: "text", body: s.num });
+    rows.push({ brand_id: brandId, content_key: `hero_stat_${n}_label`, content_type: "text", body: s.label });
+  });
 
   const { error } = await core.from("portal_content").upsert(rows, { onConflict: "brand_id,content_key" });
   if (error) throw new Error(`portal_content upsert failed: ${error.message}`);

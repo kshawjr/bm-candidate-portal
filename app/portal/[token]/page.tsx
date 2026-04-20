@@ -151,6 +151,32 @@ export default async function PortalTokenPage({
     email: pickText(content, "leader_email", ""),
   };
 
+  // Sidebar "By the numbers" card — 3 stats. Empty num drops the row.
+  const sidebarStats = [1, 2, 3]
+    .map((n) => ({
+      num: pickText(content, `sidebar_stat_${n}_num`),
+      label: pickText(content, `sidebar_stat_${n}_label`),
+    }))
+    .filter((s) => s.num.length > 0);
+  const sidebarStatsHeading = pickText(
+    content,
+    "sidebar_stats_heading",
+    "By the numbers",
+  );
+
+  // Stop 1 hero strip — 4 stats. Empty num drops the row.
+  const heroStats = [1, 2, 3, 4]
+    .map((n) => ({
+      num: pickText(content, `hero_stat_${n}_num`),
+      label: pickText(content, `hero_stat_${n}_label`),
+    }))
+    .filter((s) => s.num.length > 0);
+  const heroStripHeading = pickText(
+    content,
+    "hero_strip_heading",
+    `${brand.name} by the numbers`,
+  );
+
   const stops: Stop[] = stopsRows.map((s) => ({
     stop_key: s.stop_key,
     position: s.position,
@@ -211,6 +237,10 @@ export default async function PortalTokenPage({
         palette={palette}
         typography={typography}
         leader={leader}
+        sidebarStats={sidebarStats}
+        sidebarStatsHeading={sidebarStatsHeading}
+        heroStats={heroStats}
+        heroStripHeading={heroStripHeading}
         stops={stops}
         stepsByStop={stepsByStop}
         currentStopIdx={currentStopIdx}
