@@ -99,7 +99,7 @@ export default async function PortalTokenPage({
   const { data: brand } = await core
     .from("brands")
     .select(
-      "id, slug, name, parent_brand, tagline, colors, font_overrides, logo_url",
+      "id, slug, name, tagline, colors, font_overrides, logo_url",
     )
     .eq("id", candidate.brand_id)
     .maybeSingle();
@@ -177,7 +177,6 @@ export default async function PortalTokenPage({
       <CinematicShell
         brandName={brand.name}
         brandMarkHtml={brandMarkHtml}
-        parentBrand={brand.parent_brand}
         logoUrl={brand.logo_url ?? null}
         colors={colors}
         palette={palette}

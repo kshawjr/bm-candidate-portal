@@ -19,14 +19,16 @@ import { createClient } from "@supabase/supabase-js";
 
 // ---------- v18 seed constants ----------
 
+// label = warm sidebar label (user-facing, shown in the stops list)
+// name  = professional phrasing shown in the step strip header ("STOP 2 · DISCOVERY CALL")
 const STAGES = [
-  { key: "explore",    label: "Explore",    name: "Education & qualification", icon: "✨" },
-  { key: "first_chat", label: "First chat", name: "Discovery call",            icon: "📞" },
-  { key: "deep_dive",  label: "Deep dive",  name: "Education webinar",         icon: "🎥" },
-  { key: "playbook",   label: "Playbook",   name: "FDD exploration",           icon: "📖" },
-  { key: "verify",     label: "Verify",     name: "Verification",              icon: "✅" },
-  { key: "visit",      label: "Visit",      name: "Discovery Day",             icon: "📍" },
-  { key: "award",      label: "Welcome",    name: "Franchise award",           icon: "🏆" },
+  { key: "explore",    label: "Get to know us",      name: "Education & qualification", icon: "✨" },
+  { key: "first_chat", label: "Say hi",              name: "Discovery call",            icon: "📞" },
+  { key: "deep_dive",  label: "Learn the details",   name: "Education webinar",         icon: "🎥" },
+  { key: "playbook",   label: "Read the fine print", name: "FDD exploration",           icon: "📖" },
+  { key: "verify",     label: "Due diligence",       name: "Verification",              icon: "✅" },
+  { key: "visit",      label: "Come see us",         name: "Discovery Day",             icon: "📍" },
+  { key: "award",      label: "Officially yours",    name: "Franchise award",           icon: "🏆" },
 ] as const;
 
 const STAGE_CONTENT: Record<string, Record<string, string>> = {

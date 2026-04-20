@@ -48,7 +48,6 @@ export interface BrandTypography {
 export interface ShellProps {
   brandName: string;
   brandMarkHtml: string;
-  parentBrand: string | null;
   logoUrl: string | null;
   colors: BrandColors;
   palette: Record<string, string>;
@@ -68,7 +67,6 @@ export interface ShellProps {
 export function CinematicShell({
   brandName,
   brandMarkHtml,
-  parentBrand,
   logoUrl,
   colors,
   palette,
@@ -90,15 +88,6 @@ export function CinematicShell({
   const completedCount = currentStopIdx;
   const progressPct = Math.round((completedCount / stops.length) * 100);
   const weeksLeft = Math.max(2, stops.length - completedCount + 1);
-
-  const brandSub = parentBrand ? (
-    <>
-      <strong>Powered by {parentBrand}</strong>
-      Franchise Discovery Portal
-    </>
-  ) : (
-    <>Franchise Discovery Portal</>
-  );
 
   const shellStyle: Record<string, string> = {
     "--brand-primary": colors.primary,
@@ -136,7 +125,7 @@ export function CinematicShell({
               dangerouslySetInnerHTML={{ __html: brandMarkHtml }}
             />
           )}
-          <p className="cine-brand-sub">{brandSub}</p>
+          <p className="cine-brand-sub">Franchise Discovery Portal</p>
         </div>
 
         <div className="cine-progress">
@@ -256,7 +245,6 @@ export function CinematicShell({
                     </span>
                     <span className="cine-step-body">
                       <span className="cine-step-label">{step.label}</span>
-                      <span className="cine-step-desc">{step.description}</span>
                     </span>
                   </button>
                 );
