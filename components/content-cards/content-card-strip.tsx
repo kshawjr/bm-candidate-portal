@@ -16,23 +16,20 @@ export function ContentCardStrip({ cards, heading = "Learn more" }: Props) {
   return (
     <section className="cc-strip">
       <div className="cc-strip-eyebrow">{heading}</div>
-      <div className="cc-strip-grid">
+      <div className="cc-strip-stack">
         {cards.map((card, i) => {
-          // Photo cards span the full strip for visual weight; other cards
-          // share the grid in the default column flow.
-          const spanFull = card.type === "photo";
-          return (
-            <div
-              key={i}
-              className={`cc-strip-cell${spanFull ? " cc-strip-cell-full" : ""}`}
-            >
-              {card.type === "fact" && <FactCard card={card} />}
-              {card.type === "quote" && <QuoteCard card={card} />}
-              {card.type === "awards" && <AwardsCard card={card} />}
-              {card.type === "personas" && <PersonasCard card={card} />}
-              {card.type === "photo" && <PhotoCard card={card} />}
-            </div>
-          );
+          switch (card.type) {
+            case "fact":
+              return <FactCard key={i} card={card} />;
+            case "quote":
+              return <QuoteCard key={i} card={card} />;
+            case "awards":
+              return <AwardsCard key={i} card={card} />;
+            case "personas":
+              return <PersonasCard key={i} card={card} />;
+            case "photo":
+              return <PhotoCard key={i} card={card} />;
+          }
         })}
       </div>
     </section>

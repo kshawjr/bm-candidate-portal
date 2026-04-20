@@ -949,186 +949,190 @@ body {
   margin-bottom: 6px;
 }
 
-/* ---- content cards strip (below step content) ---- */
+/* ==========================================================================
+   Content cards strip — single-column stack of cards below step content
+   ========================================================================== */
 .cc-strip {
-  margin-top: 48px;
-  padding-top: 32px;
+  margin-top: 56px;
+  padding-top: 40px;
   border-top: 1px solid var(--cin-border);
 }
 .cc-strip-eyebrow {
   font-family: var(--font-body);
-  font-size: 10px;
+  font-size: 11px;
   color: var(--cin-text-muted);
   letter-spacing: 0.16em;
   text-transform: uppercase;
   font-weight: 600;
-  margin-bottom: 18px;
+  margin-bottom: 32px;
 }
-.cc-strip-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
-}
-.cc-strip-cell-full {
-  grid-column: 1 / -1;
-}
-@media (max-width: 760px) {
-  .cc-strip-grid {
-    grid-template-columns: 1fr;
-  }
+.cc-strip-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
 }
 
+/* ---- shared card chassis ---- */
 .cc-card {
   background: var(--surface);
   border: 1px solid var(--cin-border);
-  border-radius: var(--radius-md);
-  padding: 20px 22px;
+  border-radius: 12px;
+  padding: 28px;
   font-family: var(--font-body);
 }
 
-/* fact card */
-.cc-fact-headline {
-  font-family: var(--font-heading);
-  font-size: 20px;
-  font-weight: var(--heading-weight);
-  color: var(--brand-primary);
-  line-height: 1.15;
-  letter-spacing: -0.01em;
-  margin: 0 0 6px;
-}
-.cc-fact-body {
-  font-size: 14px;
-  color: var(--cin-text);
-  line-height: 1.5;
-  margin: 0;
-}
-.cc-fact-source {
+/* Small-caps label used by cards with internal section headers
+   (personas, awards). Standardized so it reads consistently. */
+.cc-card-section-label {
+  font-family: var(--font-body);
   font-size: 11px;
-  color: var(--cin-text-faint);
-  margin: 10px 0 0;
+  color: var(--cin-text-muted);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-weight: 600;
+  margin-bottom: 18px;
 }
 
-/* quote card */
-.cc-quote-body {
+/* ---- fact card ---- */
+.cc-fact-split {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  gap: 40px;
+  align-items: start;
+}
+.cc-fact-stat {
+  font-family: var(--font-heading);
+  font-size: 56px;
+  font-weight: var(--heading-weight);
+  color: var(--brand-primary);
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+.cc-fact-stat-label {
   font-family: var(--font-body);
   font-size: 15px;
   color: var(--cin-text);
-  line-height: 1.5;
-  margin: 0 0 16px;
+  font-weight: 500;
+  line-height: 1.35;
+  margin-top: 10px;
+}
+.cc-fact-body-col {
+  padding-top: 6px;
+}
+.cc-fact-headline {
+  font-family: var(--font-heading);
+  font-size: 22px;
+  font-weight: var(--heading-weight);
+  color: var(--brand-primary);
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  margin: 0 0 10px;
+}
+.cc-fact-body {
+  font-family: var(--font-body);
+  font-size: 15px;
+  color: var(--cin-text);
+  line-height: 1.6;
+  margin: 0;
+}
+.cc-fact-source {
+  font-size: 12px;
+  color: var(--cin-text-faint);
+  margin: 12px 0 0;
+}
+@media (max-width: 680px) {
+  .cc-fact-split {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  .cc-fact-body-col {
+    padding-top: 0;
+  }
+}
+
+/* ---- quote card ---- */
+.cc-quote {
+  padding: 32px;
+}
+.cc-quote-mark {
+  font-family: var(--font-heading);
+  font-size: 56px;
+  font-weight: 700;
+  color: var(--brand-primary);
+  line-height: 0.7;
+  margin-bottom: 10px;
+}
+.cc-quote-body {
+  font-family: var(--font-body);
+  font-size: 17px;
+  color: var(--cin-text);
+  line-height: 1.55;
+  margin: 0 0 24px;
   font-style: italic;
+  max-width: 640px;
 }
 .cc-quote-attribution {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
 }
 .cc-quote-photo {
-  width: 40px;
-  height: 40px;
+  width: 48px;
+  height: 48px;
   border-radius: 50%;
   object-fit: cover;
   flex-shrink: 0;
 }
+.cc-quote-avatar-placeholder {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--surface-subtle);
+  border: 1px solid var(--cin-border);
+  color: var(--cin-text-muted);
+  font-family: var(--font-heading);
+  font-size: 18px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.cc-quote-identity {
+  display: flex;
+  flex-direction: column;
+}
 .cc-quote-author {
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--cin-text);
 }
 .cc-quote-role {
-  font-size: 12px;
+  font-size: 12.5px;
   color: var(--cin-text-muted);
 }
 
-/* awards card */
-.cc-awards-eyebrow {
-  font-size: 10px;
-  color: var(--cin-text-muted);
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  font-weight: 600;
-  margin-bottom: 12px;
-}
-.cc-awards-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 18px 24px;
-  align-items: flex-start;
-}
-.cc-awards-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  min-width: 80px;
-  max-width: 140px;
-  flex: 0 0 auto;
-}
-.cc-awards-logo {
-  height: 48px !important;
-  width: auto !important;
-  max-width: 120px;
-  object-fit: contain;
-  object-position: center;
-}
-.cc-awards-logo-placeholder {
-  height: 48px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 28px;
-  opacity: 0.5;
-}
-.cc-awards-name {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--cin-text);
-  text-align: center;
-  line-height: 1.25;
-}
-.cc-awards-year {
-  font-size: 11px;
-  color: var(--cin-text-muted);
-}
-
-/* personas card */
-.cc-personas-eyebrow {
-  font-size: 10px;
-  color: var(--cin-text-muted);
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  font-weight: 600;
-  margin-bottom: 14px;
-}
+/* ---- personas card ---- */
 .cc-personas-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
-}
-@media (max-width: 960px) {
-  .cc-personas-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-@media (max-width: 520px) {
-  .cc-personas-grid {
-    grid-template-columns: 1fr;
-  }
+  gap: 20px;
 }
 .cc-persona {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 10px;
 }
 .cc-persona-photo {
   position: relative;
   width: 100%;
   aspect-ratio: 1;
-  border-radius: var(--radius-sm);
+  border-radius: 8px;
   overflow: hidden;
   background: var(--surface-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .cc-persona-photo img {
   width: 100%;
@@ -1136,18 +1140,97 @@ body {
   object-fit: cover;
   display: block;
 }
+.cc-persona-placeholder {
+  color: var(--cin-text-faint);
+  opacity: 0.75;
+}
 .cc-persona-name {
-  font-size: 13.5px;
+  font-family: var(--font-body);
+  font-size: 14px;
   font-weight: 600;
   color: var(--cin-text);
+  line-height: 1.3;
 }
 .cc-persona-caption {
-  font-size: 12px;
+  font-family: var(--font-body);
+  font-size: 12.5px;
   color: var(--cin-text-muted);
   line-height: 1.4;
 }
+@media (max-width: 760px) {
+  .cc-personas-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (max-width: 480px) {
+  .cc-personas-grid {
+    grid-template-columns: 1fr;
+  }
+}
 
-/* photo card */
+/* ---- awards card ---- */
+.cc-awards-row {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+.cc-award-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  background: var(--surface-subtle);
+  border: 1px solid var(--cin-border);
+  border-radius: 8px;
+  padding: 18px 14px;
+  min-height: 140px;
+  text-align: center;
+}
+.cc-award-logo-slot {
+  width: 100%;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.cc-award-logo-img {
+  max-height: 56px !important;
+  max-width: 100% !important;
+  width: auto !important;
+  height: auto !important;
+  object-fit: contain;
+}
+.cc-award-placeholder {
+  color: var(--cin-text-faint);
+  opacity: 0.55;
+}
+.cc-award-name {
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--cin-text);
+  line-height: 1.25;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.cc-award-year {
+  font-family: var(--font-body);
+  font-size: 11.5px;
+  color: var(--cin-text-muted);
+}
+@media (max-width: 760px) {
+  .cc-awards-row {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* ---- photo card ---- */
 .cc-photo {
   padding: 0;
   overflow: hidden;
@@ -1163,11 +1246,12 @@ body {
   display: block;
 }
 .cc-photo-caption {
+  font-family: var(--font-body);
   font-size: 13px;
   color: var(--cin-text-muted);
   line-height: 1.4;
   margin: 0;
-  padding: 14px 18px;
+  padding: 16px 22px;
   border-top: 1px solid var(--cin-border);
 }
 
