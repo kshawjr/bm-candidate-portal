@@ -185,7 +185,7 @@ const BRAND_MARKETING: Record<BrandCode, BrandMarketing> = {
     leaderName: "Zac Celaya",
     leaderRole: "Blue Maven Franchise Development",
     leaderEmail: "hounds@bmave.com",
-    brandMarkHtml: "Hounds Town <em>USA</em>",
+    brandMarkHtml: "Hounds Town",
   },
   ct: {
     eyebrow: "Franchise Ownership Discovery Portal",
@@ -205,7 +205,7 @@ const BRAND_MARKETING: Record<BrandCode, BrandMarketing> = {
     leaderName: "Zac Celaya",
     leaderRole: "Blue Maven Franchise Development",
     leaderEmail: "tourscale@bmave.com",
-    brandMarkHtml: "Cruisin' <em>Tikis</em>",
+    brandMarkHtml: "Cruisin' Tikis",
   },
 };
 
@@ -242,6 +242,86 @@ const DEV_TOKENS: Record<BrandCode, { token: string; firstName: string; email: s
   ct: { token: "test-token-456", firstName: "Jamie", email: "test-candidate-ct@example.com" },
 };
 
+// Per-brand typography — writes to bmave-core.brands.font_overrides.
+// Font families must match what we load via next/font in app/portal/[token]/page.tsx.
+interface FontOverrides {
+  heading_font: string;
+  heading_weight: string;
+  body_font: string;
+  heading_transform: "none" | "uppercase";
+}
+// Horizontal logo URLs (public Supabase storage). Vertical + mark variants
+// don't exist yet; code falls back to the brand name in the heading font when
+// no logo_url is set.
+const LOGO_URL: Record<BrandCode, string> = {
+  ht: "https://dcnbgzxfhsrgmcfwydyy.supabase.co/storage/v1/object/public/brand-assets/hounds-town-usa/houndstown-horizontal.png",
+  ct: "https://dcnbgzxfhsrgmcfwydyy.supabase.co/storage/v1/object/public/brand-assets/cruisin-tikis/Cruisin%20Tikis_Horizontal.png",
+};
+
+// Base theming keys (primary/secondary/accent/dark/soft) + full swatch list
+// under colors.palette. Emitted per-brand as --brand-palette-* CSS vars.
+interface BrandColors {
+  primary: string;
+  secondary: string;
+  accent: string;
+  dark: string;
+  soft: string;
+  palette: Record<string, string>;
+}
+const BRAND_COLORS: Record<BrandCode, BrandColors> = {
+  ht: {
+    primary: "#008aba",
+    secondary: "#bddc04",
+    accent: "#ff6c2f",
+    dark: "#266783",
+    soft: "#ace3ef",
+    palette: {
+      blue: "#008aba",
+      green: "#bddc04",
+      orange: "#ff6c2f",
+      brown: "#635242",
+      dark_teal: "#266783",
+      light_blue: "#ace3ef",
+      cyan: "#5ec8e5",
+      bright_blue: "#32b8de",
+      deep_blue: "#009ecc",
+      lavender: "#dac5dc",
+      white: "#ffffff",
+      black: "#000000",
+    },
+  },
+  ct: {
+    primary: "#f86e4f",
+    secondary: "#213976",
+    accent: "#1edee4",
+    dark: "#213976",
+    soft: "#35acef",
+    palette: {
+      cyan: "#1edee4",
+      bright_blue: "#35acef",
+      navy: "#213976",
+      coral: "#f86e4f",
+      black: "#000000",
+      white: "#ffffff",
+    },
+  },
+};
+
+const FONT_OVERRIDES: Record<BrandCode, FontOverrides> = {
+  ht: {
+    heading_font: "Baloo 2",
+    heading_weight: "700",
+    body_font: "Nunito Sans",
+    heading_transform: "none",
+  },
+  ct: {
+    heading_font: "Montserrat",
+    heading_weight: "700",
+    body_font: "Montserrat",
+    heading_transform: "none",
+  },
+};
+
 // ---------- env + clients ----------
 
 function required(name: string): string {
@@ -266,6 +346,22 @@ const app = createClient(
 );
 
 // ---------- seeders ----------
+
+async function seedBrandInfra(brandId: string, code: BrandCode) {
+  const { error } = await core
+    .from("brands")
+    .update({
+      logo_url: LOGO_URL[code],
+      colors: BRAND_COLORS[code],
+      font_overrides: FONT_OVERRIDES[code],
+    })
+    .eq("id", brandId);
+  if (error) throw new Error(`brands update failed: ${error.message}`);
+  const paletteCount = Object.keys(BRAND_COLORS[code].palette).length;
+  console.log(
+    `[seed] brands -> ${code} (logo, ${paletteCount}-swatch palette, ${FONT_OVERRIDES[code].heading_font} / ${FONT_OVERRIDES[code].body_font})`,
+  );
+}
 
 async function seedPortalContent(brandId: string, code: BrandCode) {
   const m = BRAND_MARKETING[code];
@@ -397,6 +493,7 @@ async function main() {
       continue;
     }
     console.log(`[seed] -> ${brand.name} (${code})`);
+    await seedBrandInfra(brand.id, code);
     await seedPortalContent(brand.id, code);
     await seedStops(brand.id);
     await seedSteps(brand.id, code);
