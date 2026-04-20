@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createAppServiceClient } from "@/lib/supabase-app";
+import { createCoreClient } from "@/lib/core-client";
 import { getAdminUser } from "@/lib/supabase-auth";
 import type { ContentCard } from "@/components/content-cards/types";
 
@@ -109,11 +110,12 @@ export async function uploadCardImageAction(
   const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-").slice(0, 80);
   const path = `${brandSlug}/content-cards/${Date.now()}-${safeName}`;
 
-  // brand-assets lives on the candidate-portal Supabase project (same one
-  // hosting the logo PNGs from PR 4b). Use the service-role app client to
-  // bypass storage RLS for the upload.
-  const app = createAppServiceClient();
-  const { error: upErr } = await app.storage
+  // brand-assets lives in the SHARED bmave-core Supabase project (same
+  // bucket the brand logos are stored in — see PR 4b). Use the core client
+  // so uploads land where logos already work, and so getPublicUrl() returns
+  // the bmave-core hostname that next/image's remotePatterns already allow.
+  const core = createCoreClient();
+  const { error: upErr } = await core.storage
     .from(STORAGE_BUCKET)
     .upload(path, file, {
       contentType: file.type,
@@ -122,7 +124,7 @@ export async function uploadCardImageAction(
     });
   if (upErr) return { error: upErr.message };
 
-  const { data: pub } = app.storage.from(STORAGE_BUCKET).getPublicUrl(path);
+  const { data: pub } = core.storage.from(STORAGE_BUCKET).getPublicUrl(path);
   if (!pub?.publicUrl) return { error: "Failed to resolve public URL" };
 
   return { url: pub.publicUrl };
