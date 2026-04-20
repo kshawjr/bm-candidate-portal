@@ -37,11 +37,19 @@ export interface BrandColors {
   soft: string;
 }
 
+export interface BrandTypography {
+  headingFontVar: string;
+  bodyFontVar: string;
+  headingWeight: string;
+  headingTransform: "none" | "uppercase";
+}
+
 export interface ShellProps {
   brandName: string;
   brandMarkHtml: string;
   parentBrand: string | null;
   colors: BrandColors;
+  typography: BrandTypography;
   leader: {
     name: string;
     role: string;
@@ -58,6 +66,7 @@ export function CinematicShell({
   brandMarkHtml,
   parentBrand,
   colors,
+  typography,
   leader,
   stops,
   stepsByStop,
@@ -91,6 +100,10 @@ export function CinematicShell({
     ["--brand-accent" as string]: colors.accent,
     ["--brand-dark" as string]: colors.dark,
     ["--brand-soft" as string]: colors.soft,
+    ["--font-heading" as string]: typography.headingFontVar,
+    ["--font-body" as string]: typography.bodyFontVar,
+    ["--heading-weight" as string]: typography.headingWeight,
+    ["--heading-transform" as string]: typography.headingTransform,
   };
 
   return (

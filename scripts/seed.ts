@@ -185,7 +185,7 @@ const BRAND_MARKETING: Record<BrandCode, BrandMarketing> = {
     leaderName: "Zac Celaya",
     leaderRole: "Blue Maven Franchise Development",
     leaderEmail: "hounds@bmave.com",
-    brandMarkHtml: "Hounds Town <em>USA</em>",
+    brandMarkHtml: "Hounds Town",
   },
   ct: {
     eyebrow: "Franchise Ownership Discovery Portal",
@@ -205,7 +205,7 @@ const BRAND_MARKETING: Record<BrandCode, BrandMarketing> = {
     leaderName: "Zac Celaya",
     leaderRole: "Blue Maven Franchise Development",
     leaderEmail: "tourscale@bmave.com",
-    brandMarkHtml: "Cruisin' <em>Tikis</em>",
+    brandMarkHtml: "Cruisin' Tikis",
   },
 };
 
@@ -242,6 +242,29 @@ const DEV_TOKENS: Record<BrandCode, { token: string; firstName: string; email: s
   ct: { token: "test-token-456", firstName: "Jamie", email: "test-candidate-ct@example.com" },
 };
 
+// Per-brand typography — writes to bmave-core.brands.font_overrides.
+// Font families must match what we load via next/font in app/portal/[token]/page.tsx.
+interface FontOverrides {
+  heading_font: string;
+  heading_weight: string;
+  body_font: string;
+  heading_transform: "none" | "uppercase";
+}
+const FONT_OVERRIDES: Record<BrandCode, FontOverrides> = {
+  ht: {
+    heading_font: "Fredoka",
+    heading_weight: "600",
+    body_font: "Nunito",
+    heading_transform: "none",
+  },
+  ct: {
+    heading_font: "Oswald",
+    heading_weight: "700",
+    body_font: "Open Sans",
+    heading_transform: "uppercase",
+  },
+};
+
 // ---------- env + clients ----------
 
 function required(name: string): string {
@@ -266,6 +289,15 @@ const app = createClient(
 );
 
 // ---------- seeders ----------
+
+async function seedBrandTypography(brandId: string, code: BrandCode) {
+  const { error } = await core
+    .from("brands")
+    .update({ font_overrides: FONT_OVERRIDES[code] })
+    .eq("id", brandId);
+  if (error) throw new Error(`brands.font_overrides update failed: ${error.message}`);
+  console.log(`[seed] brands.font_overrides -> ${code} (${FONT_OVERRIDES[code].heading_font} / ${FONT_OVERRIDES[code].body_font})`);
+}
 
 async function seedPortalContent(brandId: string, code: BrandCode) {
   const m = BRAND_MARKETING[code];
@@ -397,6 +429,7 @@ async function main() {
       continue;
     }
     console.log(`[seed] -> ${brand.name} (${code})`);
+    await seedBrandTypography(brand.id, code);
     await seedPortalContent(brand.id, code);
     await seedStops(brand.id);
     await seedSteps(brand.id, code);

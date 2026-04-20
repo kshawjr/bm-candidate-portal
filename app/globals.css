@@ -16,8 +16,10 @@
   --radius-sm: 6px;
   --radius-md: 10px;
   --radius-lg: 14px;
-  --font-sans: "Inter", -apple-system, system-ui, sans-serif;
-  --font-serif: "Fraunces", Georgia, serif;
+
+  /* App-wide fallback font. Per-brand heading/body fonts are set inline on
+     .portal-cinematic via --font-heading / --font-body. */
+  --font-sans: var(--font-inter), -apple-system, system-ui, sans-serif;
 
   /* Brand defaults — overridden per-brand via inline style on .portal-cinematic */
   --brand-primary: #008aba;
@@ -31,7 +33,7 @@ html,
 body {
   background: var(--bg);
   color: var(--text);
-  font-family: var(--font-sans);
+  font-family: var(--font-body);
   -webkit-font-smoothing: antialiased;
   line-height: 1.5;
 }
@@ -48,6 +50,12 @@ body {
   --cin-text-muted: var(--text-muted);
   --cin-text-faint: var(--text-faint);
 
+  /* Typography defaults — overridden per-brand via inline style. */
+  --font-heading: var(--font-inter);
+  --font-body: var(--font-inter);
+  --heading-weight: 600;
+  --heading-transform: none;
+
   display: grid;
   grid-template-columns: 280px 1fr;
   min-height: 680px;
@@ -55,6 +63,7 @@ body {
   overflow: hidden;
   background: var(--cin-bg);
   border: 1px solid var(--cin-border);
+  font-family: var(--font-body);
 }
 
 /* ---- sidebar ---- */
@@ -70,17 +79,14 @@ body {
   border-bottom: 1px solid var(--cin-border);
 }
 .cine-brand-mark {
-  font-family: var(--font-serif);
-  font-size: 22px;
-  font-weight: 500;
+  font-family: var(--font-heading);
+  font-size: 26px;
+  font-weight: var(--heading-weight);
   color: var(--brand-primary);
   letter-spacing: -0.01em;
   line-height: 1.1;
   margin: 0 0 8px;
-}
-.cine-brand-mark em {
-  font-style: italic;
-  font-weight: 400;
+  text-transform: var(--heading-transform);
 }
 .cine-brand-sub {
   font-size: 9px;
@@ -155,7 +161,7 @@ body {
   width: 100%;
   text-align: left;
   cursor: pointer;
-  font-family: var(--font-sans);
+  font-family: var(--font-body);
   color: var(--cin-text-muted);
   font-size: 13.5px;
   font-weight: 500;
@@ -199,6 +205,10 @@ body {
 }
 .cine-stop-label {
   flex: 1;
+  font-family: var(--font-heading);
+  font-weight: var(--heading-weight);
+  text-transform: var(--heading-transform);
+  letter-spacing: 0.01em;
 }
 .cine-stop-status {
   flex-shrink: 0;
@@ -290,7 +300,7 @@ body {
   border: none;
   border-bottom: 2px solid transparent;
   cursor: pointer;
-  font-family: var(--font-sans);
+  font-family: var(--font-body);
   text-align: left;
   color: var(--cin-text-muted);
   transition: all 0.15s;
@@ -333,10 +343,13 @@ body {
   min-width: 0;
 }
 .cine-step-label {
+  font-family: var(--font-heading);
   font-size: 13px;
-  font-weight: 600;
+  font-weight: var(--heading-weight);
   line-height: 1.3;
   margin: 0 0 2px;
+  text-transform: var(--heading-transform);
+  letter-spacing: 0.01em;
 }
 .cine-step-desc {
   font-size: 11.5px;
@@ -361,12 +374,14 @@ body {
   margin-bottom: 8px;
 }
 .cine-step-content-title {
-  font-size: 26px;
-  font-weight: 600;
+  font-family: var(--font-heading);
+  font-size: 32px;
+  font-weight: var(--heading-weight);
   color: var(--cin-text);
   line-height: 1.15;
-  letter-spacing: -0.015em;
+  letter-spacing: -0.01em;
   margin: 0 0 10px;
+  text-transform: var(--heading-transform);
 }
 .cine-step-content-desc {
   font-size: 15px;

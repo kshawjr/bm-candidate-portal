@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { Fredoka, Nunito, Oswald, Open_Sans } from "next/font/google";
 import { createAppServiceClient } from "@/lib/supabase-app";
 import { createCoreClient } from "@/lib/core-client";
 import {
@@ -7,9 +8,45 @@ import {
   type Step,
   type ContentType,
   type BrandColors,
+  type BrandTypography,
 } from "@/components/cinematic-shell";
 
 export const dynamic = "force-dynamic";
+
+const fredoka = Fredoka({
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  variable: "--font-fredoka",
+  display: "swap",
+});
+const nunito = Nunito({
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  variable: "--font-nunito",
+  display: "swap",
+});
+const oswald = Oswald({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-oswald",
+  display: "swap",
+});
+const openSans = Open_Sans({
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  variable: "--font-open-sans",
+  display: "swap",
+});
+
+// Maps brand.font_overrides.heading_font / body_font strings to the CSS vars
+// that next/font registered above. Unknown family names fall back to Inter.
+const FONT_VAR: Record<string, string> = {
+  Fredoka: "var(--font-fredoka)",
+  Nunito: "var(--font-nunito)",
+  Oswald: "var(--font-oswald)",
+  "Open Sans": "var(--font-open-sans)",
+  Inter: "var(--font-inter)",
+};
 
 interface PortalContentRow {
   content_key: string;
@@ -17,8 +54,25 @@ interface PortalContentRow {
   data: unknown;
 }
 
+interface FontOverrides {
+  heading_font?: string;
+  heading_weight?: string;
+  body_font?: string;
+  heading_transform?: string;
+}
+
 function pickText(rows: PortalContentRow[], key: string, fallback = ""): string {
   return rows.find((r) => r.content_key === key)?.body ?? fallback;
+}
+
+function resolveTypography(overrides: FontOverrides | null | undefined): BrandTypography {
+  const o = overrides ?? {};
+  return {
+    headingFontVar: FONT_VAR[o.heading_font ?? ""] ?? "var(--font-inter)",
+    bodyFontVar: FONT_VAR[o.body_font ?? ""] ?? "var(--font-inter)",
+    headingWeight: o.heading_weight ?? "600",
+    headingTransform: o.heading_transform === "uppercase" ? "uppercase" : "none",
+  };
 }
 
 export default async function PortalTokenPage({
@@ -44,7 +98,7 @@ export default async function PortalTokenPage({
 
   const { data: brand } = await core
     .from("brands")
-    .select("id, slug, name, parent_brand, tagline, colors")
+    .select("id, slug, name, parent_brand, tagline, colors, font_overrides")
     .eq("id", candidate.brand_id)
     .maybeSingle();
   if (!brand) notFound();
@@ -108,17 +162,21 @@ export default async function PortalTokenPage({
   }
 
   const colors = brand.colors as BrandColors;
+  const typography = resolveTypography(brand.font_overrides as FontOverrides | null);
   const currentStopIdx = Math.min(session.current_stop ?? 0, stops.length - 1);
   const initialStopIdx = currentStopIdx;
   const initialStepIdx = Math.max(0, session.current_step ?? 0);
 
+  const fontClasses = `${fredoka.variable} ${nunito.variable} ${oswald.variable} ${openSans.variable}`;
+
   return (
-    <main className="portal-page">
+    <main className={`portal-page ${fontClasses}`}>
       <CinematicShell
         brandName={brand.name}
         brandMarkHtml={brandMarkHtml}
         parentBrand={brand.parent_brand}
         colors={colors}
+        typography={typography}
         leader={leader}
         stops={stops}
         stepsByStop={stepsByStop}
