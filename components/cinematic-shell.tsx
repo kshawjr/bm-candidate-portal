@@ -3,6 +3,16 @@
 import Image from "next/image";
 import { useState, type CSSProperties } from "react";
 
+// Default logo height for all brands. Per-brand overrides below.
+const DEFAULT_LOGO_HEIGHT = 60;
+
+// Per-brand logo height overrides, keyed by brands.slug. Add an entry here
+// when a brand's horizontal wordmark reads visually small/large at the
+// default height and needs tuning.
+const LOGO_HEIGHT_OVERRIDE: Record<string, number> = {
+  "cruisin-tikis": 68,
+};
+
 export type ContentType =
   | "slides"
   | "static"
@@ -91,6 +101,8 @@ export function CinematicShell({
   const progressPct = Math.round((completedCount / stops.length) * 100);
   const weeksLeft = Math.max(2, stops.length - completedCount + 1);
 
+  const logoHeight = LOGO_HEIGHT_OVERRIDE[brandSlug] ?? DEFAULT_LOGO_HEIGHT;
+
   const shellStyle: Record<string, string> = {
     "--brand-primary": colors.primary,
     "--brand-secondary": colors.secondary,
@@ -122,7 +134,7 @@ export function CinematicShell({
               width={480}
               height={180}
               priority
-              style={{ height: 60, width: "auto" }}
+              style={{ height: logoHeight, width: "auto" }}
             />
           ) : (
             <div
