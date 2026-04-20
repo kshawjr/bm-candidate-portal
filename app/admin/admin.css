@@ -1,0 +1,241 @@
+/* Admin UI — deliberately neutral, NOT brand-themed. Keeps this section
+   feeling like tooling, not part of the candidate experience. */
+
+.admin-bare {
+  min-height: 100vh;
+  background: #f3f4f6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  color: #111827;
+}
+
+.admin-auth-card {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 32px;
+  max-width: 400px;
+  width: 100%;
+  text-align: center;
+}
+.admin-auth-title {
+  font-family: var(--font-inter), system-ui, sans-serif;
+  font-size: 22px;
+  font-weight: 600;
+  margin: 0 0 6px;
+  color: #111827;
+}
+.admin-auth-sub {
+  font-family: var(--font-inter), system-ui, sans-serif;
+  font-size: 14px;
+  color: #4b5563;
+  margin: 0 0 24px;
+  line-height: 1.5;
+}
+.admin-auth-sub code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+  background: #f3f4f6;
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+.admin-auth-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  background: #ffffff;
+  border: 1px solid #d1d5db;
+  color: #111827;
+  font-family: var(--font-inter), system-ui, sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  padding: 10px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background 0.15s, border-color 0.15s;
+}
+.admin-auth-btn:hover {
+  background: #f9fafb;
+  border-color: #9ca3af;
+}
+
+/* Post-auth shell */
+.admin-shell {
+  min-height: 100vh;
+  background: #f9fafb;
+  color: #111827;
+  font-family: var(--font-inter), system-ui, sans-serif;
+}
+.admin-topbar {
+  background: #ffffff;
+  border-bottom: 1px solid #e5e7eb;
+  padding: 12px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.admin-topbar-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #111827;
+  letter-spacing: -0.01em;
+}
+.admin-topbar-user {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 13.5px;
+}
+.admin-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #3b82f6;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.admin-topbar-name {
+  color: #374151;
+}
+.admin-topbar-signout {
+  color: #6b7280;
+  font-size: 13px;
+  text-decoration: none;
+  border-left: 1px solid #e5e7eb;
+  padding-left: 12px;
+  transition: color 0.15s;
+}
+.admin-topbar-signout:hover {
+  color: #111827;
+}
+
+.admin-body {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  min-height: calc(100vh - 53px);
+}
+.admin-sidenav {
+  background: #f3f4f6;
+  border-right: 1px solid #e5e7eb;
+  padding: 16px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.admin-navlink {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: #374151;
+  text-decoration: none;
+  transition: background 0.15s, color 0.15s;
+}
+.admin-navlink:hover:not(.admin-navlink-disabled):not(.admin-navlink-active) {
+  background: #e5e7eb;
+  color: #111827;
+}
+.admin-navlink-active {
+  background: #e0e7ff;
+  color: #3b82f6;
+}
+.admin-navlink-disabled {
+  color: #9ca3af;
+  cursor: not-allowed;
+}
+.admin-navlink-disabled small {
+  font-size: 10px;
+  color: #9ca3af;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.admin-main {
+  background: #f9fafb;
+  padding: 28px 32px;
+}
+.admin-page {
+  max-width: 900px;
+}
+.admin-h1 {
+  font-size: 22px;
+  font-weight: 600;
+  color: #111827;
+  margin: 0 0 6px;
+  letter-spacing: -0.01em;
+}
+.admin-muted {
+  font-size: 13.5px;
+  color: #6b7280;
+  margin: 0 0 24px;
+}
+.admin-section {
+  margin: 28px 0;
+}
+.admin-section-label {
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #6b7280;
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+.admin-brand-pills {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.admin-brand-pill {
+  background: #ffffff;
+  border: 1px solid #d1d5db;
+  color: #374151;
+  font-family: var(--font-inter), system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 7px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.admin-brand-pill:hover:not(.active) {
+  background: #f3f4f6;
+  border-color: #9ca3af;
+}
+.admin-brand-pill.active {
+  background: #3b82f6;
+  border-color: #3b82f6;
+  color: #ffffff;
+}
+
+.admin-placeholder-card {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 36px 32px;
+  text-align: center;
+  color: #374151;
+}
+.admin-placeholder-icon {
+  font-size: 28px;
+  color: #9ca3af;
+  margin-bottom: 10px;
+}
+.admin-placeholder-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #111827;
+  margin: 0 0 6px;
+}
