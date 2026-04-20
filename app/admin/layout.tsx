@@ -37,7 +37,7 @@ export default async function AdminLayout({
       </header>
       <div className="admin-body">
         <aside className="admin-sidenav">
-          <Link href="/admin" className="admin-navlink admin-navlink-active">
+          <Link href="/admin/content" className="admin-navlink admin-navlink-active">
             Content
           </Link>
           <span className="admin-navlink admin-navlink-disabled">

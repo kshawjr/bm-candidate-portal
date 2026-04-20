@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getAdminUser } from "@/lib/supabase-auth";
 import { createCoreClient } from "@/lib/core-client";
@@ -53,11 +54,17 @@ export default async function AdminDashboard({ searchParams }: Props) {
           ✎
         </div>
         <h2 className="admin-placeholder-title">
-          Select a brand above, then use the nav to edit content.
+          {selectedSlug ? "Edit content cards" : "Pick a brand to begin"}
         </h2>
-        <p className="admin-muted">
-          Editor coming in the next update.
-        </p>
+        {selectedSlug && (
+          <Link
+            href={`/admin/content?brand=${selectedSlug}`}
+            className="admin-brand-pill active"
+            style={{ marginTop: 14, display: "inline-block" }}
+          >
+            Open editor →
+          </Link>
+        )}
       </section>
     </div>
   );
