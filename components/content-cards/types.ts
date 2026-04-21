@@ -6,6 +6,7 @@ export interface FactCardData {
   headline: string;
   body: string;
   source?: string;
+  image_url?: string;
 }
 
 export interface QuoteCardData {
