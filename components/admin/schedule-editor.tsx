@@ -9,6 +9,8 @@ interface Props {
   initialConfig: ScheduleConfig;
   advisorEmail: string | null;
   isGCalConfigured: boolean;
+  serviceAccountEmail: string | null;
+  testAdvisorCalendar: () => Promise<void>;
   saveConfig: (stepId: string, config: ScheduleConfig) => Promise<void>;
 }
 
@@ -74,6 +76,8 @@ export function ScheduleEditor({
   initialConfig,
   advisorEmail,
   isGCalConfigured,
+  serviceAccountEmail,
+  testAdvisorCalendar,
   saveConfig,
 }: Props) {
   const router = useRouter();
@@ -81,8 +85,10 @@ export function ScheduleEditor({
     normalize(initialConfig),
   );
   const [pending, startTransition] = useTransition();
+  const [testing, startTesting] = useTransition();
   const [toast, setToast] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     setConfig(normalize(initialConfig));
@@ -111,6 +117,34 @@ export function ScheduleEditor({
     });
   };
 
+  const handleCopy = async () => {
+    if (!serviceAccountEmail) return;
+    try {
+      await navigator.clipboard.writeText(serviceAccountEmail);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // Clipboard API can fail in insecure contexts; fall back to a prompt
+      // so the admin can copy manually.
+      window.prompt("Copy this email:", serviceAccountEmail);
+    }
+  };
+
+  const handleTest = () => {
+    startTesting(async () => {
+      try {
+        await testAdvisorCalendar();
+        setToast("✓ Calendar access confirmed");
+      } catch (e) {
+        setToast(
+          e instanceof Error
+            ? e.message
+            : "Calendar not yet shared with service account — see instructions below",
+        );
+      }
+    });
+  };
+
   return (
     <div className="adm-schedule-editor">
       {!isGCalConfigured && (
@@ -126,17 +160,96 @@ export function ScheduleEditor({
 
       <div className="adm-field">
         <span className="adm-form-label">Advisor calendar</span>
-        <div className="adm-input" style={{ background: "#f9fafb" }} aria-readonly="true">
-          {advisorEmail || (
-            <span className="adm-muted">
-              No advisor email set for this brand.
-            </span>
-          )}
+        <div className="adm-advisor-row">
+          <div className="adm-advisor-email" aria-readonly="true">
+            {advisorEmail || (
+              <span className="adm-muted">
+                No advisor email set for this brand.
+              </span>
+            )}
+          </div>
+          <button
+            type="button"
+            className="adm-btn-ghost"
+            onClick={handleTest}
+            disabled={
+              !advisorEmail || !isGCalConfigured || testing || pending
+            }
+            title={
+              !advisorEmail
+                ? "Set an advisor email first"
+                : !isGCalConfigured
+                  ? "Google service account not configured"
+                  : "Run a 24-hour freeBusy ping"
+            }
+          >
+            {testing ? "Testing…" : "Test calendar access"}
+          </button>
         </div>
         <span className="adm-form-hint">
           Edit the brand&apos;s advisor in the Brands admin (coming soon).
         </span>
       </div>
+
+      {advisorEmail && (
+        <div className="adm-callout">
+          <div className="adm-callout-head">
+            ⚠ One more step after saving
+          </div>
+          <p className="adm-callout-lede">
+            For scheduling to work with this rep, their Google Calendar must
+            be shared with our scheduling service account.
+          </p>
+          <div className="adm-callout-sa">
+            <span className="adm-callout-sa-label">Service account email</span>
+            <div className="adm-callout-sa-row">
+              <code className="adm-callout-sa-email">
+                {serviceAccountEmail || (
+                  <span className="adm-muted">
+                    Not configured — see docs/SCHEDULE_SETUP.md
+                  </span>
+                )}
+              </code>
+              {serviceAccountEmail && (
+                <button
+                  type="button"
+                  className="adm-btn-ghost"
+                  onClick={handleCopy}
+                >
+                  {copied ? "Copied ✓" : "Copy"}
+                </button>
+              )}
+            </div>
+          </div>
+          <p className="adm-callout-lede">
+            Send this email to the rep with these instructions:
+          </p>
+          <ol className="adm-callout-steps">
+            <li>Open Google Calendar.</li>
+            <li>
+              Hover over your calendar name → three dots →{" "}
+              <strong>Settings and sharing</strong>.
+            </li>
+            <li>
+              Scroll to <strong>Share with specific people or groups</strong>.
+            </li>
+            <li>
+              Click <strong>Add people and groups</strong>.
+            </li>
+            <li>Paste the service account email above.</li>
+            <li>
+              Permission: <strong>Make changes to events</strong>.
+            </li>
+            <li>
+              Click <strong>Send</strong>.
+            </li>
+          </ol>
+          <p className="adm-callout-foot">
+            Once they confirm, hit <strong>Test calendar access</strong>{" "}
+            above to verify.
+          </p>
+        </div>
+      )}
 
       <label className="adm-field">
         <span className="adm-form-label">Body</span>

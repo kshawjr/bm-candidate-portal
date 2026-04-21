@@ -63,6 +63,8 @@ interface Props {
   candidateTokenForPreview: string | null;
   advisorEmail: string | null;
   isGCalConfigured: boolean;
+  serviceAccountEmail: string | null;
+  testAdvisorCalendar: () => Promise<void>;
   createStep: (
     brandId: string,
     stopKey: string,
@@ -114,6 +116,8 @@ export function ContentEditor({
   candidateTokenForPreview,
   advisorEmail,
   isGCalConfigured,
+  serviceAccountEmail,
+  testAdvisorCalendar,
   createStep,
   updateStep,
   deleteStep,
@@ -397,6 +401,8 @@ export function ContentEditor({
                 initialConfig={selectedStep.config as unknown as ScheduleConfig}
                 advisorEmail={advisorEmail}
                 isGCalConfigured={isGCalConfigured}
+                serviceAccountEmail={serviceAccountEmail}
+                testAdvisorCalendar={testAdvisorCalendar}
                 saveConfig={(stepId, config) =>
                   saveStepConfig(stepId, config as unknown as Record<string, unknown>)
                 }

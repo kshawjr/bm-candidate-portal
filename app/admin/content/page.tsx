@@ -14,6 +14,7 @@ import {
   deleteContentCardAction,
   saveSlidesAction,
   saveStepConfigAction,
+  testAdvisorCalendarAction,
   uploadCardImageAction,
   uploadSlideImageAction,
   uploadStepVideoAction,
@@ -159,6 +160,8 @@ export default async function ContentEditorPage({ searchParams }: Props) {
           .advisor_calendar_email ?? null
       }
       isGCalConfigured={isGCalConfigured()}
+      serviceAccountEmail={process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL ?? null}
+      testAdvisorCalendar={testAdvisorCalendarAction.bind(null, brand.id)}
       createStep={createStepAction}
       updateStep={updateStepAction}
       deleteStep={deleteStepAction}
