@@ -377,7 +377,7 @@ export function ContentEditor({
               )}
             </header>
 
-            {selectedStep.content_type === "slides" ? (
+            {selectedStep.content_type === "slides" && (
               <SlideEditor
                 key={selectedStep.id}
                 brandSlug={brandSlug}
@@ -386,7 +386,9 @@ export function ContentEditor({
                 saveSlides={saveSlides}
                 upload={uploadSlide}
               />
-            ) : selectedStep.content_type === "video" ? (
+            )}
+
+            {selectedStep.content_type === "video" && (
               <VideoEditor
                 key={selectedStep.id}
                 brandSlug={brandSlug}
@@ -397,7 +399,9 @@ export function ContentEditor({
                 }
                 uploadVideo={uploadVideo}
               />
-            ) : selectedStep.content_type === "schedule" ? (
+            )}
+
+            {selectedStep.content_type === "schedule" && (
               <ScheduleEditor
                 key={selectedStep.id}
                 stepId={selectedStep.id}
@@ -407,7 +411,9 @@ export function ContentEditor({
                   saveStepConfig(stepId, config as unknown as Record<string, unknown>)
                 }
               />
-            ) : selectedStep.content_type === "call_prep" ? (
+            )}
+
+            {selectedStep.content_type === "call_prep" && (
               <CallPrepEditor
                 key={selectedStep.id}
                 brandSlug={brandSlug}
@@ -445,7 +451,9 @@ export function ContentEditor({
                 }
                 uploadImage={uploadCallPrep}
               />
-            ) : selectedStep.content_type === "application" ? (
+            )}
+
+            {selectedStep.content_type === "application" && (
               <div className="adm-notice">
                 <div className="adm-notice-eyebrow">Not user-editable</div>
                 <p>
@@ -455,7 +463,10 @@ export function ContentEditor({
                   map.
                 </p>
               </div>
-            ) : (
+            )}
+
+            {(selectedStep.content_type === "slides" ||
+              selectedStep.content_type === "static") && (
               <>
                 <CardList
                   cards={selectedStep.content_cards}
@@ -520,11 +531,8 @@ export function ContentEditor({
 
       {editorState &&
         selectedStep &&
-        selectedStep.content_type !== "slides" &&
-        selectedStep.content_type !== "application" &&
-        selectedStep.content_type !== "video" &&
-        selectedStep.content_type !== "schedule" &&
-        selectedStep.content_type !== "call_prep" && (
+        (selectedStep.content_type === "slides" ||
+          selectedStep.content_type === "static") && (
           <CardEditor
             brandSlug={brandSlug}
             initial={
