@@ -3,7 +3,9 @@
 import { useEffect, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { ContentCard } from "@/components/content-cards/types";
+import type { Slide } from "@/components/content-types/slides-renderer";
 import { CardEditor } from "./card-editor";
+import { SlideEditor } from "./slide-editor";
 
 type UploadFn = (
   brandSlug: string,
@@ -26,6 +28,7 @@ export interface AdminStep {
   description: string;
   content_type: string;
   content_cards: ContentCard[];
+  slides: Slide[];
 }
 
 interface Props {
@@ -40,7 +43,9 @@ interface Props {
     cardIndex?: number,
   ) => Promise<void>;
   deleteCard: (stepId: string, cardIndex: number) => Promise<void>;
+  saveSlides: (stepId: string, slides: Slide[]) => Promise<void>;
   upload: UploadFn;
+  uploadSlide: UploadFn;
   candidateTokenForPreview: string | null;
 }
 
@@ -67,7 +72,9 @@ export function ContentEditor({
   initialStepId,
   saveCard,
   deleteCard,
+  saveSlides,
   upload,
+  uploadSlide,
   candidateTokenForPreview,
 }: Props) {
   const router = useRouter();
@@ -209,7 +216,10 @@ export function ContentEditor({
                   <ul className="adm-rail-steps">
                     {steps.map((step) => {
                       const active = selectedStepId === step.id;
-                      const cardCount = step.content_cards.length;
+                      const count =
+                        step.content_type === "slides"
+                          ? step.slides.length
+                          : step.content_cards.length;
                       return (
                         <li key={step.id}>
                           <button
@@ -220,9 +230,9 @@ export function ContentEditor({
                             <span className="adm-rail-step-label">
                               {step.label}
                             </span>
-                            {cardCount > 0 && (
+                            {count > 0 && (
                               <span className="adm-rail-step-count">
-                                {cardCount}
+                                {count}
                               </span>
                             )}
                           </button>
@@ -265,47 +275,70 @@ export function ContentEditor({
               )}
             </header>
 
-            <CardList
-              cards={selectedStep.content_cards}
-              onEdit={(card, idx) =>
-                setEditorState({ mode: "edit", card, cardIndex: idx })
-              }
-              onDelete={handleDelete}
-              deleting={deleting}
-            />
+            {selectedStep.content_type === "slides" ? (
+              <SlideEditor
+                key={selectedStep.id}
+                brandSlug={brandSlug}
+                stepId={selectedStep.id}
+                initialSlides={selectedStep.slides}
+                saveSlides={saveSlides}
+                upload={uploadSlide}
+              />
+            ) : selectedStep.content_type === "application" ? (
+              <div className="adm-notice">
+                <div className="adm-notice-eyebrow">Not user-editable</div>
+                <p>
+                  Application content is managed in code — the 22-question
+                  flow, chapters, and field mappings live in the portal
+                  repo so changes can be versioned alongside the Zoho field
+                  map.
+                </p>
+              </div>
+            ) : (
+              <>
+                <CardList
+                  cards={selectedStep.content_cards}
+                  onEdit={(card, idx) =>
+                    setEditorState({ mode: "edit", card, cardIndex: idx })
+                  }
+                  onDelete={handleDelete}
+                  deleting={deleting}
+                />
 
-            <div className="adm-add-zone">
-              <button
-                type="button"
-                className="adm-btn-primary"
-                onClick={() => setAddMenuOpen((v) => !v)}
-              >
-                + Add card
-              </button>
-              {addMenuOpen && (
-                <div className="adm-add-menu" role="menu">
-                  {CARD_TYPES.map(({ type, label }) => (
-                    <button
-                      key={type}
-                      type="button"
-                      role="menuitem"
-                      className="adm-add-menu-item"
-                      onClick={() => {
-                        setEditorState({ mode: "create", type });
-                        setAddMenuOpen(false);
-                      }}
-                    >
-                      {label}
-                    </button>
-                  ))}
+                <div className="adm-add-zone">
+                  <button
+                    type="button"
+                    className="adm-btn-primary"
+                    onClick={() => setAddMenuOpen((v) => !v)}
+                  >
+                    + Add card
+                  </button>
+                  {addMenuOpen && (
+                    <div className="adm-add-menu" role="menu">
+                      {CARD_TYPES.map(({ type, label }) => (
+                        <button
+                          key={type}
+                          type="button"
+                          role="menuitem"
+                          className="adm-add-menu-item"
+                          onClick={() => {
+                            setEditorState({ mode: "create", type });
+                            setAddMenuOpen(false);
+                          }}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
+              </>
+            )}
           </>
         )}
       </section>
 
-      {editorState && selectedStep && (
+      {editorState && selectedStep && selectedStep.content_type !== "slides" && selectedStep.content_type !== "application" && (
         <CardEditor
           brandSlug={brandSlug}
           initial={
