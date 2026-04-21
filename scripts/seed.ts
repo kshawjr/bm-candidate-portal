@@ -830,6 +830,116 @@ async function backfillScheduleConfigDefaults() {
   }
 }
 
+/**
+ * PR 18: ensure Stop 2 (first_chat) has a call_prep step ahead of the
+ * schedule step. Idempotent — skips brands that already have a
+ * call_prep step in first_chat.
+ *
+ * Given the typical starting state (video at pos 0, schedule at pos 1),
+ * this:
+ *   - inserts the call_prep step at position 0 linked to the schedule,
+ *   - leaves the schedule step at position 1,
+ *   - shifts any non-schedule steps (the video) to positions >= 2,
+ *     preserving their relative order.
+ *
+ * If an admin has customized Stop 2 to an unexpected shape, positions
+ * are still rebuilt from (schedule at 1, others behind it) which is
+ * safer than guessing what they meant.
+ */
+async function seedCallPrepForStop2(brandId: string) {
+  const { data: steps, error: readErr } = await app
+    .from("steps_config")
+    .select("id, position, content_type, step_key")
+    .eq("brand_id", brandId)
+    .eq("stop_key", "first_chat")
+    .order("position");
+  if (readErr) throw new Error(`call_prep probe failed: ${readErr.message}`);
+  if (!steps || steps.length === 0) {
+    // No Stop 2 steps yet — seedStop2Defaults handles the initial case,
+    // a later seed run will backfill the call_prep step.
+    return;
+  }
+  if (steps.some((s) => s.content_type === "call_prep")) {
+    return; // already seeded
+  }
+
+  const schedule = steps.find((s) => s.content_type === "schedule");
+  if (!schedule) {
+    console.log(
+      `[seed] call_prep: brand ${brandId} has no schedule step in first_chat — skipping`,
+    );
+    return;
+  }
+
+  // Phase 1: move every existing step to a temporary high position to
+  // avoid any transient unique collisions on (brand_id, stop_key, step_key)
+  // or position if a constraint were added later.
+  const tempOffset = 1000;
+  for (let i = 0; i < steps.length; i++) {
+    const { error } = await app
+      .from("steps_config")
+      .update({ position: tempOffset + i })
+      .eq("id", steps[i].id);
+    if (error) throw new Error(`call_prep temp reorder failed: ${error.message}`);
+  }
+
+  // Phase 2: schedule → 1, other existing steps → 2..N (in original
+  // order), leaving position 0 free for the new call_prep step.
+  await app
+    .from("steps_config")
+    .update({ position: 1 })
+    .eq("id", schedule.id);
+  const others = steps
+    .filter((s) => s.content_type !== "schedule")
+    .sort((a, b) => a.position - b.position);
+  for (let i = 0; i < others.length; i++) {
+    const { error } = await app
+      .from("steps_config")
+      .update({ position: 2 + i })
+      .eq("id", others[i].id);
+    if (error) throw new Error(`call_prep reorder failed: ${error.message}`);
+  }
+
+  const config: Record<string, unknown> = {
+    linked_schedule_step_id: schedule.id,
+    heading: "Before your {call_type}",
+    subheading: "What to expect, who you'll meet",
+    description:
+      "Thanks for booking. Here's what to expect so nothing feels like a cold open. This is a {duration}-minute conversation, not a pitch. You'll meet {rep_first_name} from the {brand_short_name} team.",
+    hero_image_url: null,
+    what_well_cover: [
+      "Your timeline and what markets you're eyeing",
+      "How {brand_short_name} actually runs day-to-day",
+      "The economics — honestly",
+      "Whatever questions are top of mind for you",
+    ],
+    come_prepared: [
+      "Think about what 'good' looks like for you in a franchise",
+      "Jot down any questions about the brand or operations",
+    ],
+    partner_callout_enabled: true,
+    partner_callout_text:
+      "If you have a spouse, partner, or co-investor — bring them along. {call_type} calls are way better with the whole team. (Especially if that person is the one who'll make you write the check.)",
+    cta_label: "Ready to book",
+  };
+
+  const { error: insErr } = await app.from("steps_config").insert({
+    brand_id: brandId,
+    stop_key: "first_chat",
+    position: 0,
+    step_key: "prep",
+    label: "Before the call",
+    description: "A quick read so the call feels like a real conversation",
+    content_type: "call_prep",
+    config,
+    content_cards: [],
+  });
+  if (insErr) throw new Error(`call_prep insert failed: ${insErr.message}`);
+  console.log(
+    `[seed] call_prep: inserted "Before the call" at Stop 2 pos 0 for brand ${brandId}`,
+  );
+}
+
 async function seedDevCandidate(
   brandId: string,
   code: BrandCode,
@@ -906,6 +1016,7 @@ async function main() {
     await seedStops(brand.id, brand.slug);
     await seedSteps(brand.id, code);
     await seedStop2Defaults(brand.id, code);
+    await seedCallPrepForStop2(brand.id);
     await seedDevCandidate(brand.id, code, repId);
   }
 

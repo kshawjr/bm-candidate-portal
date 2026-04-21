@@ -14,6 +14,7 @@ import {
   deleteContentCardAction,
   saveSlidesAction,
   saveStepConfigAction,
+  uploadCallPrepImageAction,
   uploadCardImageAction,
   uploadSlideImageAction,
   uploadStepVideoAction,
@@ -48,7 +49,7 @@ export default async function ContentEditorPage({ searchParams }: Props) {
   const core = createCoreClient();
   const { data: brandsRaw } = await core
     .from("brands")
-    .select("id, slug, name")
+    .select("id, slug, name, short_name")
     .order("name");
   const brands = brandsRaw ?? [];
 
@@ -153,8 +154,13 @@ export default async function ContentEditorPage({ searchParams }: Props) {
       upload={uploadCardImageAction}
       uploadSlide={uploadSlideImageAction}
       uploadVideo={uploadStepVideoAction}
+      uploadCallPrep={uploadCallPrepImageAction}
       candidateTokenForPreview={PREVIEW_TOKEN[brand.slug] ?? null}
       isGCalConfigured={isGCalConfigured()}
+      brandShortName={
+        ((brand as { short_name?: string | null }).short_name ?? "").trim() ||
+        brand.name
+      }
       createStep={createStepAction}
       updateStep={updateStepAction}
       deleteStep={deleteStepAction}

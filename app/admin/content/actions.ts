@@ -101,7 +101,7 @@ export async function deleteContentCardAction(
  */
 async function uploadBrandAsset(
   brandSlug: string,
-  subdir: "content-cards" | "slides",
+  subdir: "content-cards" | "slides" | "call-prep",
   formData: FormData,
 ): Promise<{ url: string } | { error: string }> {
   await requireAdmin();
@@ -149,6 +149,13 @@ export async function uploadSlideImageAction(
   formData: FormData,
 ): Promise<{ url: string } | { error: string }> {
   return uploadBrandAsset(brandSlug, "slides", formData);
+}
+
+export async function uploadCallPrepImageAction(
+  brandSlug: string,
+  formData: FormData,
+): Promise<{ url: string } | { error: string }> {
+  return uploadBrandAsset(brandSlug, "call-prep", formData);
 }
 
 /**

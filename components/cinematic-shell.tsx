@@ -16,6 +16,11 @@ import {
   ScheduleRenderer,
   type ExistingBooking,
 } from "@/components/content-types/schedule-renderer";
+import {
+  CallPrepRenderer,
+  type CallPrepConfig,
+  type LinkedScheduleInfo,
+} from "@/components/content-types/call-prep-renderer";
 import { ContentCardStrip } from "@/components/content-cards/content-card-strip";
 import type { ContentCard } from "@/components/content-cards/types";
 import type { ScheduleConfig, Slot } from "@/lib/schedule-shared";
@@ -40,6 +45,7 @@ export type ContentType =
   | "application"
   | "schedule"
   | "video"
+  | "call_prep"
   | "document"
   | "checklist";
 
@@ -409,6 +415,7 @@ export function CinematicShell({
             <>
               <StepRenderer
                 step={selectedStep}
+                stepsInStop={steps}
                 stopNumber={selectedStopIdx + 1}
                 onTourComplete={handleTourComplete}
                 onStepAdvance={handleStepAdvance}
@@ -443,6 +450,7 @@ export function CinematicShell({
 
 function StepRenderer({
   step,
+  stepsInStop,
   stopNumber,
   onTourComplete,
   onStepAdvance,
@@ -465,6 +473,7 @@ function StepRenderer({
   onCancelBooking,
 }: {
   step: Step;
+  stepsInStop: Step[];
   stopNumber: number;
   onTourComplete: () => void;
   onStepAdvance: () => void;
@@ -551,6 +560,45 @@ function StepRenderer({
         onGetSlots={onGetSlots}
         onBook={onBookSlot}
         onCancel={onCancelBooking}
+        onComplete={onStepAdvance}
+      />
+    );
+  }
+  if (step.content_type === "call_prep") {
+    const config = step.config as unknown as CallPrepConfig;
+    const linkedId = config?.linked_schedule_step_id ?? null;
+    const linkedStep = linkedId
+      ? stepsInStop.find((s) => s.id === linkedId)
+      : null;
+    let linkedSchedule: LinkedScheduleInfo | null = null;
+    if (linkedStep && linkedStep.content_type === "schedule") {
+      const sc = linkedStep.config as Record<string, unknown> | undefined;
+      linkedSchedule = {
+        eventLabel:
+          typeof sc?.event_label === "string"
+            ? (sc.event_label as string)
+            : "Discovery Call",
+        durationMinutes:
+          typeof sc?.duration_minutes === "number"
+            ? (sc.duration_minutes as number)
+            : 60,
+      };
+    } else if (linkedId) {
+      // Linked step no longer exists or isn't a schedule step — log once
+      // on the server but don't crash the candidate view. Placeholders
+      // fall back to their literal {form} per resolveTemplate.
+      console.warn(
+        `[call_prep] step ${step.id} links to missing/non-schedule step ${linkedId}`,
+      );
+    }
+    return (
+      <CallPrepRenderer
+        config={config}
+        linkedSchedule={linkedSchedule}
+        repName={advisorName}
+        brandName={brandName}
+        brandShortName={brandShortName}
+        candidateFirstName={candidate.first_name ?? null}
         onComplete={onStepAdvance}
       />
     );

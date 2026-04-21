@@ -691,6 +691,122 @@ body {
   margin-top: 24px;
 }
 
+/* ---- call_prep content type ---- */
+.call-prep-renderer {
+  max-width: 760px;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+.call-prep-head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.call-prep-heading {
+  font-family: var(--font-heading);
+  font-size: 28px;
+  font-weight: var(--heading-weight);
+  color: var(--cin-text);
+  letter-spacing: -0.01em;
+  margin: 0;
+  line-height: 1.15;
+}
+.call-prep-subheading {
+  font-family: var(--font-body);
+  font-size: 14px;
+  color: var(--cin-text-muted);
+  margin: 0;
+  letter-spacing: 0.01em;
+}
+.call-prep-description {
+  font-family: var(--font-body);
+  font-size: 15.5px;
+  color: var(--cin-text);
+  line-height: 1.55;
+  margin: 0;
+}
+.call-prep-hero {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: var(--surface-subtle);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  border: 1px solid var(--cin-border);
+}
+.call-prep-hero img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.call-prep-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.call-prep-section-title {
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--cin-text-muted);
+  margin: 0;
+}
+.call-prep-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.call-prep-list li {
+  position: relative;
+  padding-left: 22px;
+  font-family: var(--font-body);
+  font-size: 14.5px;
+  color: var(--cin-text);
+  line-height: 1.5;
+}
+.call-prep-list li::before {
+  content: "";
+  position: absolute;
+  left: 6px;
+  top: 9px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--brand-primary);
+}
+.call-prep-callout {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 16px 18px;
+  background: color-mix(in srgb, var(--brand-primary) 9%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--brand-primary) 22%, transparent);
+  border-radius: var(--radius-md);
+}
+.call-prep-callout-icon {
+  font-size: 22px;
+  line-height: 1;
+  margin-top: 2px;
+}
+.call-prep-callout-text {
+  font-family: var(--font-body);
+  font-size: 14px;
+  color: var(--cin-text);
+  line-height: 1.55;
+  margin: 0;
+}
+.call-prep-cta-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 4px;
+}
+
 /* ---- schedule content type ---- */
 .schedule-renderer {
   max-width: 900px;

@@ -15,6 +15,7 @@ export type ContentType =
   | "application"
   | "schedule"
   | "video"
+  | "call_prep"
   | "document"
   | "checklist";
 
@@ -93,6 +94,29 @@ function defaultConfigForType(type: ContentType): Record<string, unknown> {
       event_label: "Discovery Call",
       working_days: [1, 2, 3, 4, 5],
       min_notice_hours: 24,
+    };
+  }
+  if (type === "call_prep") {
+    return {
+      linked_schedule_step_id: null,
+      heading: "Before your {call_type}",
+      subheading: "What to expect",
+      description:
+        "A quick read so nothing feels like a cold open. This is a {duration}-minute conversation with {rep_first_name} from the {brand_short_name} team.",
+      hero_image_url: null,
+      what_well_cover: [
+        "Your timeline and what you're looking for",
+        "How {brand_short_name} actually works day-to-day",
+        "Whatever questions are top of mind for you",
+      ],
+      come_prepared: [
+        "Jot down any questions about the brand or operations",
+        "Think about what 'good' looks like for you in a franchise",
+      ],
+      partner_callout_enabled: true,
+      partner_callout_text:
+        "If you have a spouse, partner, or co-investor — bring them along. {call_type} calls are way better with the whole team.",
+      cta_label: "Ready to book",
     };
   }
   // application + any other type → empty config
