@@ -88,7 +88,6 @@ export interface ShellProps {
   typography: BrandTypography;
   leader: {
     name: string;
-    role: string;
     email: string;
   };
   journeyState: JourneyCardState;
@@ -332,14 +331,18 @@ export function CinematicShell({
 
         <JourneyCard state={journeyState} />
 
-        <div className="cine-advisor">
-          <div className="cine-advisor-eyebrow">
-            Your franchise growth leader
+        {leader.name ? (
+          <div className="cine-advisor">
+            <div className="cine-advisor-eyebrow">Your guide</div>
+            <h4 className="cine-advisor-name">{leader.name}</h4>
+            <p className="cine-advisor-sub">from {brandShortName}</p>
+            {leader.email && (
+              <p className="cine-advisor-email">
+                <a href={`mailto:${leader.email}`}>{leader.email}</a>
+              </p>
+            )}
           </div>
-          <h4 className="cine-advisor-name">{leader.name}</h4>
-          <p className="cine-advisor-role">{leader.role}</p>
-          <p className="cine-advisor-email">{leader.email}</p>
-        </div>
+        ) : null}
       </aside>
 
       <section className="cine-content">
