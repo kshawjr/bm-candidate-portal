@@ -179,8 +179,13 @@ interface StepContext {
   brand: {
     id: string;
     name: string;
-    advisorEmail: string | null;
   };
+  rep: {
+    id: string;
+    name: string;
+    calendarEmail: string;
+    role: string | null;
+  } | null;
 }
 
 async function loadStepContext(
@@ -220,17 +225,40 @@ async function loadStepContext(
   const [{ data: candidate }, { data: brand }] = await Promise.all([
     core
       .from("candidates")
-      .select("id, email, first_name, last_name")
+      .select("id, email, first_name, last_name, assigned_rep_id")
       .eq("id", session.candidate_id)
       .maybeSingle(),
     core
       .from("brands")
-      .select("id, name, advisor_calendar_email")
+      .select("id, name")
       .eq("id", step.brand_id)
       .maybeSingle(),
   ]);
   if (!candidate) throw new Error("candidate not found");
   if (!brand) throw new Error("brand not found");
+
+  // Resolve the assigned rep. Missing assignment is expected for brand-new
+  // candidates — surface as rep=null so callers can show the "being
+  // assigned" message instead of crashing.
+  const assignedRepId =
+    ((candidate as { assigned_rep_id?: string | null }).assigned_rep_id) ?? null;
+  let rep: StepContext["rep"] = null;
+  if (assignedRepId) {
+    const { data: repRow, error: repErr } = await core
+      .from("reps")
+      .select("id, name, calendar_email, role, is_active")
+      .eq("id", assignedRepId)
+      .maybeSingle();
+    if (repErr) throw new Error(`rep lookup failed: ${repErr.message}`);
+    if (repRow && repRow.is_active !== false) {
+      rep = {
+        id: repRow.id as string,
+        name: (repRow.name as string) ?? "",
+        calendarEmail: (repRow.calendar_email as string) ?? "",
+        role: (repRow.role as string | null) ?? null,
+      };
+    }
+  }
 
   const rawConfig =
     step.config && typeof step.config === "object" && !Array.isArray(step.config)
@@ -280,9 +308,8 @@ async function loadStepContext(
     brand: {
       id: brand.id as string,
       name: (brand.name as string) ?? "",
-      advisorEmail:
-        ((brand as { advisor_calendar_email?: string | null }).advisor_calendar_email) ?? null,
     },
+    rep,
   };
 }
 
@@ -292,11 +319,31 @@ export async function getAvailableSlotsAction(
 ): Promise<{ configured: boolean; slots: Slot[]; error?: string }> {
   try {
     const ctx = await loadStepContext(token, stepId);
-    if (!isGCalConfigured() || !ctx.brand.advisorEmail) {
+    if (!ctx.rep) {
+      return {
+        configured: false,
+        slots: [],
+        error: "Your advisor is being assigned. Check back soon.",
+      };
+    }
+    if (!isGCalConfigured()) {
       return { configured: false, slots: [] };
     }
-    const slots = await getAvailableSlots(ctx.brand.advisorEmail, ctx.config);
-    return { configured: true, slots };
+    try {
+      const slots = await getAvailableSlots(ctx.rep.calendarEmail, ctx.config);
+      return { configured: true, slots };
+    } catch (calErr) {
+      // Calendar misconfigured (not shared with service account, revoked
+      // scopes, etc.). Don't leak Google's internal message to candidates;
+      // direct them to support.
+      console.error("getAvailableSlots failed:", calErr);
+      return {
+        configured: false,
+        slots: [],
+        error:
+          "Scheduling temporarily unavailable. Contact support@bmave.com.",
+      };
+    }
   } catch (e) {
     return {
       configured: false,
@@ -317,11 +364,13 @@ export async function bookSlotAction(
   meeting_url: string | null;
 }> {
   const ctx = await loadStepContext(token, stepId);
-  if (!isGCalConfigured()) {
-    throw new Error("Scheduling is not configured");
+  if (!ctx.rep) {
+    throw new Error("Your advisor is being assigned. Check back soon.");
   }
-  if (!ctx.brand.advisorEmail) {
-    throw new Error("This brand doesn't have an advisor calendar set");
+  if (!isGCalConfigured()) {
+    throw new Error(
+      "Scheduling temporarily unavailable. Contact support@bmave.com.",
+    );
   }
   if (!ctx.candidate.email) {
     throw new Error("Candidate has no email on file");
@@ -333,15 +382,23 @@ export async function bookSlotAction(
   const endMs = startMs + ctx.config.duration_minutes * 60 * 1000;
   const endIso = new Date(endMs).toISOString();
 
-  const result = await bookSlot({
-    advisorEmail: ctx.brand.advisorEmail,
-    candidateEmail: ctx.candidate.email,
-    candidateName: ctx.candidate.name,
-    brandName: ctx.brand.name,
-    startIso: new Date(startMs).toISOString(),
-    endIso,
-    timezone: ctx.config.timezone,
-  });
+  let result;
+  try {
+    result = await bookSlot({
+      advisorEmail: ctx.rep.calendarEmail,
+      candidateEmail: ctx.candidate.email,
+      candidateName: ctx.candidate.name,
+      brandName: ctx.brand.name,
+      startIso: new Date(startMs).toISOString(),
+      endIso,
+      timezone: ctx.config.timezone,
+    });
+  } catch (calErr) {
+    console.error("bookSlot failed:", calErr);
+    throw new Error(
+      "Scheduling temporarily unavailable. Contact support@bmave.com.",
+    );
+  }
 
   const app = createAppServiceClient();
 
@@ -422,27 +479,45 @@ export async function cancelBookingAction(
     throw new Error("booking does not belong to this session");
   }
 
-  // Look up the step + advisor email to talk to Google.
-  const { data: step } = await app
-    .from("steps_config")
-    .select("brand_id")
-    .eq("id", booking.step_id)
+  // Resolve the rep whose calendar owns this event, via the candidate's
+  // current assignment. The candidate's rep may have changed since the
+  // event was booked — rare in demo, but if it happens we bail out of the
+  // Google cancel step and still clear the local booking row so the UX
+  // doesn't get stuck.
+  let repCalendarEmail: string | null = null;
+  const { data: sessionRow } = await app
+    .from("candidates_in_portal")
+    .select("candidate_id")
+    .eq("id", booking.candidate_in_portal_id)
     .maybeSingle();
-  let advisorEmail: string | null = null;
-  if (step?.brand_id) {
+  if (sessionRow?.candidate_id) {
     const core = createCoreClient();
-    const { data: brand } = await core
-      .from("brands")
-      .select("advisor_calendar_email")
-      .eq("id", step.brand_id)
+    const { data: cand } = await core
+      .from("candidates")
+      .select("assigned_rep_id")
+      .eq("id", sessionRow.candidate_id)
       .maybeSingle();
-    advisorEmail =
-      (brand as { advisor_calendar_email?: string | null } | null)
-        ?.advisor_calendar_email ?? null;
+    const assignedRepId =
+      ((cand as { assigned_rep_id?: string | null } | null)?.assigned_rep_id) ?? null;
+    if (assignedRepId) {
+      const { data: rep } = await core
+        .from("reps")
+        .select("calendar_email")
+        .eq("id", assignedRepId)
+        .maybeSingle();
+      repCalendarEmail =
+        ((rep as { calendar_email?: string | null } | null)?.calendar_email) ?? null;
+    }
   }
 
-  if (advisorEmail && isGCalConfigured()) {
-    await cancelSlot(advisorEmail, booking.google_event_id);
+  if (repCalendarEmail && isGCalConfigured()) {
+    try {
+      await cancelSlot(repCalendarEmail, booking.google_event_id);
+    } catch (calErr) {
+      // Log but don't block the local cleanup — the user can re-pick a
+      // slot even if Google's side is stale.
+      console.error("cancelSlot failed (continuing with local delete):", calErr);
+    }
   }
 
   // Hard-delete the booking row so the renderer flips back to "not booked"

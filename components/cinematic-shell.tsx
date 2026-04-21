@@ -128,8 +128,9 @@ export interface ShellProps {
   isApplicationSubmitted: boolean;
   // Schedule content-type inputs
   bookingsByStepId: Record<string, ExistingBooking>;
-  advisorEmail: string | null;
+  hasAssignedRep: boolean;
   advisorName: string | null;
+  advisorRole: string | null;
   isGCalConfigured: boolean;
 }
 
@@ -161,8 +162,9 @@ export function CinematicShell({
   initialApplicationAnswers,
   isApplicationSubmitted,
   bookingsByStepId,
-  advisorEmail,
+  hasAssignedRep,
   advisorName,
+  advisorRole,
   isGCalConfigured,
 }: ShellProps) {
   const router = useRouter();
@@ -417,8 +419,9 @@ export function CinematicShell({
                 onSubmitApplication={onSubmitApplication}
                 onContinueAfterApplication={handleContinueAfterApplication}
                 bookingsByStepId={bookingsByStepId}
-                advisorEmail={advisorEmail}
+                hasAssignedRep={hasAssignedRep}
                 advisorName={advisorName}
+                advisorRole={advisorRole}
                 isGCalConfigured={isGCalConfigured}
                 onGetSlots={onGetSlots}
                 onBookSlot={onBookSlot}
@@ -450,8 +453,9 @@ function StepRenderer({
   onSubmitApplication,
   onContinueAfterApplication,
   bookingsByStepId,
-  advisorEmail,
+  hasAssignedRep,
   advisorName,
+  advisorRole,
   isGCalConfigured,
   onGetSlots,
   onBookSlot,
@@ -474,8 +478,9 @@ function StepRenderer({
   onSubmitApplication: (finalAnswers: Record<string, unknown>) => Promise<void>;
   onContinueAfterApplication: () => void;
   bookingsByStepId: Record<string, ExistingBooking>;
-  advisorEmail: string | null;
+  hasAssignedRep: boolean;
   advisorName: string | null;
+  advisorRole: string | null;
   isGCalConfigured: boolean;
   onGetSlots: (stepId: string) => Promise<{
     configured: boolean;
@@ -537,8 +542,9 @@ function StepRenderer({
         existingBooking={bookingsByStepId[step.id] ?? null}
         brandName={brandName}
         advisorName={advisorName}
+        advisorRole={advisorRole}
         isGCalConfigured={isGCalConfigured}
-        hasAdvisorEmail={!!advisorEmail}
+        hasAssignedRep={hasAssignedRep}
         onGetSlots={onGetSlots}
         onBook={onBookSlot}
         onCancel={onCancelBooking}

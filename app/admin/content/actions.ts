@@ -4,10 +4,6 @@ import { revalidatePath } from "next/cache";
 import { createAppServiceClient } from "@/lib/supabase-app";
 import { createCoreClient } from "@/lib/core-client";
 import { getAdminUser } from "@/lib/supabase-auth";
-import {
-  isGCalConfigured,
-  testCalendarAccess,
-} from "@/lib/google-calendar";
 import type { ContentCard } from "@/components/content-cards/types";
 import type { Slide } from "@/components/content-types/slides-renderer";
 
@@ -310,37 +306,3 @@ export async function saveSlidesAction(
   revalidatePath("/portal/[token]", "page");
 }
 
-// ---- diagnostics ----
-
-/**
- * Dry-run the advisor's Google Calendar from the admin UI. Throws a
- * user-friendly message so the caller can toast it directly. Returns on
- * success.
- */
-export async function testAdvisorCalendarAction(brandId: string): Promise<void> {
-  await requireAdmin();
-
-  if (!isGCalConfigured()) {
-    throw new Error(
-      "Google Calendar isn't configured yet — set GOOGLE_SERVICE_ACCOUNT_EMAIL and GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY in .env.local first.",
-    );
-  }
-
-  const core = createCoreClient();
-  const { data: brand, error } = await core
-    .from("brands")
-    .select("advisor_calendar_email")
-    .eq("id", brandId)
-    .maybeSingle();
-  if (error) throw new Error(`brand lookup failed: ${error.message}`);
-  const email =
-    ((brand as { advisor_calendar_email?: string | null } | null)
-      ?.advisor_calendar_email) ?? null;
-  if (!email) {
-    throw new Error(
-      "This brand has no advisor_calendar_email set. Add one in bmave-core.brands first.",
-    );
-  }
-
-  await testCalendarAccess(email);
-}

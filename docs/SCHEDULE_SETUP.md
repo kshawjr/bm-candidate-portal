@@ -1,13 +1,13 @@
 # Schedule content type — Google Calendar setup
 
-The `schedule` content type (PR 16) lets candidates pick a slot on the
-advisor's Google Calendar. Until the two env vars below are set, the
-portal shows a friendly "scheduling is being set up" card instead of a
-picker.
+The `schedule` content type (PR 16) lets candidates pick a slot on their
+assigned rep's Google Calendar. Until the two env vars below are set,
+the portal shows a friendly "scheduling is being set up" card instead
+of a picker.
 
 Setup is a one-time Google Cloud task. You need a service account with
-access to write to the advisor's calendar, plus either domain-wide
-delegation or per-calendar sharing.
+access to each rep's calendar, plus either domain-wide delegation or
+per-calendar sharing.
 
 ## 1. Create a Google Cloud project + service account
 
@@ -75,19 +75,28 @@ Restart `npm run dev`. The schedule renderer will start calling
 `freeBusy.query` and `events.insert` against the configured advisor's
 calendar.
 
-## 4. Set the advisor email per brand
+## 4. Which calendar gets booked
 
-The advisor calendar is stored on `bmave-core.brands.advisor_calendar_email`.
-For the seeded brands, `scripts/seed.ts` backfills it with
-`zac@bmave.com` if empty. To change it:
+Scheduling resolves the calendar from the **candidate's assigned rep**:
 
-```sql
-update public.brands
-set advisor_calendar_email = 'someone-else@bmave.com'
-where slug = 'hounds-town-usa';
+```
+candidates_in_portal.token
+  → bmave-core.candidates (id)
+  → bmave-core.candidates.assigned_rep_id
+  → bmave-core.reps.calendar_email
 ```
 
-(An admin UI to edit this per-brand is planned but not in PR 16.)
+For the demo, `scripts/seed.ts` inserts one rep — Kevin Shaw, `kevin@bmave.com` — and assigns both test candidates to him. Both tokens (`test-token-123`, `test-token-456`) therefore book on Kevin's calendar.
+
+The earlier `bmave-core.brands.advisor_calendar_email` column is retained in the schema but is no longer read by the schedule flow. Treat it as deprecated; the source of truth is now the rep table.
+
+When real reps are onboarded, a proper rep admin UI will land in a later PR. For now, reassign via SQL:
+
+```sql
+update public.candidates
+set assigned_rep_id = '<new-rep-uuid>'
+where email = 'somebody@example.com';
+```
 
 ## Troubleshooting
 

@@ -14,7 +14,6 @@ import {
   deleteContentCardAction,
   saveSlidesAction,
   saveStepConfigAction,
-  testAdvisorCalendarAction,
   uploadCardImageAction,
   uploadSlideImageAction,
   uploadStepVideoAction,
@@ -49,7 +48,7 @@ export default async function ContentEditorPage({ searchParams }: Props) {
   const core = createCoreClient();
   const { data: brandsRaw } = await core
     .from("brands")
-    .select("id, slug, name, advisor_calendar_email")
+    .select("id, slug, name")
     .order("name");
   const brands = brandsRaw ?? [];
 
@@ -155,13 +154,7 @@ export default async function ContentEditorPage({ searchParams }: Props) {
       uploadSlide={uploadSlideImageAction}
       uploadVideo={uploadStepVideoAction}
       candidateTokenForPreview={PREVIEW_TOKEN[brand.slug] ?? null}
-      advisorEmail={
-        (brand as { advisor_calendar_email?: string | null })
-          .advisor_calendar_email ?? null
-      }
       isGCalConfigured={isGCalConfigured()}
-      serviceAccountEmail={process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL ?? null}
-      testAdvisorCalendar={testAdvisorCalendarAction.bind(null, brand.id)}
       createStep={createStepAction}
       updateStep={updateStepAction}
       deleteStep={deleteStepAction}

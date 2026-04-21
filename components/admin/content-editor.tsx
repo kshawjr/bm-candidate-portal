@@ -61,10 +61,7 @@ interface Props {
   uploadSlide: UploadFn;
   uploadVideo: UploadFn;
   candidateTokenForPreview: string | null;
-  advisorEmail: string | null;
   isGCalConfigured: boolean;
-  serviceAccountEmail: string | null;
-  testAdvisorCalendar: () => Promise<void>;
   createStep: (
     brandId: string,
     stopKey: string,
@@ -114,10 +111,7 @@ export function ContentEditor({
   uploadSlide,
   uploadVideo,
   candidateTokenForPreview,
-  advisorEmail,
   isGCalConfigured,
-  serviceAccountEmail,
-  testAdvisorCalendar,
   createStep,
   updateStep,
   deleteStep,
@@ -399,10 +393,7 @@ export function ContentEditor({
                 key={selectedStep.id}
                 stepId={selectedStep.id}
                 initialConfig={selectedStep.config as unknown as ScheduleConfig}
-                advisorEmail={advisorEmail}
                 isGCalConfigured={isGCalConfigured}
-                serviceAccountEmail={serviceAccountEmail}
-                testAdvisorCalendar={testAdvisorCalendar}
                 saveConfig={(stepId, config) =>
                   saveStepConfig(stepId, config as unknown as Record<string, unknown>)
                 }

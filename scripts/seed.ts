@@ -500,40 +500,45 @@ async function seedBrandInfra(brandId: string, code: BrandCode) {
 }
 
 /**
- * Make sure every brand has an advisor calendar email so the schedule
- * content type (PR 16) has somewhere to write events. Leaves brands that
- * already have one alone.
+ * Seed the single demo rep — Kevin, kevin@bmave.com — and return its id so
+ * test candidates can be assigned to it. Idempotent: reruns find the row
+ * by email and return its id without touching anything else. When real
+ * reps arrive this is replaced by a proper rep admin UI + Zoho sync.
  */
-async function backfillAdvisorCalendarEmail(
-  brandId: string,
-  fallbackEmail: string,
-) {
+async function seedDemoRep(): Promise<string> {
+  const demoEmail = "kevin@bmave.com";
+
   const { data: existing, error: readErr } = await core
-    .from("brands")
-    .select("advisor_calendar_email")
-    .eq("id", brandId)
+    .from("reps")
+    .select("id")
+    .eq("email", demoEmail)
     .maybeSingle();
   if (readErr) {
-    // Column might not exist yet if the PR 16 bmave-core migration hasn't
-    // been run. Surface a helpful error so the operator knows what to do.
     throw new Error(
-      `advisor_calendar_email read failed (did you run 20260421_schedule_content_type_bmave_core.sql?): ${readErr.message}`,
+      `reps read failed (did you run 20260421_reps_bmave_core.sql?): ${readErr.message}`,
     );
   }
-  if (existing?.advisor_calendar_email) {
-    console.log(
-      `[seed] advisor_calendar_email already set for brand ${brandId}, skipping`,
-    );
-    return;
+  if (existing?.id) {
+    console.log(`[seed] reps: demo rep already exists (${demoEmail})`);
+    return existing.id as string;
   }
-  const { error } = await core
-    .from("brands")
-    .update({ advisor_calendar_email: fallbackEmail })
-    .eq("id", brandId);
-  if (error) throw new Error(`advisor_calendar_email update failed: ${error.message}`);
-  console.log(
-    `[seed] advisor_calendar_email -> ${fallbackEmail} for brand ${brandId}`,
-  );
+
+  const { data: inserted, error: insErr } = await core
+    .from("reps")
+    .insert({
+      name: "Kevin Shaw",
+      email: demoEmail,
+      calendar_email: demoEmail,
+      role: "Blue Maven Franchise Development",
+      is_active: true,
+    })
+    .select("id")
+    .single();
+  if (insErr || !inserted) {
+    throw new Error(`reps insert failed: ${insErr?.message}`);
+  }
+  console.log(`[seed] reps: created demo rep (${demoEmail})`);
+  return inserted.id as string;
 }
 
 async function seedPortalContent(brandId: string, code: BrandCode) {
@@ -743,10 +748,15 @@ async function seedStop2Defaults(brandId: string, _code: BrandCode) {
   console.log(`[seed] steps_config: seeded Stop 2 defaults for brand ${brandId}`);
 }
 
-async function seedDevCandidate(brandId: string, code: BrandCode) {
+async function seedDevCandidate(
+  brandId: string,
+  code: BrandCode,
+  repId: string,
+) {
   const { token, firstName, email } = DEV_TOKENS[code];
 
-  // Upsert candidate identity in bmave-core
+  // Upsert candidate identity in bmave-core — includes the assigned rep
+  // so scheduling knows whose calendar to query.
   const { data: candidate, error: cErr } = await core
     .from("candidates")
     .upsert(
@@ -756,6 +766,7 @@ async function seedDevCandidate(brandId: string, code: BrandCode) {
         last_name: "Rivera",
         brand_id: brandId,
         lifecycle_stage: "candidate",
+        assigned_rep_id: repId,
       },
       { onConflict: "email" },
     )
@@ -797,6 +808,10 @@ async function main() {
     process.exit(1);
   }
 
+  // One demo rep (Kevin) — all test candidates get assigned to him so the
+  // schedule content type has a real calendar to talk to.
+  const repId = await seedDemoRep();
+
   for (const brand of brands) {
     const code = SLUG_TO_CODE[brand.slug];
     if (!code) {
@@ -805,12 +820,11 @@ async function main() {
     }
     console.log(`[seed] -> ${brand.name} (${code})`);
     await seedBrandInfra(brand.id, code);
-    await backfillAdvisorCalendarEmail(brand.id, "zac@bmave.com");
     await seedPortalContent(brand.id, code);
     await seedStops(brand.id, brand.slug);
     await seedSteps(brand.id, code);
     await seedStop2Defaults(brand.id, code);
-    await seedDevCandidate(brand.id, code);
+    await seedDevCandidate(brand.id, code, repId);
   }
 
   console.log("[seed] done");

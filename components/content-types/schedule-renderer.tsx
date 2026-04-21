@@ -25,8 +25,9 @@ interface Props {
   existingBooking: ExistingBooking | null;
   brandName: string;
   advisorName?: string | null;
+  advisorRole?: string | null;
   isGCalConfigured: boolean;
-  hasAdvisorEmail: boolean;
+  hasAssignedRep: boolean;
   onGetSlots: (
     stepId: string,
   ) => Promise<{
@@ -53,8 +54,9 @@ export function ScheduleRenderer({
   existingBooking,
   brandName,
   advisorName,
+  advisorRole,
   isGCalConfigured,
-  hasAdvisorEmail,
+  hasAssignedRep,
   onGetSlots,
   onBook,
   onCancel,
@@ -76,7 +78,19 @@ export function ScheduleRenderer({
     localBooking && localBooking.status === "confirmed" ? localBooking : null;
   const mode: "picker" | "booked" = activeBooking ? "booked" : "picker";
 
-  if (!isGCalConfigured || !hasAdvisorEmail) {
+  if (!hasAssignedRep) {
+    return (
+      <div className="schedule-setup-card">
+        <h3>Your advisor is being assigned</h3>
+        <p>
+          Check back soon — we&apos;ll introduce you to your {brandName}{" "}
+          franchise growth lead shortly.
+        </p>
+      </div>
+    );
+  }
+
+  if (!isGCalConfigured) {
     return (
       <div className="schedule-setup-card">
         <h3>Scheduling is being set up</h3>
@@ -95,6 +109,7 @@ export function ScheduleRenderer({
         booking={activeBooking}
         timezone={config.timezone}
         advisorName={advisorName ?? null}
+        advisorRole={advisorRole ?? null}
         brandName={brandName}
         onReschedule={async () => {
           await onCancel(activeBooking.id);
@@ -112,6 +127,7 @@ export function ScheduleRenderer({
       config={config}
       brandName={brandName}
       advisorName={advisorName ?? null}
+      advisorRole={advisorRole ?? null}
       onGetSlots={onGetSlots}
       onBook={onBook}
       onBooked={(result) => {
@@ -135,6 +151,7 @@ function PickerView({
   config,
   brandName,
   advisorName,
+  advisorRole,
   onGetSlots,
   onBook,
   onBooked,
@@ -143,6 +160,7 @@ function PickerView({
   config: ScheduleConfig;
   brandName: string;
   advisorName: string | null;
+  advisorRole: string | null;
   onGetSlots: Props["onGetSlots"];
   onBook: Props["onBook"];
   onBooked: (result: {
@@ -219,7 +237,14 @@ function PickerView({
   return (
     <div className="schedule-renderer">
       <div className="schedule-head">
-        <h3>Book your discovery call</h3>
+        <h3>
+          {advisorName
+            ? `Book your call with ${advisorName}`
+            : "Book your discovery call"}
+        </h3>
+        {advisorRole && (
+          <p className="schedule-advisor-role">{advisorRole}</p>
+        )}
         {config.body && <p className="schedule-body">{config.body}</p>}
         <p className="schedule-meta">
           {config.duration_minutes}-minute call
@@ -318,6 +343,7 @@ function BookedView({
   booking,
   timezone,
   advisorName,
+  advisorRole,
   brandName,
   onReschedule,
   onContinue,
@@ -325,6 +351,7 @@ function BookedView({
   booking: ExistingBooking;
   timezone: string;
   advisorName: string | null;
+  advisorRole: string | null;
   brandName: string;
   onReschedule: () => Promise<void>;
   onContinue: () => void;
@@ -362,9 +389,14 @@ function BookedView({
         {formatTzAbbrev(booking.start_time, timezone)}
       </div>
       <p className="schedule-booked-meta">
-        {advisorName
-          ? `You'll meet with ${advisorName} from the ${brandName} team.`
-          : `You'll meet with the ${brandName} team.`}{" "}
+        {advisorName ? (
+          <>
+            You&apos;ll meet with <strong>{advisorName}</strong>
+            {advisorRole ? `, ${advisorRole}` : ""}.
+          </>
+        ) : (
+          <>You&apos;ll meet with the {brandName} team.</>
+        )}{" "}
         A calendar invite with the Google Meet link is on its way to your
         inbox.
       </p>
