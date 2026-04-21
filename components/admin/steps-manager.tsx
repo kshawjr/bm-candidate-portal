@@ -82,15 +82,15 @@ const CONTENT_TYPE_LABEL: Record<string, string> = Object.fromEntries(
 interface Props {
   brandId: string;
   brandSlug: string;
-  stopKey: string;
-  stopLabel: string;
-  stopName: string;
-  stopNumber: number;
+  chapterKey: string;
+  chapterLabel: string;
+  chapterName: string;
+  chapterNumber: number;
   steps: AdminStepRow[];
   onSelectStep: (stepId: string) => void;
   createStep: (
     brandId: string,
-    stopKey: string,
+    chapterKey: string,
     data: StepFormData,
   ) => Promise<string>;
   updateStep: (
@@ -101,7 +101,7 @@ interface Props {
   archiveStep: (stepId: string, archived: boolean) => Promise<void>;
   reorderSteps: (
     brandId: string,
-    stopKey: string,
+    chapterKey: string,
     orderedStepIds: string[],
   ) => Promise<void>;
 }
@@ -114,10 +114,10 @@ type DrawerState =
 export function StepsManager({
   brandId,
   brandSlug: _brandSlug,
-  stopKey,
-  stopLabel,
-  stopName,
-  stopNumber,
+  chapterKey,
+  chapterLabel,
+  chapterName,
+  chapterNumber,
   steps,
   onSelectStep,
   createStep,
@@ -159,7 +159,7 @@ export function StepsManager({
     const [moved] = next.splice(i, 1);
     next.splice(target, 0, moved);
     run(
-      () => reorderSteps(brandId, stopKey, next.map((s) => s.id)),
+      () => reorderSteps(brandId, chapterKey, next.map((s) => s.id)),
       "Steps reordered",
     );
   };
@@ -190,7 +190,7 @@ export function StepsManager({
       setError(null);
       startTransition(async () => {
         try {
-          const newId = await createStep(brandId, stopKey, data);
+          const newId = await createStep(brandId, chapterKey, data);
           setToast("Step added");
           setDrawer(null);
           router.refresh();
@@ -215,11 +215,11 @@ export function StepsManager({
       <header className="adm-editor-head">
         <div>
           <div className="adm-editor-eyebrow">
-            Stop {stopNumber} · {stopName}
+            Chapter {chapterNumber} · {chapterName}
           </div>
-          <h1 className="adm-editor-title">{stopLabel}</h1>
+          <h1 className="adm-editor-title">{chapterLabel}</h1>
           <p className="adm-editor-desc">
-            Manage the steps inside this stop. Open a step to edit its
+            Manage the steps inside this chapter. Open a step to edit its
             content.
           </p>
         </div>
@@ -235,7 +235,7 @@ export function StepsManager({
 
       {steps.length === 0 ? (
         <div className="adm-cardlist-empty">
-          <p>No steps in this stop yet. Add the first one to get started.</p>
+          <p>No steps in this chapter yet. Add the first one to get started.</p>
         </div>
       ) : (
         <ul className="structure-steplist">
@@ -244,10 +244,10 @@ export function StepsManager({
               key={step.id}
               className={`structure-steprow${step.is_archived ? " archived" : ""}`}
             >
-              <span className="structure-stoprow-num">{i + 1}</span>
-              <div className="structure-stoprow-meta">
-                <div className="structure-stoprow-title">
-                  <span className="structure-stoprow-label">{step.label}</span>
+              <span className="structure-chapterrow-num">{i + 1}</span>
+              <div className="structure-chapterrow-meta">
+                <div className="structure-chapterrow-title">
+                  <span className="structure-chapterrow-label">{step.label}</span>
                   <span className="structure-steprow-type">
                     {CONTENT_TYPE_LABEL[step.content_type] ??
                       step.content_type}
@@ -257,12 +257,12 @@ export function StepsManager({
                   )}
                 </div>
                 {step.description && (
-                  <div className="structure-stoprow-sub">
+                  <div className="structure-chapterrow-sub">
                     <span className="structure-muted">{step.description}</span>
                   </div>
                 )}
               </div>
-              <div className="structure-stoprow-reorder">
+              <div className="structure-chapterrow-reorder">
                 <button
                   type="button"
                   className="adm-icon-btn"
@@ -284,7 +284,7 @@ export function StepsManager({
                   ↓
                 </button>
               </div>
-              <div className="structure-stoprow-actions">
+              <div className="structure-chapterrow-actions">
                 <button
                   type="button"
                   className="adm-btn-ghost"

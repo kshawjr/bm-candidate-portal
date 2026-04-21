@@ -5,7 +5,7 @@
 export type JourneyVariant =
   | "almost_there"
   | "stalled"
-  | "between_stops"
+  | "between_chapters"
   | "on_a_roll"
   | "welcome_in";
 
@@ -38,20 +38,20 @@ export function JourneyCard({ state }: { state: JourneyCardState }) {
   );
 }
 
-// Stop shape only needs what the resolver uses.
-export interface JourneyStop {
-  stop_key: string;
+// Chapter shape only needs what the resolver uses.
+export interface JourneyChapter {
+  chapter_key: string;
   label: string;
   name: string;
 }
 
 export interface ResolveInput {
-  currentStopIdx: number;
-  stops: JourneyStop[];
+  currentChapterIdx: number;
+  chapters: JourneyChapter[];
   lastActivityAt: Date | null;
   recentlyActive: boolean; // any candidate_progress row within last ~48h
-  currentStopStepsCompleted: number;
-  currentStopStepCount: number;
+  currentChapterStepsCompleted: number;
+  currentChapterStepCount: number;
 }
 
 function daysSince(d: Date): number {
@@ -61,23 +61,23 @@ function daysSince(d: Date): number {
 
 export function resolveJourneyCardState(input: ResolveInput): JourneyCardState {
   const {
-    currentStopIdx,
-    stops,
+    currentChapterIdx,
+    chapters,
     lastActivityAt,
     recentlyActive,
-    currentStopStepsCompleted,
-    currentStopStepCount,
+    currentChapterStepsCompleted,
+    currentChapterStepCount,
   } = input;
-  const total = stops.length;
-  const isFinalStop = currentStopIdx >= total - 1;
+  const total = chapters.length;
+  const isFinalChapter = currentChapterIdx >= total - 1;
 
-  // a) Almost there — Stop 6 or 7 (index >= 5)
-  if (currentStopIdx >= 5) {
-    const left = Math.max(0, total - currentStopIdx - 1);
+  // a) Almost there — Chapter 6 or 7 (index >= 5)
+  if (currentChapterIdx >= 5) {
+    const left = Math.max(0, total - currentChapterIdx - 1);
     const tail =
       left === 0
         ? "You're at your signing day"
-        : `${left} stop${left === 1 ? "" : "s"} left · Your signing day is close`;
+        : `${left} chapter${left === 1 ? "" : "s"} left · Your signing day is close`;
     return {
       variant: "almost_there",
       heading: "Almost there",
@@ -87,11 +87,11 @@ export function resolveJourneyCardState(input: ResolveInput): JourneyCardState {
     };
   }
 
-  // b) Stalled — 3+ days since last activity and not at final stop
+  // b) Stalled — 3+ days since last activity and not at final chapter
   if (
     lastActivityAt &&
     daysSince(lastActivityAt) >= 3 &&
-    !isFinalStop
+    !isFinalChapter
   ) {
     return {
       variant: "stalled",
@@ -102,17 +102,17 @@ export function resolveJourneyCardState(input: ResolveInput): JourneyCardState {
     };
   }
 
-  // c) Between stops — every step in the current stop is complete but
-  // current_stop hasn't advanced yet (rare because submits auto-advance).
+  // c) Between chapters — every step in the current chapter is complete but
+  // current_chapter hasn't advanced yet (rare because submits auto-advance).
   if (
-    currentStopStepCount > 0 &&
-    currentStopStepsCompleted >= currentStopStepCount &&
-    !isFinalStop
+    currentChapterStepCount > 0 &&
+    currentChapterStepsCompleted >= currentChapterStepCount &&
+    !isFinalChapter
   ) {
-    const currentLabel = stops[currentStopIdx]?.label ?? "this stop";
-    const nextLabel = stops[currentStopIdx + 1]?.label ?? "what's next";
+    const currentLabel = chapters[currentChapterIdx]?.label ?? "this chapter";
+    const nextLabel = chapters[currentChapterIdx + 1]?.label ?? "what's next";
     return {
-      variant: "between_stops",
+      variant: "between_chapters",
       heading: "Nicely done",
       body: `You wrapped up ${currentLabel}. Up next: ${nextLabel}.`,
       icon: "✓",
@@ -120,25 +120,25 @@ export function resolveJourneyCardState(input: ResolveInput): JourneyCardState {
     };
   }
 
-  // d) On a roll — mid-journey (stops 2-5 = index 1-4) with recent activity
-  if (currentStopIdx >= 1 && currentStopIdx <= 4 && recentlyActive) {
-    const done = currentStopIdx;
-    const weeksLeft = Math.max(2, total - currentStopIdx);
+  // d) On a roll — mid-journey (chapters 2-5 = index 1-4) with recent activity
+  if (currentChapterIdx >= 1 && currentChapterIdx <= 4 && recentlyActive) {
+    const done = currentChapterIdx;
+    const weeksLeft = Math.max(2, total - currentChapterIdx);
     return {
       variant: "on_a_roll",
       heading: "You're on a roll",
-      body: `${done} of ${total} stops done · ~${weeksLeft} weeks to go`,
+      body: `${done} of ${total} chapters done · ~${weeksLeft} weeks to go`,
       icon: "✨",
       tone: "brand",
     };
   }
 
-  // e) Welcome — default (fresh candidate on Stop 1, or any quiet state
+  // e) Welcome — default (fresh candidate on Chapter 1, or any quiet state
   // that didn't match above).
   return {
     variant: "welcome_in",
     heading: "Welcome in",
-    body: "Here's what to expect: 7 stops, ~7 weeks, no surprises. Your advisor is always a message away.",
+    body: "Here's what to expect: 7 chapters, ~7 weeks, no surprises. Your advisor is always a message away.",
     icon: "👋",
     tone: "soft",
   };

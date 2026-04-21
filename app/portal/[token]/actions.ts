@@ -13,47 +13,47 @@ import {
 } from "@/lib/google-calendar";
 
 /**
- * Has the candidate already progressed past (stopIdx, nextStepIdx)? If so
+ * Has the candidate already progressed past (chapterIdx, nextStepIdx)? If so
  * the advance actions below no-op — otherwise a candidate replaying a prior
- * stop's content would overwrite current_step and drift their resume point.
+ * chapter's content would overwrite current_step and drift their resume point.
  */
 function hasAlreadyAdvancedPast(
-  current: { current_stop: number | null; current_step: number | null },
-  stopIdx: number,
+  current: { current_chapter: number | null; current_step: number | null },
+  chapterIdx: number,
   nextStepIdx: number,
 ): boolean {
-  const cs = current.current_stop ?? 0;
+  const cc = current.current_chapter ?? 0;
   const cp = current.current_step ?? 0;
-  if (cs > stopIdx) return true;
-  if (cs === stopIdx && cp >= nextStepIdx) return true;
+  if (cc > chapterIdx) return true;
+  if (cc === chapterIdx && cp >= nextStepIdx) return true;
   return false;
 }
 
 /**
  * Generic "advance the candidate past the step they just finished" — bumps
- * current_step only, no stop-wide flags. Used by video and schedule steps.
+ * current_step only, no chapter-wide flags. Used by video and schedule steps.
  * No-ops if the candidate has already progressed past this position (e.g.
- * they're replaying a completed stop and clicked "next").
+ * they're replaying a completed chapter and clicked "next").
  */
 export async function advanceStepAction(
   token: string,
-  stopIdx: number,
+  chapterIdx: number,
   nextStepIdx: number,
 ): Promise<void> {
   const app = createAppServiceClient();
   const { data: current, error: readErr } = await app
     .from("candidates_in_portal")
-    .select("current_stop, current_step")
+    .select("current_chapter, current_step")
     .eq("token", token)
     .maybeSingle();
   if (readErr) throw new Error(`advanceStepAction read failed: ${readErr.message}`);
   if (!current) return;
-  if (hasAlreadyAdvancedPast(current, stopIdx, nextStepIdx)) return;
+  if (hasAlreadyAdvancedPast(current, chapterIdx, nextStepIdx)) return;
 
   const { error } = await app
     .from("candidates_in_portal")
     .update({
-      current_stop: stopIdx,
+      current_chapter: chapterIdx,
       current_step: nextStepIdx,
       last_activity_at: new Date().toISOString(),
     })
@@ -64,31 +64,31 @@ export async function advanceStepAction(
 
 /**
  * Mark the brand tour complete for the candidate on this token, and advance
- * current_step to the supplied index. No-ops on the step/stop write if the
+ * current_step to the supplied index. No-ops on the step/chapter write if the
  * candidate has already progressed past this position; still flips
  * is_tour_complete since that's idempotent.
  */
 export async function completeTourAction(
   token: string,
-  stopIdx: number,
+  chapterIdx: number,
   nextStepIdx: number,
 ): Promise<void> {
   const app = createAppServiceClient();
   const { data: current, error: readErr } = await app
     .from("candidates_in_portal")
-    .select("current_stop, current_step")
+    .select("current_chapter, current_step")
     .eq("token", token)
     .maybeSingle();
   if (readErr) throw new Error(`completeTourAction read failed: ${readErr.message}`);
   if (!current) return;
 
-  const alreadyPast = hasAlreadyAdvancedPast(current, stopIdx, nextStepIdx);
+  const alreadyPast = hasAlreadyAdvancedPast(current, chapterIdx, nextStepIdx);
   const update: Record<string, unknown> = {
     is_tour_complete: true,
     last_activity_at: new Date().toISOString(),
   };
   if (!alreadyPast) {
-    update.current_stop = stopIdx;
+    update.current_chapter = chapterIdx;
     update.current_step = nextStepIdx;
   }
 
@@ -158,7 +158,7 @@ export async function saveApplicationAnswerAction(
 
 /**
  * Submit the application. Writes any final answers in a single batch, flips
- * is_app_submitted, advances to Stop 2 (Say hi) at step 0, and logs a
+ * is_app_submitted, advances to Chapter 2 (Say hi) at step 0, and logs a
  * candidate_progress audit row.
  */
 export async function submitApplicationAction(
@@ -182,12 +182,12 @@ export async function submitApplicationAction(
     if (upErr) throw new Error(`submit batch upsert failed: ${upErr.message}`);
   }
 
-  // Flip submitted + advance to Stop 2 · Step 0 (Say hi).
+  // Flip submitted + advance to Chapter 2 · Step 0 (Say hi).
   const { error: pErr } = await app
     .from("candidates_in_portal")
     .update({
       is_app_submitted: true,
-      current_stop: 1,
+      current_chapter: 1,
       current_step: 0,
       last_activity_at: new Date().toISOString(),
     })
@@ -197,7 +197,7 @@ export async function submitApplicationAction(
   // Audit: log completion of explore/app.
   const { error: prErr } = await app.from("candidate_progress").insert({
     candidate_in_portal_id: portalId,
-    stop_key: "explore",
+    chapter_key: "explore",
     step_key: "app",
   });
   if (prErr) throw new Error(`candidate_progress insert failed: ${prErr.message}`);
@@ -211,9 +211,9 @@ export async function submitApplicationAction(
 
 interface StepContext {
   stepId: string;
-  stopKey: string;
+  chapterKey: string;
   stepPosition: number;
-  stopPosition: number;
+  chapterPosition: number;
   config: ScheduleConfig;
   portalId: string;
   candidate: {
@@ -249,7 +249,7 @@ async function loadStepContext(
 
   const { data: step, error: stepErr } = await app
     .from("steps_config")
-    .select("id, brand_id, stop_key, position, content_type, config")
+    .select("id, brand_id, chapter_key, position, content_type, config")
     .eq("id", stepId)
     .maybeSingle();
   if (stepErr) throw new Error(`step lookup failed: ${stepErr.message}`);
@@ -258,14 +258,14 @@ async function loadStepContext(
     throw new Error("step is not a schedule step");
   }
 
-  const { data: stop, error: stopErr } = await app
-    .from("stops_config")
+  const { data: chapter, error: chapterErr } = await app
+    .from("chapters_config")
     .select("position")
     .eq("brand_id", step.brand_id)
-    .eq("stop_key", step.stop_key)
+    .eq("chapter_key", step.chapter_key)
     .maybeSingle();
-  if (stopErr) throw new Error(`stop lookup failed: ${stopErr.message}`);
-  if (!stop) throw new Error("stop not found");
+  if (chapterErr) throw new Error(`chapter lookup failed: ${chapterErr.message}`);
+  if (!chapter) throw new Error("chapter not found");
 
   const core = createCoreClient();
   const [{ data: candidate }, { data: brand }] = await Promise.all([
@@ -365,9 +365,9 @@ async function loadStepContext(
 
   return {
     stepId: step.id as string,
-    stopKey: step.stop_key as string,
+    chapterKey: step.chapter_key as string,
     stepPosition: step.position as number,
-    stopPosition: stop.position as number,
+    chapterPosition: chapter.position as number,
     config,
     portalId: session.id as string,
     candidate: {
@@ -501,10 +501,10 @@ export async function bookSlotAction(
   if (insErr) throw new Error(`booking insert failed: ${insErr.message}`);
 
   // Progress: log completion of this step and advance the candidate to
-  // whichever step comes next within the same stop.
+  // whichever step comes next within the same chapter.
   await app.from("candidate_progress").insert({
     candidate_in_portal_id: ctx.portalId,
-    stop_key: ctx.stopKey,
+    chapter_key: ctx.chapterKey,
     step_key: null,
   });
   await app
