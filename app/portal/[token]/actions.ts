@@ -405,13 +405,15 @@ export async function bookSlotAction(
   // Upsert the booking row — one per (candidate, step) thanks to the unique
   // constraint. If the candidate is rescheduling, we should have deleted the
   // prior row via cancelBookingAction first; defensively `upsert` here so we
-  // tolerate races.
+  // tolerate races. rep_id mirrors bmave-core.reps.id so cancellation can
+  // resolve the right calendar even if the candidate gets reassigned later.
   const { data: bookingRow, error: insErr } = await app
     .from("bookings")
     .upsert(
       {
         candidate_in_portal_id: ctx.portalId,
         step_id: ctx.stepId,
+        rep_id: ctx.rep.id,
         google_event_id: result.eventId,
         meeting_url: result.meetingUrl,
         start_time: result.startTime,
@@ -460,7 +462,7 @@ export async function cancelBookingAction(
   const { data: booking, error: readErr } = await app
     .from("bookings")
     .select(
-      "id, google_event_id, step_id, candidate_in_portal_id, status",
+      "id, google_event_id, step_id, candidate_in_portal_id, rep_id, status",
     )
     .eq("id", bookingId)
     .maybeSingle();
@@ -479,35 +481,19 @@ export async function cancelBookingAction(
     throw new Error("booking does not belong to this session");
   }
 
-  // Resolve the rep whose calendar owns this event, via the candidate's
-  // current assignment. The candidate's rep may have changed since the
-  // event was booked — rare in demo, but if it happens we bail out of the
-  // Google cancel step and still clear the local booking row so the UX
-  // doesn't get stuck.
+  // Resolve the rep whose calendar owns this event via the booking's own
+  // rep_id — not the candidate's current assignment, which may have moved
+  // since the booking was made.
   let repCalendarEmail: string | null = null;
-  const { data: sessionRow } = await app
-    .from("candidates_in_portal")
-    .select("candidate_id")
-    .eq("id", booking.candidate_in_portal_id)
-    .maybeSingle();
-  if (sessionRow?.candidate_id) {
+  if (booking.rep_id) {
     const core = createCoreClient();
-    const { data: cand } = await core
-      .from("candidates")
-      .select("assigned_rep_id")
-      .eq("id", sessionRow.candidate_id)
+    const { data: rep } = await core
+      .from("reps")
+      .select("calendar_email")
+      .eq("id", booking.rep_id)
       .maybeSingle();
-    const assignedRepId =
-      ((cand as { assigned_rep_id?: string | null } | null)?.assigned_rep_id) ?? null;
-    if (assignedRepId) {
-      const { data: rep } = await core
-        .from("reps")
-        .select("calendar_email")
-        .eq("id", assignedRepId)
-        .maybeSingle();
-      repCalendarEmail =
-        ((rep as { calendar_email?: string | null } | null)?.calendar_email) ?? null;
-    }
+    repCalendarEmail =
+      ((rep as { calendar_email?: string | null } | null)?.calendar_email) ?? null;
   }
 
   if (repCalendarEmail && isGCalConfigured()) {
