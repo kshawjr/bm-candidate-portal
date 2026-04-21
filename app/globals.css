@@ -788,11 +788,49 @@ body {
   background: color-mix(in srgb, var(--brand-primary) 9%, var(--surface));
   border: 1px solid color-mix(in srgb, var(--brand-primary) 22%, transparent);
   border-radius: var(--radius-md);
+  opacity: 0;
+  transform: translateY(16px);
+  transition:
+    opacity 400ms ease-out,
+    transform 400ms ease-out;
+}
+.call-prep-callout.is-visible {
+  opacity: 1;
+  transform: translateY(0);
 }
 .call-prep-callout-icon {
   font-size: 22px;
   line-height: 1;
   margin-top: 2px;
+  display: inline-block;
+  transform-origin: 70% 70%;
+  animation: call-prep-callout-wave 3s ease-in-out infinite;
+}
+@keyframes call-prep-callout-wave {
+  0%,
+  60%,
+  100% {
+    transform: rotate(0deg);
+  }
+  70% {
+    transform: rotate(8deg);
+  }
+  80% {
+    transform: rotate(-4deg);
+  }
+  90% {
+    transform: rotate(2deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .call-prep-callout {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+  .call-prep-callout-icon {
+    animation: none;
+  }
 }
 .call-prep-callout-text {
   font-family: var(--font-body);

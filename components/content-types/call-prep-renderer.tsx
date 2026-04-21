@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import {
   buildTemplateContext,
   resolveTemplate,
@@ -62,6 +63,33 @@ export function CallPrepRenderer({
     (b) => b && b.trim().length > 0,
   );
 
+  // Reveal the partner callout when it scrolls into view. Fires once; the
+  // observer disconnects after the first intersection so the class never
+  // un-applies. CSS handles the actual fade/slide + reduced-motion opt-out.
+  const calloutRef = useRef<HTMLElement | null>(null);
+  const [calloutVisible, setCalloutVisible] = useState(false);
+  useEffect(() => {
+    const el = calloutRef.current;
+    if (!el || typeof IntersectionObserver === "undefined") {
+      setCalloutVisible(true);
+      return;
+    }
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            setCalloutVisible(true);
+            observer.disconnect();
+            break;
+          }
+        }
+      },
+      { threshold: 0.3 },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
   return (
     <div className="call-prep-renderer">
       <header className="call-prep-head">
@@ -105,7 +133,11 @@ export function CallPrepRenderer({
       )}
 
       {config.partner_callout_enabled && config.partner_callout_text && (
-        <aside className="call-prep-callout" role="note">
+        <aside
+          ref={calloutRef}
+          className={`call-prep-callout${calloutVisible ? " is-visible" : ""}`}
+          role="note"
+        >
           <div className="call-prep-callout-icon" aria-hidden="true">
             👥
           </div>
