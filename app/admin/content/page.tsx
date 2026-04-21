@@ -16,11 +16,18 @@ import {
   uploadCardImageAction,
   uploadSlideImageAction,
 } from "./actions";
+import {
+  archiveStepAction,
+  createStepAction,
+  deleteStepAction,
+  reorderStepsAction,
+  updateStepAction,
+} from "@/app/admin/structure/actions";
 
 export const dynamic = "force-dynamic";
 
 interface Props {
-  searchParams?: { brand?: string; step?: string };
+  searchParams?: { brand?: string; step?: string; stop?: string };
 }
 
 // Hardcoded preview tokens per brand. Matches the dev tokens seeded in
@@ -58,18 +65,17 @@ export default async function ContentEditorPage({ searchParams }: Props) {
   const brand =
     brands.find((b) => b.slug === requestedSlug) ?? brands[0]!;
 
-  // Fetch this brand's stops + steps from bm-candidate-portal.
   const app = createAppServiceClient();
   const [{ data: stopsRows }, { data: stepsRows }] = await Promise.all([
     app
       .from("stops_config")
-      .select("stop_key, position, label, name")
+      .select("id, stop_key, position, label, name, is_archived")
       .eq("brand_id", brand.id)
       .order("position"),
     app
       .from("steps_config")
       .select(
-        "id, stop_key, position, step_key, label, description, content_type, content_cards, config",
+        "id, stop_key, position, step_key, label, description, content_type, content_cards, config, is_archived",
       )
       .eq("brand_id", brand.id)
       .order("stop_key")
@@ -77,10 +83,12 @@ export default async function ContentEditorPage({ searchParams }: Props) {
   ]);
 
   const stops: AdminStop[] = (stopsRows ?? []).map((s) => ({
+    id: s.id,
     stop_key: s.stop_key,
     position: s.position,
     label: s.label,
     name: s.name,
+    is_archived: !!s.is_archived,
   }));
 
   const stepsByStop: Record<string, AdminStep[]> = {};
@@ -98,12 +106,13 @@ export default async function ContentEditorPage({ searchParams }: Props) {
       step_key: row.step_key,
       position: row.position,
       label: row.label,
-      description: row.description,
+      description: row.description ?? "",
       content_type: row.content_type,
       content_cards: Array.isArray(row.content_cards)
         ? (row.content_cards as ContentCard[])
         : [],
       slides,
+      is_archived: !!row.is_archived,
     };
     (stepsByStop[row.stop_key] ??= []).push(step);
   }
@@ -112,27 +121,38 @@ export default async function ContentEditorPage({ searchParams }: Props) {
   }
 
   const requestedStepId = searchParams?.step ?? null;
+  const requestedStopKey = searchParams?.stop ?? null;
   const allStepIds = new Set(
     Object.values(stepsByStop).flatMap((arr) => arr.map((s) => s.id)),
   );
+  const allStopKeys = new Set(stops.map((s) => s.stop_key));
   const initialStepId =
-    requestedStepId && allStepIds.has(requestedStepId)
-      ? requestedStepId
+    requestedStepId && allStepIds.has(requestedStepId) ? requestedStepId : null;
+  const initialStopKey =
+    !initialStepId && requestedStopKey && allStopKeys.has(requestedStopKey)
+      ? requestedStopKey
       : null;
 
   return (
     <ContentEditor
+      brandId={brand.id}
       brandSlug={brand.slug}
       brandName={brand.name}
       stops={stops}
       stepsByStop={stepsByStop}
       initialStepId={initialStepId}
+      initialStopKey={initialStopKey}
       saveCard={saveContentCardAction}
       deleteCard={deleteContentCardAction}
       saveSlides={saveSlidesAction}
       upload={uploadCardImageAction}
       uploadSlide={uploadSlideImageAction}
       candidateTokenForPreview={PREVIEW_TOKEN[brand.slug] ?? null}
+      createStep={createStepAction}
+      updateStep={updateStepAction}
+      deleteStep={deleteStepAction}
+      archiveStep={archiveStepAction}
+      reorderSteps={reorderStepsAction}
     />
   );
 }

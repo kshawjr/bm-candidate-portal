@@ -269,6 +269,10 @@ function SlideDrawer({
             }
             brandSlug={brandSlug}
             onUpload={upload}
+            purpose="Brand tour slide"
+            recommendedSize="1600 × 900 px (16:9)"
+            recommendedFormat="JPG or PNG"
+            maxSizeMB={5}
           />
 
           <label className="adm-field">
