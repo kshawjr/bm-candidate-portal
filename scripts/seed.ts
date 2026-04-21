@@ -905,7 +905,7 @@ async function seedCallPrepForStop2(brandId: string) {
     heading: "Before your {call_type}",
     subheading: "What to expect, who you'll meet",
     description:
-      "Thanks for booking. Here's what to expect so nothing feels like a cold open. This is a {duration}-minute conversation, not a pitch. You'll meet {rep_first_name} from the {brand_short_name} team.",
+      "Here's what to expect so you can come in relaxed. This is a {duration}-minute conversation with {rep_first_name} from the {brand_short_name} team — not a pitch.",
     hero_image_url: null,
     what_well_cover: [
       "Your timeline and what markets you're eyeing",
@@ -919,7 +919,7 @@ async function seedCallPrepForStop2(brandId: string) {
     ],
     partner_callout_enabled: true,
     partner_callout_text:
-      "If you have a spouse, partner, or co-investor — bring them along. {call_type} calls are way better with the whole team. (Especially if that person is the one who'll make you write the check.)",
+      "If you have a spouse, partner, or co-investor — bring them along. These conversations are way better with the whole team. (Especially if that person is the one who'll make you write the check.)",
     cta_label: "Ready to book",
   };
 
