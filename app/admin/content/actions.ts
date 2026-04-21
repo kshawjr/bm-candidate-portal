@@ -5,6 +5,7 @@ import { createAppServiceClient } from "@/lib/supabase-app";
 import { createCoreClient } from "@/lib/core-client";
 import { getAdminUser } from "@/lib/supabase-auth";
 import type { ContentCard } from "@/components/content-cards/types";
+import type { Slide } from "@/components/content-types/slides-renderer";
 
 const STORAGE_BUCKET = "brand-assets";
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5 MB
@@ -84,19 +85,23 @@ export async function deleteContentCardAction(
 }
 
 /**
- * Upload an image file to brand-assets/{brandSlug}/content-cards/{ts}-{name}
+ * Upload an image file to brand-assets/{brandSlug}/{subdir}/{ts}-{name}
  * and return the public URL. Validates size + MIME type server-side.
+ *
+ * brand-assets lives in the SHARED bmave-core Supabase project (same bucket
+ * the brand logos are stored in — see PR 4b). Using the core client means
+ * uploads land where logos already work, and getPublicUrl() returns the
+ * bmave-core hostname that next/image's remotePatterns already allow.
  */
-export async function uploadCardImageAction(
+async function uploadBrandAsset(
   brandSlug: string,
+  subdir: "content-cards" | "slides",
   formData: FormData,
 ): Promise<{ url: string } | { error: string }> {
   await requireAdmin();
 
   const file = formData.get("file");
-  if (!(file instanceof File)) {
-    return { error: "No file provided" };
-  }
+  if (!(file instanceof File)) return { error: "No file provided" };
   if (!ALLOWED_IMAGE_TYPES.has(file.type)) {
     return { error: "Image must be JPG, PNG, or WebP" };
   }
@@ -108,12 +113,8 @@ export async function uploadCardImageAction(
   }
 
   const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-").slice(0, 80);
-  const path = `${brandSlug}/content-cards/${Date.now()}-${safeName}`;
+  const path = `${brandSlug}/${subdir}/${Date.now()}-${safeName}`;
 
-  // brand-assets lives in the SHARED bmave-core Supabase project (same
-  // bucket the brand logos are stored in — see PR 4b). Use the core client
-  // so uploads land where logos already work, and so getPublicUrl() returns
-  // the bmave-core hostname that next/image's remotePatterns already allow.
   const core = createCoreClient();
   const { error: upErr } = await core.storage
     .from(STORAGE_BUCKET)
@@ -128,4 +129,89 @@ export async function uploadCardImageAction(
   if (!pub?.publicUrl) return { error: "Failed to resolve public URL" };
 
   return { url: pub.publicUrl };
+}
+
+export async function uploadCardImageAction(
+  brandSlug: string,
+  formData: FormData,
+): Promise<{ url: string } | { error: string }> {
+  return uploadBrandAsset(brandSlug, "content-cards", formData);
+}
+
+export async function uploadSlideImageAction(
+  brandSlug: string,
+  formData: FormData,
+): Promise<{ url: string } | { error: string }> {
+  return uploadBrandAsset(brandSlug, "slides", formData);
+}
+
+// ---- slides ----
+
+function normalizeSlides(input: unknown): Slide[] {
+  if (!Array.isArray(input)) {
+    throw new Error("slides must be an array");
+  }
+  return input.map((raw, i) => {
+    if (!raw || typeof raw !== "object") {
+      throw new Error(`slide ${i + 1}: must be an object`);
+    }
+    const s = raw as Record<string, unknown>;
+    const image_url = typeof s.image_url === "string" ? s.image_url.trim() : "";
+    if (!image_url) throw new Error(`slide ${i + 1}: image_url is required`);
+    const id =
+      typeof s.id === "string" && s.id.trim().length > 0
+        ? s.id.trim()
+        : `slide-${Date.now()}-${i}`;
+    const alt =
+      typeof s.alt === "string" && s.alt.trim().length > 0 ? s.alt : null;
+    const caption =
+      typeof s.caption === "string" && s.caption.trim().length > 0
+        ? s.caption
+        : null;
+    return { id, image_url, alt, caption };
+  });
+}
+
+/**
+ * Replace the `slides` array on a step's `config` JSON, preserving any other
+ * keys (e.g. `body`). Requires at least one slide — the renderer needs one
+ * to function, and the admin UI blocks deleting the last slide.
+ */
+export async function saveSlidesAction(
+  stepId: string,
+  slides: Slide[],
+): Promise<void> {
+  await requireAdmin();
+
+  const normalized = normalizeSlides(slides);
+  if (normalized.length === 0) {
+    throw new Error("At least one slide is required");
+  }
+
+  const app = createAppServiceClient();
+  const { data: row, error: readErr } = await app
+    .from("steps_config")
+    .select("config, content_type")
+    .eq("id", stepId)
+    .maybeSingle();
+  if (readErr) throw new Error(`step lookup failed: ${readErr.message}`);
+  if (!row) throw new Error(`step not found: ${stepId}`);
+  if (row.content_type !== "slides") {
+    throw new Error(`step ${stepId} is not a slides step`);
+  }
+
+  const prevConfig =
+    row.config && typeof row.config === "object" && !Array.isArray(row.config)
+      ? (row.config as Record<string, unknown>)
+      : {};
+  const nextConfig = { ...prevConfig, slides: normalized };
+
+  const { error: writeErr } = await app
+    .from("steps_config")
+    .update({ config: nextConfig })
+    .eq("id", stepId);
+  if (writeErr) throw new Error(`steps_config update failed: ${writeErr.message}`);
+
+  revalidatePath("/admin/content");
+  revalidatePath("/portal/[token]", "page");
 }

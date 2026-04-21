@@ -8,10 +8,13 @@ import {
   type AdminStop,
 } from "@/components/admin/content-editor";
 import type { ContentCard } from "@/components/content-cards/types";
+import type { Slide } from "@/components/content-types/slides-renderer";
 import {
   saveContentCardAction,
   deleteContentCardAction,
+  saveSlidesAction,
   uploadCardImageAction,
+  uploadSlideImageAction,
 } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -66,7 +69,7 @@ export default async function ContentEditorPage({ searchParams }: Props) {
     app
       .from("steps_config")
       .select(
-        "id, stop_key, position, step_key, label, description, content_type, content_cards",
+        "id, stop_key, position, step_key, label, description, content_type, content_cards, config",
       )
       .eq("brand_id", brand.id)
       .order("stop_key")
@@ -82,6 +85,13 @@ export default async function ContentEditorPage({ searchParams }: Props) {
 
   const stepsByStop: Record<string, AdminStep[]> = {};
   for (const row of stepsRows ?? []) {
+    const config =
+      row.config && typeof row.config === "object" && !Array.isArray(row.config)
+        ? (row.config as Record<string, unknown>)
+        : {};
+    const slides = Array.isArray(config.slides)
+      ? (config.slides as Slide[])
+      : [];
     const step: AdminStep = {
       id: row.id,
       stop_key: row.stop_key,
@@ -93,6 +103,7 @@ export default async function ContentEditorPage({ searchParams }: Props) {
       content_cards: Array.isArray(row.content_cards)
         ? (row.content_cards as ContentCard[])
         : [],
+      slides,
     };
     (stepsByStop[row.stop_key] ??= []).push(step);
   }
@@ -118,7 +129,9 @@ export default async function ContentEditorPage({ searchParams }: Props) {
       initialStepId={initialStepId}
       saveCard={saveContentCardAction}
       deleteCard={deleteContentCardAction}
+      saveSlides={saveSlidesAction}
       upload={uploadCardImageAction}
+      uploadSlide={uploadSlideImageAction}
       candidateTokenForPreview={PREVIEW_TOKEN[brand.slug] ?? null}
     />
   );
