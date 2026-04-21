@@ -746,31 +746,37 @@ body {
   color: var(--cin-text);
   margin: 0 0 8px;
 }
-/* day carousel — horizontal scroll row of compact day cards */
-.schedule-day-carousel {
-  display: flex;
+/* day grid — 7-column calendar with a weekday header row */
+.schedule-day-grid-header {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
   gap: 6px;
-  overflow-x: auto;
-  overflow-y: hidden;
-  padding: 4px 2px 8px;
-  margin-bottom: 18px;
-  /* hide scrollbar but keep scrollability */
-  scrollbar-width: none;
-  -ms-overflow-style: none;
+  margin-bottom: 6px;
 }
-.schedule-day-carousel::-webkit-scrollbar {
-  display: none;
+.schedule-day-grid-head {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--cin-text-muted);
+  font-weight: 600;
+  text-align: center;
+  padding: 4px 0;
+  font-family: var(--font-body);
+}
+.schedule-day-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+  margin-bottom: 18px;
 }
 .schedule-day-card {
-  flex: 0 0 auto;
-  width: 56px;
-  min-height: 62px;
+  min-height: 52px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 2px;
-  padding: 8px 6px;
+  gap: 3px;
+  padding: 8px 4px;
   background: var(--surface);
   border: 1px solid var(--cin-border);
   border-radius: var(--radius-md);
@@ -778,7 +784,7 @@ body {
   cursor: pointer;
   transition: background 0.12s, border-color 0.12s, color 0.12s, opacity 0.12s;
 }
-.schedule-day-card:hover:not(.selected) {
+.schedule-day-card:hover:not(.selected):not(.past) {
   background: var(--surface-soft);
   border-color: var(--cin-text-faint);
 }
@@ -786,7 +792,7 @@ body {
   background: color-mix(in srgb, var(--brand-primary) 12%, var(--surface));
   border: 2px solid var(--brand-primary);
   color: var(--brand-primary);
-  padding: 7px 5px;
+  padding: 7px 3px;
 }
 .schedule-day-card.empty {
   opacity: 0.4;
@@ -794,23 +800,51 @@ body {
 .schedule-day-card.empty.selected {
   opacity: 1;
 }
-.schedule-day-card-wday {
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  color: var(--cin-text-muted);
+.schedule-day-card.past {
+  opacity: 0.3;
+  cursor: not-allowed;
 }
-.schedule-day-card.selected .schedule-day-card-wday {
-  color: var(--brand-primary);
+.schedule-day-card.past:hover {
+  background: var(--surface);
+  border-color: var(--cin-border);
+}
+.schedule-day-card.today {
+  /* subtle accent ring + small dot below the number so today reads as
+   * "you are here" without competing with the explicit selection style. */
+  border-color: color-mix(in srgb, var(--brand-primary) 55%, transparent);
+}
+.schedule-day-card.today::after {
+  content: "";
+  display: block;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--brand-primary);
 }
 .schedule-day-card-num {
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 600;
   color: var(--cin-text);
   line-height: 1;
 }
 .schedule-day-card.selected .schedule-day-card-num {
   color: var(--brand-primary);
+}
+
+/* Tight the gutter on small screens so 7 columns fit comfortably on
+ * ~375px-wide viewports. */
+@media (max-width: 480px) {
+  .schedule-day-grid,
+  .schedule-day-grid-header {
+    gap: 4px;
+  }
+  .schedule-day-card {
+    min-height: 46px;
+    padding: 6px 2px;
+  }
+  .schedule-day-card-num {
+    font-size: 15px;
+  }
 }
 
 /* time slots grid for the selected day */

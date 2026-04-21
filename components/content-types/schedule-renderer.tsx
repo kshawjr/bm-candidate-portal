@@ -12,6 +12,8 @@ import {
   type Slot,
 } from "@/lib/schedule-shared";
 
+const WEEKDAY_HEADERS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
 export interface ExistingBooking {
   id: string;
   start_time: string;
@@ -230,13 +232,23 @@ function PickerView({
     [config.timezone, config.days_ahead],
   );
 
-  // Default the selected day to the first day with availability; falling
-  // back to the first day in the picker if the window is entirely empty.
+  // Default the selected day to the first day with availability. Past
+  // days and today don't have slots (slot generation starts tomorrow)
+  // so this naturally picks the first bookable day.
   useEffect(() => {
     if (selectedDay !== null) return;
     if (dayCards.length === 0) return;
-    const firstWithSlots = dayCards.find((c) => slotsByDay.has(c.dayKey));
-    setSelectedDay((firstWithSlots ?? dayCards[0]).dayKey);
+    const firstWithSlots = dayCards.find(
+      (c) => !c.isPast && slotsByDay.has(c.dayKey),
+    );
+    if (firstWithSlots) {
+      setSelectedDay(firstWithSlots.dayKey);
+      return;
+    }
+    // Nothing bookable yet — fall back to the first non-past card so the
+    // user sees some selection highlight.
+    const firstFuture = dayCards.find((c) => !c.isPast);
+    setSelectedDay((firstFuture ?? dayCards[0]).dayKey);
   }, [dayCards, slotsByDay, selectedDay]);
 
   const slotsForSelectedDay = selectedDay
@@ -287,32 +299,46 @@ function PickerView({
         </div>
       ) : (
         <>
+          <div className="schedule-day-grid-header" aria-hidden="true">
+            {WEEKDAY_HEADERS.map((h) => (
+              <div key={h} className="schedule-day-grid-head">
+                {h}
+              </div>
+            ))}
+          </div>
+
           <div
-            className="schedule-day-carousel"
+            className="schedule-day-grid"
             role="radiogroup"
             aria-label="Select a day"
           >
             {dayCards.map((card) => {
               const hasSlots = slotsByDay.has(card.dayKey);
               const isSelected = selectedDay === card.dayKey;
+              // Empty = reachable future day with no slots. Past is
+              // handled on its own with a heavier grey-out.
+              const isEmpty =
+                !card.isPast && !card.isToday && !hasSlots;
               return (
                 <button
                   key={card.dayKey}
                   type="button"
                   role="radio"
                   aria-checked={isSelected}
+                  disabled={card.isPast}
                   className={[
                     "schedule-day-card",
                     isSelected && "selected",
-                    !hasSlots && "empty",
+                    card.isPast && "past",
+                    card.isToday && "today",
+                    isEmpty && "empty",
                   ]
                     .filter(Boolean)
                     .join(" ")}
-                  onClick={() => setSelectedDay(card.dayKey)}
+                  onClick={
+                    card.isPast ? undefined : () => setSelectedDay(card.dayKey)
+                  }
                 >
-                  <span className="schedule-day-card-wday">
-                    {card.weekday}
-                  </span>
                   <span className="schedule-day-card-num">
                     {card.dayOfMonth}
                   </span>

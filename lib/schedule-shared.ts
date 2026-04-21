@@ -83,42 +83,59 @@ export function dayKeyInZone(isoInstant: string, timeZone: string): string {
 
 export interface DayCard {
   dayKey: string;
-  weekday: string;
   dayOfMonth: string;
+  isPast: boolean;
+  isToday: boolean;
 }
 
 /**
- * Produce the list of day cards that make up the slot picker's horizontal
- * carousel. Days run from tomorrow (matching the server-side slot
- * generator's startOffsetDays = 1) through daysAhead-1 more days, all
- * expressed in the configured timezone.
+ * Produce the list of day cards that make up the slot picker's 7-column
+ * calendar grid. Cards start from the Monday of the current week (in the
+ * configured timezone) and run forward for enough complete weeks to
+ * cover `today + daysAhead`.
+ *
+ * Past days (and today) come back flagged so the renderer can grey them
+ * out without losing grid alignment.
  */
 export function enumerateDayCards(
   timeZone: string,
   daysAhead: number,
 ): DayCard[] {
   const today = dateInZone(new Date(), timeZone);
+  const todayKey = `${today.year}-${String(today.month).padStart(2, "0")}-${String(today.day).padStart(2, "0")}`;
+
   // Calendar-day arithmetic in UTC avoids DST edge cases — we never look
   // at the time component, just the triple.
-  const anchor = new Date(Date.UTC(today.year, today.month - 1, today.day));
+  const todayAnchor = new Date(
+    Date.UTC(today.year, today.month - 1, today.day),
+  );
+
+  // JS Date weekday: 0=Sun, 1=Mon, ..., 6=Sat. We want offset from Monday,
+  // so Mon→0, Tue→1, ..., Sun→6.
+  const offsetFromMonday = (todayAnchor.getUTCDay() + 6) % 7;
+
+  // Span we need to cover: past days this week (offset), today (1), and
+  // daysAhead future days. Round up to complete weeks so the grid stays
+  // rectangular.
+  const span = offsetFromMonday + 1 + daysAhead;
+  const totalCards = Math.ceil(span / 7) * 7;
+
+  const mondayAnchor = new Date(todayAnchor);
+  mondayAnchor.setUTCDate(mondayAnchor.getUTCDate() - offsetFromMonday);
+
   const cards: DayCard[] = [];
-  for (let i = 1; i <= daysAhead; i++) {
-    const next = new Date(anchor);
-    next.setUTCDate(next.getUTCDate() + i);
-    const y = next.getUTCFullYear();
-    const m = next.getUTCMonth() + 1;
-    const d = next.getUTCDate();
-    // Format weekday in UTC so the day-triple matches what the user sees.
-    const weekday = new Intl.DateTimeFormat("en-US", {
-      weekday: "short",
-      timeZone: "UTC",
-    })
-      .format(next)
-      .toUpperCase();
+  for (let i = 0; i < totalCards; i++) {
+    const d = new Date(mondayAnchor);
+    d.setUTCDate(d.getUTCDate() + i);
+    const y = d.getUTCFullYear();
+    const m = d.getUTCMonth() + 1;
+    const dd = d.getUTCDate();
+    const dayKey = `${y}-${String(m).padStart(2, "0")}-${String(dd).padStart(2, "0")}`;
     cards.push({
-      dayKey: `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`,
-      weekday,
-      dayOfMonth: String(d),
+      dayKey,
+      dayOfMonth: String(dd),
+      isPast: i < offsetFromMonday,
+      isToday: dayKey === todayKey,
     });
   }
   return cards;
