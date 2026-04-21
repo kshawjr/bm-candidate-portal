@@ -546,6 +546,21 @@
   margin: 0;
 }
 
+/* ---- cards section (when paired with another editor) ---- */
+.adm-cards-section {
+  margin-top: 40px;
+  padding-top: 24px;
+  border-top: 1px solid #e5e7eb;
+}
+.adm-cards-section-eyebrow {
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #6b7280;
+  font-weight: 600;
+  margin: 0 0 14px;
+}
+
 /* ---- card list ---- */
 .adm-cardlist {
   list-style: none;

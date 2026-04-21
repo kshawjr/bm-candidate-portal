@@ -467,7 +467,19 @@ export function ContentEditor({
 
             {(selectedStep.content_type === "slides" ||
               selectedStep.content_type === "static") && (
-              <>
+              <div
+                className={
+                  selectedStep.content_type === "slides"
+                    ? "adm-cards-section"
+                    : undefined
+                }
+              >
+                {selectedStep.content_type === "slides" && (
+                  <div className="adm-cards-section-eyebrow">
+                    Content cards
+                  </div>
+                )}
+
                 <CardList
                   cards={selectedStep.content_cards}
                   onEdit={(card, idx) =>
@@ -504,7 +516,7 @@ export function ContentEditor({
                     </div>
                   )}
                 </div>
-              </>
+              </div>
             )}
           </>
         ) : selectedStop ? (
