@@ -72,6 +72,26 @@ function defaultConfigForType(type: ContentType): Record<string, unknown> {
   if (type === "static") {
     return { body: "Edit this content in the admin." };
   }
+  if (type === "video") {
+    return {
+      source: "youtube",
+      url: "",
+      title: "",
+      body: "",
+      cta_label: "",
+    };
+  }
+  if (type === "schedule") {
+    return {
+      duration_minutes: 30,
+      days_ahead: 14,
+      start_hour: 9,
+      end_hour: 17,
+      timezone: "America/New_York",
+      buffer_minutes: 15,
+      body: "",
+    };
+  }
   // application + any other type → empty config
   return {};
 }

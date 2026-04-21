@@ -13,8 +13,10 @@ import {
   saveContentCardAction,
   deleteContentCardAction,
   saveSlidesAction,
+  saveStepConfigAction,
   uploadCardImageAction,
   uploadSlideImageAction,
+  uploadStepVideoAction,
 } from "./actions";
 import {
   archiveStepAction,
@@ -23,6 +25,7 @@ import {
   reorderStepsAction,
   updateStepAction,
 } from "@/app/admin/structure/actions";
+import { isGCalConfigured } from "@/lib/google-calendar";
 
 export const dynamic = "force-dynamic";
 
@@ -45,7 +48,7 @@ export default async function ContentEditorPage({ searchParams }: Props) {
   const core = createCoreClient();
   const { data: brandsRaw } = await core
     .from("brands")
-    .select("id, slug, name")
+    .select("id, slug, name, advisor_calendar_email")
     .order("name");
   const brands = brandsRaw ?? [];
 
@@ -112,6 +115,7 @@ export default async function ContentEditorPage({ searchParams }: Props) {
         ? (row.content_cards as ContentCard[])
         : [],
       slides,
+      config,
       is_archived: !!row.is_archived,
     };
     (stepsByStop[row.stop_key] ??= []).push(step);
@@ -145,9 +149,16 @@ export default async function ContentEditorPage({ searchParams }: Props) {
       saveCard={saveContentCardAction}
       deleteCard={deleteContentCardAction}
       saveSlides={saveSlidesAction}
+      saveStepConfig={saveStepConfigAction}
       upload={uploadCardImageAction}
       uploadSlide={uploadSlideImageAction}
+      uploadVideo={uploadStepVideoAction}
       candidateTokenForPreview={PREVIEW_TOKEN[brand.slug] ?? null}
+      advisorEmail={
+        (brand as { advisor_calendar_email?: string | null })
+          .advisor_calendar_email ?? null
+      }
+      isGCalConfigured={isGCalConfigured()}
       createStep={createStepAction}
       updateStep={updateStepAction}
       deleteStep={deleteStepAction}

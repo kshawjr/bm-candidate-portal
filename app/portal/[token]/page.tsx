@@ -11,11 +11,17 @@ import {
   type BrandTypography,
 } from "@/components/cinematic-shell";
 import {
+  bookSlotAction,
+  cancelBookingAction,
   completeTourAction,
+  getAvailableSlotsAction,
   saveApplicationAnswerAction,
   submitApplicationAction,
+  advanceStepAction,
 } from "./actions";
+import { isGCalConfigured } from "@/lib/google-calendar";
 import { resolveJourneyCardState } from "@/components/sidebar/journey-card";
+import type { ExistingBooking } from "@/components/content-types/schedule-renderer";
 
 export const dynamic = "force-dynamic";
 
@@ -107,7 +113,7 @@ export default async function PortalTokenPage({
   const { data: brand } = await core
     .from("brands")
     .select(
-      "id, slug, name, tagline, colors, font_overrides, logo_url",
+      "id, slug, name, tagline, colors, font_overrides, logo_url, advisor_calendar_email",
     )
     .eq("id", candidate.brand_id)
     .maybeSingle();
@@ -119,6 +125,7 @@ export default async function PortalTokenPage({
     { data: stepsRows },
     { data: applicationRows },
     { data: progressRows },
+    { data: bookingsRows },
   ] = await Promise.all([
     core
       .from("portal_content")
@@ -133,7 +140,7 @@ export default async function PortalTokenPage({
     app
       .from("steps_config")
       .select(
-        "stop_key, position, step_key, label, description, content_type, config, content_cards",
+        "id, stop_key, position, step_key, label, description, content_type, config, content_cards",
       )
       .eq("brand_id", brand.id)
       .eq("is_archived", false)
@@ -146,6 +153,10 @@ export default async function PortalTokenPage({
     app
       .from("candidate_progress")
       .select("stop_key, step_key, completed_at")
+      .eq("candidate_in_portal_id", session.id),
+    app
+      .from("bookings")
+      .select("id, step_id, start_time, end_time, meeting_url, status")
       .eq("candidate_in_portal_id", session.id),
   ]);
 
@@ -199,6 +210,7 @@ export default async function PortalTokenPage({
   const stepsByStop: Record<string, Step[]> = {};
   for (const row of stepsRows ?? []) {
     const step: Step = {
+      id: row.id,
       step_key: row.step_key,
       stop_key: row.stop_key,
       position: row.position,
@@ -290,6 +302,7 @@ export default async function PortalTokenPage({
   });
 
   const onTourComplete = completeTourAction.bind(null, params.token);
+  const onStepAdvance = advanceStepAction.bind(null, params.token);
   const onSaveApplicationAnswer = saveApplicationAnswerAction.bind(
     null,
     params.token,
@@ -298,6 +311,26 @@ export default async function PortalTokenPage({
     null,
     params.token,
   );
+  const onGetSlots = getAvailableSlotsAction.bind(null, params.token);
+  const onBookSlot = bookSlotAction.bind(null, params.token);
+  const onCancelBooking = cancelBookingAction.bind(null, params.token);
+
+  const bookingsByStepId: Record<string, ExistingBooking> = {};
+  for (const b of bookingsRows ?? []) {
+    if (b.status !== "confirmed") continue;
+    bookingsByStepId[b.step_id as string] = {
+      id: b.id as string,
+      start_time: b.start_time as string,
+      end_time: b.end_time as string,
+      meeting_url: (b.meeting_url as string | null) ?? null,
+      status: b.status as "confirmed" | "cancelled",
+    };
+  }
+
+  const advisorEmail =
+    ((brand as { advisor_calendar_email?: string | null }).advisor_calendar_email) ?? null;
+  const advisorName = leader.name || null;
+  const scheduleConfigured = isGCalConfigured();
 
   return (
     <main className={`portal-page ${fontClasses}`}>
@@ -319,8 +352,12 @@ export default async function PortalTokenPage({
         initialStopIdx={initialStopIdx}
         initialStepIdx={initialStepIdx}
         onTourComplete={onTourComplete}
+        onStepAdvance={onStepAdvance}
         onSaveApplicationAnswer={onSaveApplicationAnswer}
         onSubmitApplication={onSubmitApplication}
+        onGetSlots={onGetSlots}
+        onBookSlot={onBookSlot}
+        onCancelBooking={onCancelBooking}
         candidate={{
           first_name: candidate.first_name ?? "",
           last_name: candidate.last_name ?? null,
@@ -329,6 +366,10 @@ export default async function PortalTokenPage({
         }}
         initialApplicationAnswers={initialApplicationAnswers}
         isApplicationSubmitted={Boolean(session.is_app_submitted)}
+        bookingsByStepId={bookingsByStepId}
+        advisorEmail={advisorEmail}
+        advisorName={advisorName}
+        isGCalConfigured={scheduleConfigured}
       />
     </main>
   );

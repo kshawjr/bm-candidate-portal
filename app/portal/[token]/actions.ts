@@ -2,6 +2,35 @@
 
 import { revalidatePath } from "next/cache";
 import { createAppServiceClient } from "@/lib/supabase-app";
+import { createCoreClient } from "@/lib/core-client";
+import {
+  bookSlot,
+  cancelSlot,
+  getAvailableSlots,
+  isGCalConfigured,
+  type ScheduleConfig,
+  type Slot,
+} from "@/lib/google-calendar";
+
+/**
+ * Generic "advance the candidate past the step they just finished" — bumps
+ * current_step only, no stop-wide flags. Used by video and schedule steps.
+ */
+export async function advanceStepAction(
+  token: string,
+  nextStepIdx: number,
+): Promise<void> {
+  const app = createAppServiceClient();
+  const { error } = await app
+    .from("candidates_in_portal")
+    .update({
+      current_step: nextStepIdx,
+      last_activity_at: new Date().toISOString(),
+    })
+    .eq("token", token);
+  if (error) throw new Error(`advanceStepAction failed: ${error.message}`);
+  revalidatePath(`/portal/${token}`);
+}
 
 /**
  * Mark the brand tour complete for the candidate on this token, and advance
@@ -127,6 +156,302 @@ export async function submitApplicationAction(
     step_key: "app",
   });
   if (prErr) throw new Error(`candidate_progress insert failed: ${prErr.message}`);
+
+  revalidatePath(`/portal/${token}`);
+}
+
+// ======================================================================
+// Schedule content type — slot fetching, booking, cancellation
+// ======================================================================
+
+interface StepContext {
+  stepId: string;
+  stopKey: string;
+  stepPosition: number;
+  stopPosition: number;
+  config: ScheduleConfig;
+  portalId: string;
+  candidate: {
+    id: string;
+    email: string;
+    name: string;
+  };
+  brand: {
+    id: string;
+    name: string;
+    advisorEmail: string | null;
+  };
+}
+
+async function loadStepContext(
+  token: string,
+  stepId: string,
+): Promise<StepContext> {
+  const app = createAppServiceClient();
+  const { data: session, error: sessErr } = await app
+    .from("candidates_in_portal")
+    .select("id, candidate_id")
+    .eq("token", token)
+    .maybeSingle();
+  if (sessErr) throw new Error(`session lookup failed: ${sessErr.message}`);
+  if (!session) throw new Error("session not found");
+
+  const { data: step, error: stepErr } = await app
+    .from("steps_config")
+    .select("id, brand_id, stop_key, position, content_type, config")
+    .eq("id", stepId)
+    .maybeSingle();
+  if (stepErr) throw new Error(`step lookup failed: ${stepErr.message}`);
+  if (!step) throw new Error("step not found");
+  if (step.content_type !== "schedule") {
+    throw new Error("step is not a schedule step");
+  }
+
+  const { data: stop, error: stopErr } = await app
+    .from("stops_config")
+    .select("position")
+    .eq("brand_id", step.brand_id)
+    .eq("stop_key", step.stop_key)
+    .maybeSingle();
+  if (stopErr) throw new Error(`stop lookup failed: ${stopErr.message}`);
+  if (!stop) throw new Error("stop not found");
+
+  const core = createCoreClient();
+  const [{ data: candidate }, { data: brand }] = await Promise.all([
+    core
+      .from("candidates")
+      .select("id, email, first_name, last_name")
+      .eq("id", session.candidate_id)
+      .maybeSingle(),
+    core
+      .from("brands")
+      .select("id, name, advisor_calendar_email")
+      .eq("id", step.brand_id)
+      .maybeSingle(),
+  ]);
+  if (!candidate) throw new Error("candidate not found");
+  if (!brand) throw new Error("brand not found");
+
+  const rawConfig =
+    step.config && typeof step.config === "object" && !Array.isArray(step.config)
+      ? (step.config as Record<string, unknown>)
+      : {};
+  const config: ScheduleConfig = {
+    duration_minutes:
+      typeof rawConfig.duration_minutes === "number"
+        ? rawConfig.duration_minutes
+        : 30,
+    days_ahead:
+      typeof rawConfig.days_ahead === "number"
+        ? Math.min(14, Math.max(1, rawConfig.days_ahead))
+        : 14,
+    start_hour:
+      typeof rawConfig.start_hour === "number" ? rawConfig.start_hour : 9,
+    end_hour:
+      typeof rawConfig.end_hour === "number" ? rawConfig.end_hour : 17,
+    timezone:
+      typeof rawConfig.timezone === "string"
+        ? rawConfig.timezone
+        : "America/New_York",
+    buffer_minutes:
+      typeof rawConfig.buffer_minutes === "number"
+        ? rawConfig.buffer_minutes
+        : 15,
+    body: typeof rawConfig.body === "string" ? rawConfig.body : undefined,
+  };
+
+  const name = [candidate.first_name, candidate.last_name]
+    .filter(Boolean)
+    .join(" ")
+    .trim() || (candidate.email as string) || "Candidate";
+
+  return {
+    stepId: step.id as string,
+    stopKey: step.stop_key as string,
+    stepPosition: step.position as number,
+    stopPosition: stop.position as number,
+    config,
+    portalId: session.id as string,
+    candidate: {
+      id: candidate.id as string,
+      email: (candidate.email as string) ?? "",
+      name,
+    },
+    brand: {
+      id: brand.id as string,
+      name: (brand.name as string) ?? "",
+      advisorEmail:
+        ((brand as { advisor_calendar_email?: string | null }).advisor_calendar_email) ?? null,
+    },
+  };
+}
+
+export async function getAvailableSlotsAction(
+  token: string,
+  stepId: string,
+): Promise<{ configured: boolean; slots: Slot[]; error?: string }> {
+  try {
+    const ctx = await loadStepContext(token, stepId);
+    if (!isGCalConfigured() || !ctx.brand.advisorEmail) {
+      return { configured: false, slots: [] };
+    }
+    const slots = await getAvailableSlots(ctx.brand.advisorEmail, ctx.config);
+    return { configured: true, slots };
+  } catch (e) {
+    return {
+      configured: false,
+      slots: [],
+      error: e instanceof Error ? e.message : "Failed to load slots",
+    };
+  }
+}
+
+export async function bookSlotAction(
+  token: string,
+  stepId: string,
+  slotIso: string,
+): Promise<{
+  id: string;
+  start_time: string;
+  end_time: string;
+  meeting_url: string | null;
+}> {
+  const ctx = await loadStepContext(token, stepId);
+  if (!isGCalConfigured()) {
+    throw new Error("Scheduling is not configured");
+  }
+  if (!ctx.brand.advisorEmail) {
+    throw new Error("This brand doesn't have an advisor calendar set");
+  }
+  if (!ctx.candidate.email) {
+    throw new Error("Candidate has no email on file");
+  }
+
+  // Compute the end instant from the start + duration.
+  const startMs = Date.parse(slotIso);
+  if (!Number.isFinite(startMs)) throw new Error("Invalid slot");
+  const endMs = startMs + ctx.config.duration_minutes * 60 * 1000;
+  const endIso = new Date(endMs).toISOString();
+
+  const result = await bookSlot({
+    advisorEmail: ctx.brand.advisorEmail,
+    candidateEmail: ctx.candidate.email,
+    candidateName: ctx.candidate.name,
+    brandName: ctx.brand.name,
+    startIso: new Date(startMs).toISOString(),
+    endIso,
+    timezone: ctx.config.timezone,
+  });
+
+  const app = createAppServiceClient();
+
+  // Upsert the booking row — one per (candidate, step) thanks to the unique
+  // constraint. If the candidate is rescheduling, we should have deleted the
+  // prior row via cancelBookingAction first; defensively `upsert` here so we
+  // tolerate races.
+  const { data: bookingRow, error: insErr } = await app
+    .from("bookings")
+    .upsert(
+      {
+        candidate_in_portal_id: ctx.portalId,
+        step_id: ctx.stepId,
+        google_event_id: result.eventId,
+        meeting_url: result.meetingUrl,
+        start_time: result.startTime,
+        end_time: result.endTime,
+        status: "confirmed",
+      },
+      { onConflict: "candidate_in_portal_id,step_id" },
+    )
+    .select("id")
+    .single();
+  if (insErr) throw new Error(`booking insert failed: ${insErr.message}`);
+
+  // Progress: log completion of this step and advance the candidate to
+  // whichever step comes next within the same stop.
+  await app.from("candidate_progress").insert({
+    candidate_in_portal_id: ctx.portalId,
+    stop_key: ctx.stopKey,
+    step_key: null,
+  });
+  await app
+    .from("candidates_in_portal")
+    .update({
+      // Advance past this step by position+1. The portal page will clamp
+      // this to the actual step count on next render.
+      current_step: ctx.stepPosition + 1,
+      last_activity_at: new Date().toISOString(),
+    })
+    .eq("id", ctx.portalId);
+
+  revalidatePath(`/portal/${token}`);
+
+  return {
+    id: bookingRow.id as string,
+    start_time: result.startTime,
+    end_time: result.endTime,
+    meeting_url: result.meetingUrl,
+  };
+}
+
+export async function cancelBookingAction(
+  token: string,
+  bookingId: string,
+): Promise<void> {
+  const app = createAppServiceClient();
+
+  const { data: booking, error: readErr } = await app
+    .from("bookings")
+    .select(
+      "id, google_event_id, step_id, candidate_in_portal_id, status",
+    )
+    .eq("id", bookingId)
+    .maybeSingle();
+  if (readErr) throw new Error(`booking lookup failed: ${readErr.message}`);
+  if (!booking) throw new Error("booking not found");
+  if (booking.status === "cancelled") return;
+
+  // Verify the booking belongs to the session on this token — defense in
+  // depth against client-supplied ids.
+  const { data: session } = await app
+    .from("candidates_in_portal")
+    .select("id")
+    .eq("token", token)
+    .maybeSingle();
+  if (!session || session.id !== booking.candidate_in_portal_id) {
+    throw new Error("booking does not belong to this session");
+  }
+
+  // Look up the step + advisor email to talk to Google.
+  const { data: step } = await app
+    .from("steps_config")
+    .select("brand_id")
+    .eq("id", booking.step_id)
+    .maybeSingle();
+  let advisorEmail: string | null = null;
+  if (step?.brand_id) {
+    const core = createCoreClient();
+    const { data: brand } = await core
+      .from("brands")
+      .select("advisor_calendar_email")
+      .eq("id", step.brand_id)
+      .maybeSingle();
+    advisorEmail =
+      (brand as { advisor_calendar_email?: string | null } | null)
+        ?.advisor_calendar_email ?? null;
+  }
+
+  if (advisorEmail && isGCalConfigured()) {
+    await cancelSlot(advisorEmail, booking.google_event_id);
+  }
+
+  // Hard-delete the booking row so the renderer flips back to "not booked"
+  // and the unique (candidate, step) constraint frees up for a reschedule.
+  const { error: delErr } = await app
+    .from("bookings")
+    .delete()
+    .eq("id", booking.id);
+  if (delErr) throw new Error(`booking delete failed: ${delErr.message}`);
 
   revalidatePath(`/portal/${token}`);
 }

@@ -8,6 +8,10 @@ import type { StepFormData } from "@/app/admin/structure/actions";
 import { CardEditor } from "./card-editor";
 import { SlideEditor } from "./slide-editor";
 import { StepsManager, type AdminStepRow } from "./steps-manager";
+import { VideoEditor } from "./video-editor";
+import { ScheduleEditor } from "./schedule-editor";
+import type { VideoConfig } from "@/components/content-types/video-renderer";
+import type { ScheduleConfig } from "@/lib/schedule-shared";
 
 type UploadFn = (
   brandSlug: string,
@@ -33,6 +37,7 @@ export interface AdminStep {
   content_type: string;
   content_cards: ContentCard[];
   slides: Slide[];
+  config: Record<string, unknown>;
   is_archived: boolean;
 }
 
@@ -51,9 +56,13 @@ interface Props {
   ) => Promise<void>;
   deleteCard: (stepId: string, cardIndex: number) => Promise<void>;
   saveSlides: (stepId: string, slides: Slide[]) => Promise<void>;
+  saveStepConfig: (stepId: string, config: Record<string, unknown>) => Promise<void>;
   upload: UploadFn;
   uploadSlide: UploadFn;
+  uploadVideo: UploadFn;
   candidateTokenForPreview: string | null;
+  advisorEmail: string | null;
+  isGCalConfigured: boolean;
   createStep: (
     brandId: string,
     stopKey: string,
@@ -98,9 +107,13 @@ export function ContentEditor({
   saveCard,
   deleteCard,
   saveSlides,
+  saveStepConfig,
   upload,
   uploadSlide,
+  uploadVideo,
   candidateTokenForPreview,
+  advisorEmail,
+  isGCalConfigured,
   createStep,
   updateStep,
   deleteStep,
@@ -366,6 +379,28 @@ export function ContentEditor({
                 saveSlides={saveSlides}
                 upload={uploadSlide}
               />
+            ) : selectedStep.content_type === "video" ? (
+              <VideoEditor
+                key={selectedStep.id}
+                brandSlug={brandSlug}
+                stepId={selectedStep.id}
+                initialConfig={selectedStep.config as unknown as VideoConfig}
+                saveConfig={(stepId, config) =>
+                  saveStepConfig(stepId, config as unknown as Record<string, unknown>)
+                }
+                uploadVideo={uploadVideo}
+              />
+            ) : selectedStep.content_type === "schedule" ? (
+              <ScheduleEditor
+                key={selectedStep.id}
+                stepId={selectedStep.id}
+                initialConfig={selectedStep.config as unknown as ScheduleConfig}
+                advisorEmail={advisorEmail}
+                isGCalConfigured={isGCalConfigured}
+                saveConfig={(stepId, config) =>
+                  saveStepConfig(stepId, config as unknown as Record<string, unknown>)
+                }
+              />
             ) : selectedStep.content_type === "application" ? (
               <div className="adm-notice">
                 <div className="adm-notice-eyebrow">Not user-editable</div>
@@ -442,7 +477,9 @@ export function ContentEditor({
       {editorState &&
         selectedStep &&
         selectedStep.content_type !== "slides" &&
-        selectedStep.content_type !== "application" && (
+        selectedStep.content_type !== "application" &&
+        selectedStep.content_type !== "video" &&
+        selectedStep.content_type !== "schedule" && (
           <CardEditor
             brandSlug={brandSlug}
             initial={

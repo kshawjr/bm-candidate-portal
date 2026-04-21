@@ -9,11 +9,17 @@ import type { Slide } from "@/components/content-types/slides-renderer";
 
 const STORAGE_BUCKET = "brand-assets";
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5 MB
+const MAX_VIDEO_BYTES = 100 * 1024 * 1024; // 100 MB
 const ALLOWED_IMAGE_TYPES = new Set([
   "image/jpeg",
   "image/jpg",
   "image/png",
   "image/webp",
+]);
+const ALLOWED_VIDEO_TYPES = new Set([
+  "video/mp4",
+  "video/quicktime",
+  "video/webm",
 ]);
 
 async function requireAdmin() {
@@ -143,6 +149,90 @@ export async function uploadSlideImageAction(
   formData: FormData,
 ): Promise<{ url: string } | { error: string }> {
   return uploadBrandAsset(brandSlug, "slides", formData);
+}
+
+/**
+ * Upload an uploaded video file (source: 'upload' in the video config) to
+ * brand-assets/{brandSlug}/videos/{ts}-{name}. Separate limits from images
+ * because videos are much larger.
+ */
+export async function uploadStepVideoAction(
+  brandSlug: string,
+  formData: FormData,
+): Promise<{ url: string } | { error: string }> {
+  await requireAdmin();
+
+  const file = formData.get("file");
+  if (!(file instanceof File)) return { error: "No file provided" };
+  if (!ALLOWED_VIDEO_TYPES.has(file.type)) {
+    return { error: "Video must be MP4, MOV, or WebM" };
+  }
+  if (file.size > MAX_VIDEO_BYTES) {
+    return { error: "Video must be under 100 MB" };
+  }
+  if (!brandSlug || !/^[a-z0-9-]+$/.test(brandSlug)) {
+    return { error: "Invalid brand slug" };
+  }
+
+  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-").slice(0, 80);
+  const path = `${brandSlug}/videos/${Date.now()}-${safeName}`;
+
+  const core = createCoreClient();
+  const { error: upErr } = await core.storage
+    .from(STORAGE_BUCKET)
+    .upload(path, file, {
+      contentType: file.type,
+      cacheControl: "31536000",
+      upsert: false,
+    });
+  if (upErr) return { error: upErr.message };
+
+  const { data: pub } = core.storage.from(STORAGE_BUCKET).getPublicUrl(path);
+  if (!pub?.publicUrl) return { error: "Failed to resolve public URL" };
+
+  return { url: pub.publicUrl };
+}
+
+/**
+ * Generic config setter — merges the provided config object into
+ * steps_config.config for the given step. Used by the video editor and
+ * schedule editor; slide + cards have their own typed actions because
+ * they validate specific array shapes.
+ */
+export async function saveStepConfigAction(
+  stepId: string,
+  config: Record<string, unknown>,
+): Promise<void> {
+  await requireAdmin();
+
+  if (!config || typeof config !== "object" || Array.isArray(config)) {
+    throw new Error("config must be an object");
+  }
+
+  const app = createAppServiceClient();
+  const { data: row, error: readErr } = await app
+    .from("steps_config")
+    .select("config")
+    .eq("id", stepId)
+    .maybeSingle();
+  if (readErr) throw new Error(`step lookup failed: ${readErr.message}`);
+  if (!row) throw new Error(`step not found: ${stepId}`);
+
+  const prev =
+    row.config && typeof row.config === "object" && !Array.isArray(row.config)
+      ? (row.config as Record<string, unknown>)
+      : {};
+  const next = { ...prev, ...config };
+
+  const { error: writeErr } = await app
+    .from("steps_config")
+    .update({ config: next })
+    .eq("id", stepId);
+  if (writeErr)
+    throw new Error(`steps_config update failed: ${writeErr.message}`);
+
+  revalidatePath("/admin/content");
+  revalidatePath("/portal/[token]", "page");
 }
 
 // ---- slides ----

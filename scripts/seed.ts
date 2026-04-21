@@ -119,9 +119,8 @@ const STOP_STEPS: Record<string, Array<{ key: string; label: string; type: Conte
     { key: "app",      label: "Light application",  type: "application", desc: "Quick questions so we can get to know you" },
   ],
   first_chat: [
-    { key: "prep",     label: "Before the call",    type: "static",      desc: "What to expect, who you'll meet" },
-    { key: "schedule", label: "Pick a time",        type: "schedule",    desc: "Book a 30-minute call" },
-    { key: "recap",    label: "Call notes",         type: "static",      desc: "Summary + next steps (available after the call)" },
+    { key: "hello",    label: "Quick hello",        type: "video",       desc: "A 30-second intro before we jump on a call" },
+    { key: "book",     label: "Book your call",     type: "schedule",    desc: "Pick a time that works — Google Meet, 30 minutes" },
   ],
   deep_dive: [
     { key: "register", label: "Register",           type: "schedule",    desc: "Tuesday 2pm ET, or watch on demand" },
@@ -500,6 +499,43 @@ async function seedBrandInfra(brandId: string, code: BrandCode) {
   );
 }
 
+/**
+ * Make sure every brand has an advisor calendar email so the schedule
+ * content type (PR 16) has somewhere to write events. Leaves brands that
+ * already have one alone.
+ */
+async function backfillAdvisorCalendarEmail(
+  brandId: string,
+  fallbackEmail: string,
+) {
+  const { data: existing, error: readErr } = await core
+    .from("brands")
+    .select("advisor_calendar_email")
+    .eq("id", brandId)
+    .maybeSingle();
+  if (readErr) {
+    // Column might not exist yet if the PR 16 bmave-core migration hasn't
+    // been run. Surface a helpful error so the operator knows what to do.
+    throw new Error(
+      `advisor_calendar_email read failed (did you run 20260421_schedule_content_type_bmave_core.sql?): ${readErr.message}`,
+    );
+  }
+  if (existing?.advisor_calendar_email) {
+    console.log(
+      `[seed] advisor_calendar_email already set for brand ${brandId}, skipping`,
+    );
+    return;
+  }
+  const { error } = await core
+    .from("brands")
+    .update({ advisor_calendar_email: fallbackEmail })
+    .eq("id", brandId);
+  if (error) throw new Error(`advisor_calendar_email update failed: ${error.message}`);
+  console.log(
+    `[seed] advisor_calendar_email -> ${fallbackEmail} for brand ${brandId}`,
+  );
+}
+
 async function seedPortalContent(brandId: string, code: BrandCode) {
   const m = BRAND_MARKETING[code];
   type Row = { brand_id: string; content_key: string; content_type: string; title?: string; body?: string; data?: unknown };
@@ -600,6 +636,24 @@ async function seedSteps(brandId: string, code: BrandCode) {
       if (stopKey === "explore" && step.key === "tour") {
         config.slides = BRAND_TOUR_SLIDES[code];
       }
+      if (stopKey === "first_chat" && step.key === "hello") {
+        config.source = "youtube";
+        config.url = "https://www.youtube.com/watch?v=aqz-KE-bpKQ";
+        config.title = "A quick hello before we chat";
+        config.body =
+          "30 seconds on who we are and what to expect on the call.";
+        config.cta_label = "Book my call →";
+      }
+      if (stopKey === "first_chat" && step.key === "book") {
+        config.duration_minutes = 30;
+        config.days_ahead = 14;
+        config.start_hour = 9;
+        config.end_hour = 17;
+        config.timezone = "America/New_York";
+        config.buffer_minutes = 15;
+        config.body =
+          "30-minute conversation with your franchise growth leader. No pressure, just a real chat.";
+      }
       // Only Stop 1 Step 1 (explore/tour) ships with content cards in PR 8.
       // Every other step gets [] so the strip renders nothing.
       const cards: SeedContentCard[] =
@@ -623,6 +677,70 @@ async function seedSteps(brandId: string, code: BrandCode) {
   const { error } = await app.from("steps_config").insert(rows);
   if (error) throw new Error(`steps_config insert failed: ${error.message}`);
   console.log(`[seed] steps_config: ${rows.length} rows for ${code}`);
+}
+
+/**
+ * PR 16 demo: if a brand's Stop 2 (first_chat) has no steps, seed the new
+ * video + schedule demo. The full-structure seedSteps already handles
+ * brand-new brands (their Stop 2 gets the new defaults because STOP_STEPS
+ * changed). This helper is for brands that already had the old 3-step
+ * Stop 2 from PR 15 — admin can delete those steps, then a re-seed fills
+ * in the new demo content.
+ */
+async function seedStop2Defaults(brandId: string, _code: BrandCode) {
+  const { data: existing, error: readErr } = await app
+    .from("steps_config")
+    .select("id")
+    .eq("brand_id", brandId)
+    .eq("stop_key", "first_chat")
+    .limit(1);
+  if (readErr) throw new Error(`stop 2 probe failed: ${readErr.message}`);
+  if (existing && existing.length > 0) {
+    // Stop 2 already has steps — leave them alone. Admin owns structure.
+    return;
+  }
+
+  const rows = [
+    {
+      brand_id: brandId,
+      stop_key: "first_chat",
+      position: 0,
+      step_key: "hello",
+      label: "Quick hello",
+      description: "A 30-second intro before we jump on a call",
+      content_type: "video" as const,
+      config: {
+        source: "youtube",
+        url: "https://www.youtube.com/watch?v=aqz-KE-bpKQ",
+        title: "A quick hello before we chat",
+        body: "30 seconds on who we are and what to expect on the call.",
+        cta_label: "Book my call →",
+      },
+      content_cards: [],
+    },
+    {
+      brand_id: brandId,
+      stop_key: "first_chat",
+      position: 1,
+      step_key: "book",
+      label: "Book your call",
+      description: "Pick a time that works — Google Meet, 30 minutes",
+      content_type: "schedule" as const,
+      config: {
+        duration_minutes: 30,
+        days_ahead: 14,
+        start_hour: 9,
+        end_hour: 17,
+        timezone: "America/New_York",
+        buffer_minutes: 15,
+        body: "30-minute conversation with your franchise growth leader. No pressure, just a real chat.",
+      },
+      content_cards: [],
+    },
+  ];
+  const { error } = await app.from("steps_config").insert(rows);
+  if (error) throw new Error(`stop 2 defaults insert failed: ${error.message}`);
+  console.log(`[seed] steps_config: seeded Stop 2 defaults for brand ${brandId}`);
 }
 
 async function seedDevCandidate(brandId: string, code: BrandCode) {
@@ -687,9 +805,11 @@ async function main() {
     }
     console.log(`[seed] -> ${brand.name} (${code})`);
     await seedBrandInfra(brand.id, code);
+    await backfillAdvisorCalendarEmail(brand.id, "zac@bmave.com");
     await seedPortalContent(brand.id, code);
     await seedStops(brand.id, brand.slug);
     await seedSteps(brand.id, code);
+    await seedStop2Defaults(brand.id, code);
     await seedDevCandidate(brand.id, code);
   }
 

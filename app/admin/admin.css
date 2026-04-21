@@ -1203,6 +1203,60 @@
   font-style: italic;
 }
 
+/* ---- video + schedule admin editors ---- */
+.adm-video-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  max-width: 760px;
+}
+.adm-video-preview {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 16px;
+}
+.adm-video-form {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 18px 20px;
+}
+.adm-radio-row {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+.adm-radio {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13.5px;
+  color: #374151;
+  cursor: pointer;
+}
+.adm-video-save {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 14px;
+}
+
+.adm-schedule-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: 760px;
+}
+.adm-schedule-row {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+.adm-schedule-row > .adm-field {
+  margin-bottom: 16px;
+}
+
 /* ---- toast ---- */
 .adm-toast {
   position: fixed;
