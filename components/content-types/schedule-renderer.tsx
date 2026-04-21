@@ -12,7 +12,7 @@ import {
   type Slot,
 } from "@/lib/schedule-shared";
 
-const WEEKDAY_HEADERS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const WEEKDAY_HEADERS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 export interface ExistingBooking {
   id: string;

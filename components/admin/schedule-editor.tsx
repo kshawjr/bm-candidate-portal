@@ -20,10 +20,30 @@ const DEFAULT_CONFIG: ScheduleConfig = {
   buffer_minutes: 15,
   body: "",
   event_label: "Discovery Call",
+  working_days: [1, 2, 3, 4, 5],
+  min_notice_hours: 24,
 };
 
 const DURATION_OPTIONS = [15, 30, 45, 60];
 const BUFFER_OPTIONS = [0, 15, 30, 60];
+const NOTICE_OPTIONS: Array<{ value: number; label: string }> = [
+  { value: 0, label: "No minimum" },
+  { value: 4, label: "4 hours" },
+  { value: 12, label: "12 hours" },
+  { value: 24, label: "1 day" },
+  { value: 48, label: "2 days" },
+  { value: 72, label: "3 days" },
+];
+// Match the calendar header order (Sunday-start) for visual consistency.
+const WEEKDAY_LABELS: Array<{ dow: number; label: string }> = [
+  { dow: 0, label: "Sun" },
+  { dow: 1, label: "Mon" },
+  { dow: 2, label: "Tue" },
+  { dow: 3, label: "Wed" },
+  { dow: 4, label: "Thu" },
+  { dow: 5, label: "Fri" },
+  { dow: 6, label: "Sat" },
+];
 const HOUR_OPTIONS = Array.from({ length: 24 }, (_, h) => h);
 const TZ_OPTIONS = [
   { value: "America/New_York", label: "Eastern (America/New_York)" },
@@ -38,6 +58,12 @@ const TZ_OPTIONS = [
 function normalize(raw: unknown): ScheduleConfig {
   if (!raw || typeof raw !== "object") return { ...DEFAULT_CONFIG };
   const r = raw as Record<string, unknown>;
+  const workingDays = Array.isArray(r.working_days)
+    ? (r.working_days as unknown[]).filter(
+        (n): n is number =>
+          typeof n === "number" && n >= 0 && n <= 6 && Number.isInteger(n),
+      )
+    : null;
   return {
     duration_minutes:
       typeof r.duration_minutes === "number"
@@ -64,6 +90,14 @@ function normalize(raw: unknown): ScheduleConfig {
       typeof r.event_label === "string" && r.event_label.trim().length > 0
         ? r.event_label.trim()
         : DEFAULT_CONFIG.event_label,
+    working_days:
+      workingDays && workingDays.length > 0
+        ? workingDays
+        : DEFAULT_CONFIG.working_days,
+    min_notice_hours:
+      typeof r.min_notice_hours === "number"
+        ? r.min_notice_hours
+        : DEFAULT_CONFIG.min_notice_hours,
   };
 }
 
@@ -281,6 +315,57 @@ export function ScheduleEditor({
             ))}
           </select>
         </label>
+      </div>
+
+      <div className="adm-schedule-row">
+        <label className="adm-field" style={{ flex: 1 }}>
+          <span className="adm-form-label">Minimum notice</span>
+          <select
+            className="adm-input"
+            value={config.min_notice_hours}
+            onChange={(e) =>
+              setConfig({
+                ...config,
+                min_notice_hours: parseInt(e.target.value, 10),
+              })
+            }
+          >
+            {NOTICE_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+          <span className="adm-form-hint">
+            Candidates can&apos;t book slots that start inside this window.
+          </span>
+        </label>
+        <div className="adm-field" style={{ flex: 1 }}>
+          <span className="adm-form-label">Days bookable</span>
+          <div className="adm-day-toggles">
+            {WEEKDAY_LABELS.map(({ dow, label }) => {
+              const isOn = config.working_days.includes(dow);
+              return (
+                <label
+                  key={dow}
+                  className={`adm-day-toggle${isOn ? " on" : ""}`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={isOn}
+                    onChange={() => {
+                      const next = isOn
+                        ? config.working_days.filter((d) => d !== dow)
+                        : [...config.working_days, dow].sort((a, b) => a - b);
+                      setConfig({ ...config, working_days: next });
+                    }}
+                  />
+                  <span>{label}</span>
+                </label>
+              );
+            })}
+          </div>
+        </div>
       </div>
 
       {error && (

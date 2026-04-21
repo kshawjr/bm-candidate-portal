@@ -91,6 +91,8 @@ function defaultConfigForType(type: ContentType): Record<string, unknown> {
       buffer_minutes: 15,
       body: "",
       event_label: "Discovery Call",
+      working_days: [1, 2, 3, 4, 5],
+      min_notice_hours: 24,
     };
   }
   // application + any other type → empty config

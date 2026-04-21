@@ -680,6 +680,8 @@ async function seedSteps(brandId: string, code: BrandCode) {
         config.body =
           "A real conversation with your franchise growth leader. No pressure — just a chat about what you're looking for.";
         config.event_label = "Discovery Call";
+        config.working_days = [1, 2, 3, 4, 5];
+        config.min_notice_hours = 24;
       }
       // Only Stop 1 Step 1 (explore/tour) ships with content cards in PR 8.
       // Every other step gets [] so the strip renders nothing.
@@ -762,6 +764,8 @@ async function seedStop2Defaults(brandId: string, _code: BrandCode) {
         buffer_minutes: 15,
         body: "A real conversation with your franchise growth leader. No pressure — just a chat about what you're looking for.",
         event_label: "Discovery Call",
+        working_days: [1, 2, 3, 4, 5],
+        min_notice_hours: 24,
       },
       content_cards: [],
     },
@@ -772,11 +776,13 @@ async function seedStop2Defaults(brandId: string, _code: BrandCode) {
 }
 
 /**
- * PR 16 polish: ensure every schedule-type step has an event_label in its
- * config. Leaves duration_minutes (and every other field) alone — admin
- * can edit those via the Content CMS. Safe to re-run.
+ * PR 16 polish: ensure every schedule-type step has the config fields
+ * introduced across the polish passes — event_label, working_days,
+ * min_notice_hours — so existing seeded steps (from before these
+ * defaults landed) behave sensibly. Only fills missing fields; admin
+ * edits are preserved. Safe to re-run.
  */
-async function backfillScheduleEventLabels() {
+async function backfillScheduleConfigDefaults() {
   const { data: steps, error } = await app
     .from("steps_config")
     .select("id, config")
@@ -792,10 +798,28 @@ async function backfillScheduleEventLabels() {
       step.config && typeof step.config === "object" && !Array.isArray(step.config)
         ? (step.config as Record<string, unknown>)
         : {};
-    const existing =
+    const next: Record<string, unknown> = { ...config };
+    let changed = false;
+
+    const existingLabel =
       typeof config.event_label === "string" ? config.event_label.trim() : "";
-    if (existing.length > 0) continue;
-    const next = { ...config, event_label: "Discovery Call" };
+    if (existingLabel.length === 0) {
+      next.event_label = "Discovery Call";
+      changed = true;
+    }
+    const hasWorkingDays =
+      Array.isArray(config.working_days) && config.working_days.length > 0;
+    if (!hasWorkingDays) {
+      next.working_days = [1, 2, 3, 4, 5];
+      changed = true;
+    }
+    if (typeof config.min_notice_hours !== "number") {
+      next.min_notice_hours = 24;
+      changed = true;
+    }
+
+    if (!changed) continue;
+
     const { error: upErr } = await app
       .from("steps_config")
       .update({ config: next })
@@ -807,7 +831,7 @@ async function backfillScheduleEventLabels() {
   }
   if (updated > 0) {
     console.log(
-      `[seed] schedule event_label: backfilled "Discovery Call" on ${updated} step${updated === 1 ? "" : "s"}`,
+      `[seed] schedule config defaults: backfilled ${updated} step${updated === 1 ? "" : "s"}`,
     );
   }
 }
@@ -891,10 +915,10 @@ async function main() {
     await seedDevCandidate(brand.id, code, repId);
   }
 
-  // One-off across brands: any existing schedule step that predates PR 16
-  // gets the default event_label so its booked Google Calendar events
-  // render cleanly.
-  await backfillScheduleEventLabels();
+  // One-off across brands: any existing schedule step that predates the
+  // PR 16 polish passes gets event_label / working_days / min_notice_hours
+  // filled in so behavior matches new steps.
+  await backfillScheduleConfigDefaults();
 
   console.log("[seed] done");
 }

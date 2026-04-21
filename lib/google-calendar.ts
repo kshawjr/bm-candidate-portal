@@ -151,39 +151,47 @@ function overlaps(
 function generateCandidateSlots(config: ScheduleConfig): Slot[] {
   const tz = config.timezone || "America/New_York";
   const durationMs = config.duration_minutes * 60 * 1000;
+  const workingDays =
+    Array.isArray(config.working_days) && config.working_days.length > 0
+      ? new Set(config.working_days)
+      : new Set([1, 2, 3, 4, 5]);
+  const minNoticeHours =
+    typeof config.min_notice_hours === "number" ? config.min_notice_hours : 24;
+  const cutoffMs = Date.now() + minNoticeHours * 60 * 60 * 1000;
+
   const slots: Slot[] = [];
-
   const today = dateInZone(new Date(), tz);
-  // Start from tomorrow so candidates never see "slots in 2 hours" that
-  // feel aggressive. This matches the Zac/Calendly convention the team has
-  // been using.
-  const startOffsetDays = 1;
-  const nowMs = Date.now();
 
-  for (let d = startOffsetDays; d < startOffsetDays + config.days_ahead; d++) {
-    // Advance day-by-day in the zone by converting "today + d" to UTC via
-    // the zone-aware helper. Using setDate would work in UTC but could
-    // drift across DST.
+  // Iterate today through today + (daysAhead - 1) inclusive. Whether
+  // today is bookable depends on the min_notice_hours cutoff below.
+  for (let d = 0; d < config.days_ahead; d++) {
+    // Resolve the normalized (y, m, d) triple once so the day-of-week
+    // check uses the actual calendar date even when `today.day + d`
+    // would cross a month boundary.
+    const normalized = new Date(
+      Date.UTC(today.year, today.month - 1, today.day + d),
+    );
+    const y = normalized.getUTCFullYear();
+    const m = normalized.getUTCMonth() + 1;
+    const dd = normalized.getUTCDate();
+    // getUTCDay on a Date.UTC-constructed date equals the calendar
+    // day-of-week regardless of the consumer's tz.
+    const dow = normalized.getUTCDay();
+    if (!workingDays.has(dow)) continue;
+
     const dayStartUtc = zonedTimeToUtc(
-      today.year,
-      today.month - 1,
-      today.day + d,
+      y,
+      m - 1,
+      dd,
       config.start_hour,
       0,
       tz,
     );
-    const dayEndUtc = zonedTimeToUtc(
-      today.year,
-      today.month - 1,
-      today.day + d,
-      config.end_hour,
-      0,
-      tz,
-    );
+    const dayEndUtc = zonedTimeToUtc(y, m - 1, dd, config.end_hour, 0, tz);
 
     let slotStart = dayStartUtc.getTime();
     while (slotStart + durationMs <= dayEndUtc.getTime()) {
-      if (slotStart > nowMs) {
+      if (slotStart >= cutoffMs) {
         slots.push({
           start: new Date(slotStart).toISOString(),
           end: new Date(slotStart + durationMs).toISOString(),

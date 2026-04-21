@@ -264,6 +264,13 @@ async function loadStepContext(
     step.config && typeof step.config === "object" && !Array.isArray(step.config)
       ? (step.config as Record<string, unknown>)
       : {};
+  const workingDaysRaw = Array.isArray(rawConfig.working_days)
+    ? (rawConfig.working_days as unknown[]).filter(
+        (n): n is number =>
+          typeof n === "number" && n >= 0 && n <= 6 && Number.isInteger(n),
+      )
+    : null;
+
   const config: ScheduleConfig = {
     duration_minutes:
       typeof rawConfig.duration_minutes === "number"
@@ -291,6 +298,14 @@ async function loadStepContext(
       rawConfig.event_label.trim().length > 0
         ? rawConfig.event_label.trim()
         : "Discovery Call",
+    working_days:
+      workingDaysRaw && workingDaysRaw.length > 0
+        ? workingDaysRaw
+        : [1, 2, 3, 4, 5],
+    min_notice_hours:
+      typeof rawConfig.min_notice_hours === "number"
+        ? rawConfig.min_notice_hours
+        : 24,
   };
 
   const name = [candidate.first_name, candidate.last_name]

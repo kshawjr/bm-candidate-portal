@@ -1257,6 +1257,48 @@
   margin-bottom: 16px;
 }
 
+/* weekday pill toggles for "Days bookable" */
+.adm-day-toggles {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.adm-day-toggle {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  padding: 6px 8px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: #6b7280;
+  background: #ffffff;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.1s, border-color 0.1s, color 0.1s;
+}
+.adm-day-toggle:hover {
+  border-color: #9ca3af;
+  color: #111827;
+}
+.adm-day-toggle input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+  margin: 0;
+}
+.adm-day-toggle.on {
+  background: #e0e7ff;
+  border-color: #3b82f6;
+  color: #1e40af;
+}
+
 /* advisor row: email field + Test button side-by-side */
 .adm-advisor-row {
   display: flex;

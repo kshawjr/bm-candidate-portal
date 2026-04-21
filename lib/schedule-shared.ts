@@ -13,6 +13,12 @@ export interface ScheduleConfig {
   /** Used in the Google Calendar event title + candidate-facing booked
    * confirmation copy. e.g., "Discovery Call", "FDD Review Call". */
   event_label: string;
+  /** Bookable days-of-week, using JS Date.getDay() semantics
+   * (0 = Sun … 6 = Sat). Default is Mon-Fri: [1, 2, 3, 4, 5]. */
+  working_days: number[];
+  /** Minimum hours of notice the candidate must give. Server-side filter
+   * on slot.start — never allowed to book inside this window. */
+  min_notice_hours: number;
 }
 
 export interface Slot {
@@ -90,9 +96,9 @@ export interface DayCard {
 
 /**
  * Produce the list of day cards that make up the slot picker's 7-column
- * calendar grid. Cards start from the Monday of the current week (in the
- * configured timezone) and run forward for enough complete weeks to
- * cover `today + daysAhead`.
+ * calendar grid. Cards start from the Sunday of the current week (US
+ * convention, in the configured timezone) and run forward for enough
+ * complete weeks to cover `today + daysAhead`.
  *
  * Past days (and today) come back flagged so the renderer can grey them
  * out without losing grid alignment.
@@ -110,22 +116,22 @@ export function enumerateDayCards(
     Date.UTC(today.year, today.month - 1, today.day),
   );
 
-  // JS Date weekday: 0=Sun, 1=Mon, ..., 6=Sat. We want offset from Monday,
-  // so Mon→0, Tue→1, ..., Sun→6.
-  const offsetFromMonday = (todayAnchor.getUTCDay() + 6) % 7;
+  // JS Date weekday: 0=Sun, 1=Mon, ..., 6=Sat. US-convention week starts
+  // on Sunday, so the offset is just getUTCDay() directly.
+  const offsetFromSunday = todayAnchor.getUTCDay();
 
   // Span we need to cover: past days this week (offset), today (1), and
   // daysAhead future days. Round up to complete weeks so the grid stays
   // rectangular.
-  const span = offsetFromMonday + 1 + daysAhead;
+  const span = offsetFromSunday + 1 + daysAhead;
   const totalCards = Math.ceil(span / 7) * 7;
 
-  const mondayAnchor = new Date(todayAnchor);
-  mondayAnchor.setUTCDate(mondayAnchor.getUTCDate() - offsetFromMonday);
+  const sundayAnchor = new Date(todayAnchor);
+  sundayAnchor.setUTCDate(sundayAnchor.getUTCDate() - offsetFromSunday);
 
   const cards: DayCard[] = [];
   for (let i = 0; i < totalCards; i++) {
-    const d = new Date(mondayAnchor);
+    const d = new Date(sundayAnchor);
     d.setUTCDate(d.getUTCDate() + i);
     const y = d.getUTCFullYear();
     const m = d.getUTCMonth() + 1;
@@ -134,7 +140,7 @@ export function enumerateDayCards(
     cards.push({
       dayKey,
       dayOfMonth: String(dd),
-      isPast: i < offsetFromMonday,
+      isPast: i < offsetFromSunday,
       isToday: dayKey === todayKey,
     });
   }
