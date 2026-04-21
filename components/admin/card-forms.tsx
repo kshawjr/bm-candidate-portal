@@ -59,6 +59,9 @@ export function FactForm({
         }
         brandSlug={brandSlug}
         onUpload={upload}
+        recommendedSize="800 × 600 px (4:3)"
+        recommendedFormat="JPG or PNG"
+        maxSizeMB={2}
       />
       <Field label="Source (optional)">
         <input
@@ -123,6 +126,9 @@ export function QuoteForm({
         }
         brandSlug={brandSlug}
         onUpload={upload}
+        recommendedSize="600 × 800 px (3:4 portrait)"
+        recommendedFormat="JPG"
+        maxSizeMB={2}
       />
     </>
   );
@@ -197,6 +203,9 @@ export function AwardsForm({
             onChange={(url) => updateItem(i, { logo_url: url ?? undefined })}
             brandSlug={brandSlug}
             onUpload={upload}
+            recommendedSize="Source PNG"
+            recommendedFormat="PNG with transparency preferred"
+            maxSizeMB={0.5}
           />
         </div>
       ))}
@@ -274,6 +283,9 @@ export function PersonasForm({
             onChange={(url) => updateItem(i, { photo_url: url ?? undefined })}
             brandSlug={brandSlug}
             onUpload={upload}
+            recommendedSize="400 × 400 px (square)"
+            recommendedFormat="JPG"
+            maxSizeMB={1}
           />
         </div>
       ))}
@@ -310,6 +322,9 @@ export function PhotoForm({
         onChange={(url) => onChange({ ...value, image_url: url ?? "" })}
         brandSlug={brandSlug}
         onUpload={upload}
+        recommendedSize="1600 × 900 px (16:9)"
+        recommendedFormat="JPG"
+        maxSizeMB={2}
       />
       <Field label="Caption (optional)">
         <input

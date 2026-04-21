@@ -1283,3 +1283,34 @@ body {
   margin: 0 auto;
   padding: 32px 16px 64px;
 }
+
+/* ---- empty portal (no active stops yet) ---- */
+.portal-empty {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: #F6F5F0;
+}
+.portal-empty-card {
+  max-width: 460px;
+  text-align: center;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  padding: 44px 32px;
+  color: #374151;
+}
+.portal-empty-card h1 {
+  font-size: 22px;
+  font-weight: 600;
+  color: #111827;
+  margin: 0 0 10px;
+  letter-spacing: -0.01em;
+}
+.portal-empty-card p {
+  margin: 0;
+  font-size: 14.5px;
+  line-height: 1.55;
+}

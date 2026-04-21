@@ -532,7 +532,23 @@ async function seedPortalContent(brandId: string, code: BrandCode) {
   console.log(`[seed] portal_content: ${rows.length} rows for ${code}`);
 }
 
-async function seedStops(brandId: string) {
+async function seedStops(brandId: string, brandSlug: string) {
+  // As of PR 15, admins manage stops via /admin/structure. Seed the default
+  // 7-stop structure only when the brand has never had stops before. On
+  // re-runs against an existing brand, skip so admin edits aren't clobbered.
+  const { data: existing, error: readErr } = await app
+    .from("stops_config")
+    .select("id")
+    .eq("brand_id", brandId)
+    .limit(1);
+  if (readErr) throw new Error(`stops_config probe failed: ${readErr.message}`);
+  if (existing && existing.length > 0) {
+    console.log(
+      `[seed] stops_config: ${brandSlug} already has stops, skipping structure seed`,
+    );
+    return;
+  }
+
   const rows = STAGES.map((stage, i) => ({
     brand_id: brandId,
     stop_key: stage.key,
@@ -543,12 +559,27 @@ async function seedStops(brandId: string) {
     content: STAGE_CONTENT[stage.key] ?? {},
   }));
 
-  const { error } = await app.from("stops_config").upsert(rows, { onConflict: "brand_id,stop_key" });
-  if (error) throw new Error(`stops_config upsert failed: ${error.message}`);
+  const { error } = await app.from("stops_config").insert(rows);
+  if (error) throw new Error(`stops_config insert failed: ${error.message}`);
   console.log(`[seed] stops_config: ${rows.length} rows for brand ${brandId}`);
 }
 
 async function seedSteps(brandId: string, code: BrandCode) {
+  // Same rationale as seedStops: admin owns step structure once it exists.
+  // Skip the seed when the brand already has any steps defined.
+  const { data: existingSteps, error: readErr } = await app
+    .from("steps_config")
+    .select("id")
+    .eq("brand_id", brandId)
+    .limit(1);
+  if (readErr) throw new Error(`steps_config probe failed: ${readErr.message}`);
+  if (existingSteps && existingSteps.length > 0) {
+    console.log(
+      `[seed] steps_config: ${code} already has steps, skipping structure seed`,
+    );
+    return;
+  }
+
   type Row = {
     brand_id: string;
     stop_key: string;
@@ -589,8 +620,8 @@ async function seedSteps(brandId: string, code: BrandCode) {
     });
   }
 
-  const { error } = await app.from("steps_config").upsert(rows, { onConflict: "brand_id,stop_key,step_key" });
-  if (error) throw new Error(`steps_config upsert failed: ${error.message}`);
+  const { error } = await app.from("steps_config").insert(rows);
+  if (error) throw new Error(`steps_config insert failed: ${error.message}`);
   console.log(`[seed] steps_config: ${rows.length} rows for ${code}`);
 }
 
@@ -657,7 +688,7 @@ async function main() {
     console.log(`[seed] -> ${brand.name} (${code})`);
     await seedBrandInfra(brand.id, code);
     await seedPortalContent(brand.id, code);
-    await seedStops(brand.id);
+    await seedStops(brand.id, brand.slug);
     await seedSteps(brand.id, code);
     await seedDevCandidate(brand.id, code);
   }
