@@ -83,13 +83,14 @@ function defaultConfigForType(type: ContentType): Record<string, unknown> {
   }
   if (type === "schedule") {
     return {
-      duration_minutes: 30,
+      duration_minutes: 60,
       days_ahead: 14,
       start_hour: 9,
       end_hour: 17,
       timezone: "America/New_York",
       buffer_minutes: 15,
       body: "",
+      event_label: "Discovery Call",
     };
   }
   // application + any other type → empty config

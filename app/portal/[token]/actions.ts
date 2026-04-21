@@ -175,16 +175,17 @@ interface StepContext {
     id: string;
     email: string;
     name: string;
+    phone: string | null;
   };
   brand: {
     id: string;
     name: string;
+    shortName: string;
   };
   rep: {
     id: string;
     name: string;
     calendarEmail: string;
-    role: string | null;
   } | null;
 }
 
@@ -225,12 +226,12 @@ async function loadStepContext(
   const [{ data: candidate }, { data: brand }] = await Promise.all([
     core
       .from("candidates")
-      .select("id, email, first_name, last_name, assigned_rep_id")
+      .select("id, email, first_name, last_name, phone, assigned_rep_id")
       .eq("id", session.candidate_id)
       .maybeSingle(),
     core
       .from("brands")
-      .select("id, name")
+      .select("id, name, short_name")
       .eq("id", step.brand_id)
       .maybeSingle(),
   ]);
@@ -246,7 +247,7 @@ async function loadStepContext(
   if (assignedRepId) {
     const { data: repRow, error: repErr } = await core
       .from("reps")
-      .select("id, name, calendar_email, role, is_active")
+      .select("id, name, calendar_email, is_active")
       .eq("id", assignedRepId)
       .maybeSingle();
     if (repErr) throw new Error(`rep lookup failed: ${repErr.message}`);
@@ -255,7 +256,6 @@ async function loadStepContext(
         id: repRow.id as string,
         name: (repRow.name as string) ?? "",
         calendarEmail: (repRow.calendar_email as string) ?? "",
-        role: (repRow.role as string | null) ?? null,
       };
     }
   }
@@ -268,7 +268,7 @@ async function loadStepContext(
     duration_minutes:
       typeof rawConfig.duration_minutes === "number"
         ? rawConfig.duration_minutes
-        : 30,
+        : 60,
     days_ahead:
       typeof rawConfig.days_ahead === "number"
         ? Math.min(14, Math.max(1, rawConfig.days_ahead))
@@ -286,12 +286,22 @@ async function loadStepContext(
         ? rawConfig.buffer_minutes
         : 15,
     body: typeof rawConfig.body === "string" ? rawConfig.body : undefined,
+    event_label:
+      typeof rawConfig.event_label === "string" &&
+      rawConfig.event_label.trim().length > 0
+        ? rawConfig.event_label.trim()
+        : "Discovery Call",
   };
 
   const name = [candidate.first_name, candidate.last_name]
     .filter(Boolean)
     .join(" ")
     .trim() || (candidate.email as string) || "Candidate";
+
+  const brandFullName = (brand.name as string) ?? "";
+  const brandShort =
+    ((brand as { short_name?: string | null }).short_name ?? "").trim() ||
+    brandFullName;
 
   return {
     stepId: step.id as string,
@@ -304,10 +314,12 @@ async function loadStepContext(
       id: candidate.id as string,
       email: (candidate.email as string) ?? "",
       name,
+      phone: ((candidate as { phone?: string | null }).phone) ?? null,
     },
     brand: {
       id: brand.id as string,
-      name: (brand.name as string) ?? "",
+      name: brandFullName,
+      shortName: brandShort,
     },
     rep,
   };
@@ -388,7 +400,9 @@ export async function bookSlotAction(
       advisorEmail: ctx.rep.calendarEmail,
       candidateEmail: ctx.candidate.email,
       candidateName: ctx.candidate.name,
-      brandName: ctx.brand.name,
+      candidatePhone: ctx.candidate.phone,
+      brandShortName: ctx.brand.shortName,
+      eventLabel: ctx.config.event_label,
       startIso: new Date(startMs).toISOString(),
       endIso,
       timezone: ctx.config.timezone,

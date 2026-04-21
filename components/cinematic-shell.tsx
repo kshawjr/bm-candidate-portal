@@ -130,7 +130,7 @@ export interface ShellProps {
   bookingsByStepId: Record<string, ExistingBooking>;
   hasAssignedRep: boolean;
   advisorName: string | null;
-  advisorRole: string | null;
+  brandShortName: string;
   isGCalConfigured: boolean;
 }
 
@@ -164,7 +164,7 @@ export function CinematicShell({
   bookingsByStepId,
   hasAssignedRep,
   advisorName,
-  advisorRole,
+  brandShortName,
   isGCalConfigured,
 }: ShellProps) {
   const router = useRouter();
@@ -421,7 +421,7 @@ export function CinematicShell({
                 bookingsByStepId={bookingsByStepId}
                 hasAssignedRep={hasAssignedRep}
                 advisorName={advisorName}
-                advisorRole={advisorRole}
+                brandShortName={brandShortName}
                 isGCalConfigured={isGCalConfigured}
                 onGetSlots={onGetSlots}
                 onBookSlot={onBookSlot}
@@ -455,7 +455,7 @@ function StepRenderer({
   bookingsByStepId,
   hasAssignedRep,
   advisorName,
-  advisorRole,
+  brandShortName,
   isGCalConfigured,
   onGetSlots,
   onBookSlot,
@@ -480,7 +480,7 @@ function StepRenderer({
   bookingsByStepId: Record<string, ExistingBooking>;
   hasAssignedRep: boolean;
   advisorName: string | null;
-  advisorRole: string | null;
+  brandShortName: string;
   isGCalConfigured: boolean;
   onGetSlots: (stepId: string) => Promise<{
     configured: boolean;
@@ -541,8 +541,8 @@ function StepRenderer({
         config={step.config as unknown as ScheduleConfig}
         existingBooking={bookingsByStepId[step.id] ?? null}
         brandName={brandName}
+        brandShortName={brandShortName}
         advisorName={advisorName}
-        advisorRole={advisorRole}
         isGCalConfigured={isGCalConfigured}
         hasAssignedRep={hasAssignedRep}
         onGetSlots={onGetSlots}

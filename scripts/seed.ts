@@ -155,6 +155,14 @@ const SLUG_TO_CODE: Record<string, BrandCode> = {
   "cruisin-tikis": "ct",
 };
 
+// Conversational brand name used in candidate-facing copy + Google
+// Calendar event titles. null means the brand's existing `name` is
+// already short enough (e.g., "Cruisin' Tikis").
+const BRAND_SHORT_NAME: Record<BrandCode, string | null> = {
+  ht: "Hounds Town",
+  ct: null,
+};
+
 interface StatItem {
   num: string;
   label: string;
@@ -484,18 +492,31 @@ const app = createClient(
 // ---------- seeders ----------
 
 async function seedBrandInfra(brandId: string, code: BrandCode) {
-  const { error } = await core
-    .from("brands")
-    .update({
-      logo_url: LOGO_URL[code],
-      colors: BRAND_COLORS[code],
-      font_overrides: FONT_OVERRIDES[code],
-    })
-    .eq("id", brandId);
-  if (error) throw new Error(`brands update failed: ${error.message}`);
+  const update: Record<string, unknown> = {
+    logo_url: LOGO_URL[code],
+    colors: BRAND_COLORS[code],
+    font_overrides: FONT_OVERRIDES[code],
+  };
+  // brands.short_name is nullable; only populate for brands whose full
+  // name needs shortening. Falls back to `name` in the app when null.
+  const shortName = BRAND_SHORT_NAME[code];
+  if (shortName !== null) {
+    update.short_name = shortName;
+  }
+  const { error } = await core.from("brands").update(update).eq("id", brandId);
+  if (error) {
+    // If the migration hasn't been run yet, short_name won't exist. Give
+    // a helpful hint instead of cryptic PG.
+    if (/short_name/.test(error.message)) {
+      throw new Error(
+        `brands update failed (did you run 20260421_brands_short_name_bmave_core.sql?): ${error.message}`,
+      );
+    }
+    throw new Error(`brands update failed: ${error.message}`);
+  }
   const paletteCount = Object.keys(BRAND_COLORS[code].palette).length;
   console.log(
-    `[seed] brands -> ${code} (logo, ${paletteCount}-swatch palette, ${FONT_OVERRIDES[code].heading_font} / ${FONT_OVERRIDES[code].body_font})`,
+    `[seed] brands -> ${code} (logo, ${paletteCount}-swatch palette, ${FONT_OVERRIDES[code].heading_font} / ${FONT_OVERRIDES[code].body_font}${shortName ? `, short_name: "${shortName}"` : ""})`,
   );
 }
 
@@ -650,14 +671,15 @@ async function seedSteps(brandId: string, code: BrandCode) {
         config.cta_label = "Book my call →";
       }
       if (stopKey === "first_chat" && step.key === "book") {
-        config.duration_minutes = 30;
+        config.duration_minutes = 60;
         config.days_ahead = 14;
         config.start_hour = 9;
         config.end_hour = 17;
         config.timezone = "America/New_York";
         config.buffer_minutes = 15;
         config.body =
-          "30-minute conversation with your franchise growth leader. No pressure, just a real chat.";
+          "A real conversation with your franchise growth leader. No pressure — just a chat about what you're looking for.";
+        config.event_label = "Discovery Call";
       }
       // Only Stop 1 Step 1 (explore/tour) ships with content cards in PR 8.
       // Every other step gets [] so the strip renders nothing.
@@ -729,16 +751,17 @@ async function seedStop2Defaults(brandId: string, _code: BrandCode) {
       position: 1,
       step_key: "book",
       label: "Book your call",
-      description: "Pick a time that works — Google Meet, 30 minutes",
+      description: "Pick a time that works — Google Meet, 60 minutes",
       content_type: "schedule" as const,
       config: {
-        duration_minutes: 30,
+        duration_minutes: 60,
         days_ahead: 14,
         start_hour: 9,
         end_hour: 17,
         timezone: "America/New_York",
         buffer_minutes: 15,
-        body: "30-minute conversation with your franchise growth leader. No pressure, just a real chat.",
+        body: "A real conversation with your franchise growth leader. No pressure — just a chat about what you're looking for.",
+        event_label: "Discovery Call",
       },
       content_cards: [],
     },
@@ -746,6 +769,47 @@ async function seedStop2Defaults(brandId: string, _code: BrandCode) {
   const { error } = await app.from("steps_config").insert(rows);
   if (error) throw new Error(`stop 2 defaults insert failed: ${error.message}`);
   console.log(`[seed] steps_config: seeded Stop 2 defaults for brand ${brandId}`);
+}
+
+/**
+ * PR 16 polish: ensure every schedule-type step has an event_label in its
+ * config. Leaves duration_minutes (and every other field) alone — admin
+ * can edit those via the Content CMS. Safe to re-run.
+ */
+async function backfillScheduleEventLabels() {
+  const { data: steps, error } = await app
+    .from("steps_config")
+    .select("id, config")
+    .eq("content_type", "schedule");
+  if (error) {
+    throw new Error(`steps_config probe failed: ${error.message}`);
+  }
+  if (!steps || steps.length === 0) return;
+
+  let updated = 0;
+  for (const step of steps) {
+    const config =
+      step.config && typeof step.config === "object" && !Array.isArray(step.config)
+        ? (step.config as Record<string, unknown>)
+        : {};
+    const existing =
+      typeof config.event_label === "string" ? config.event_label.trim() : "";
+    if (existing.length > 0) continue;
+    const next = { ...config, event_label: "Discovery Call" };
+    const { error: upErr } = await app
+      .from("steps_config")
+      .update({ config: next })
+      .eq("id", step.id);
+    if (upErr) {
+      throw new Error(`steps_config update failed: ${upErr.message}`);
+    }
+    updated += 1;
+  }
+  if (updated > 0) {
+    console.log(
+      `[seed] schedule event_label: backfilled "Discovery Call" on ${updated} step${updated === 1 ? "" : "s"}`,
+    );
+  }
 }
 
 async function seedDevCandidate(
@@ -826,6 +890,11 @@ async function main() {
     await seedStop2Defaults(brand.id, code);
     await seedDevCandidate(brand.id, code, repId);
   }
+
+  // One-off across brands: any existing schedule step that predates PR 16
+  // gets the default event_label so its booked Google Calendar events
+  // render cleanly.
+  await backfillScheduleEventLabels();
 
   console.log("[seed] done");
 }

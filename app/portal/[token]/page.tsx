@@ -115,18 +115,22 @@ export default async function PortalTokenPage({
   const { data: brand } = await core
     .from("brands")
     .select(
-      "id, slug, name, tagline, colors, font_overrides, logo_url",
+      "id, slug, name, short_name, tagline, colors, font_overrides, logo_url",
     )
     .eq("id", candidate.brand_id)
     .maybeSingle();
   if (!brand) notFound();
+
+  const brandShortName =
+    (((brand as { short_name?: string | null }).short_name) ?? "").trim() ||
+    (brand.name as string);
 
   const assignedRepId =
     ((candidate as { assigned_rep_id?: string | null }).assigned_rep_id) ?? null;
   const { data: rep } = assignedRepId
     ? await core
         .from("reps")
-        .select("id, name, calendar_email, role, is_active")
+        .select("id, name, calendar_email, is_active")
         .eq("id", assignedRepId)
         .maybeSingle()
     : { data: null };
@@ -136,7 +140,6 @@ export default async function PortalTokenPage({
           id: (rep as { id: string }).id,
           name: (rep as { name: string }).name,
           calendarEmail: (rep as { calendar_email: string }).calendar_email,
-          role: ((rep as { role?: string | null }).role) ?? null,
         }
       : null;
 
@@ -353,7 +356,6 @@ export default async function PortalTokenPage({
   // as a fallback display name elsewhere in the shell.
   const hasAssignedRep = !!activeRep;
   const scheduleAdvisorName = activeRep?.name ?? null;
-  const scheduleAdvisorRole = activeRep?.role ?? null;
   const scheduleConfigured = isGCalConfigured();
 
   return (
@@ -393,7 +395,7 @@ export default async function PortalTokenPage({
         bookingsByStepId={bookingsByStepId}
         hasAssignedRep={hasAssignedRep}
         advisorName={scheduleAdvisorName}
-        advisorRole={scheduleAdvisorRole}
+        brandShortName={brandShortName}
         isGCalConfigured={scheduleConfigured}
       />
     </main>

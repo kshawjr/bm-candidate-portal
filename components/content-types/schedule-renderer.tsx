@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   dayKeyInZone,
+  enumerateDayCards,
   formatDayLabel,
   formatTimeLabel,
   formatTzAbbrev,
@@ -24,8 +25,8 @@ interface Props {
   config: ScheduleConfig;
   existingBooking: ExistingBooking | null;
   brandName: string;
+  brandShortName: string;
   advisorName?: string | null;
-  advisorRole?: string | null;
   isGCalConfigured: boolean;
   hasAssignedRep: boolean;
   onGetSlots: (
@@ -53,8 +54,8 @@ export function ScheduleRenderer({
   config,
   existingBooking,
   brandName,
+  brandShortName,
   advisorName,
-  advisorRole,
   isGCalConfigured,
   hasAssignedRep,
   onGetSlots,
@@ -108,9 +109,9 @@ export function ScheduleRenderer({
       <BookedView
         booking={activeBooking}
         timezone={config.timezone}
+        eventLabel={config.event_label}
         advisorName={advisorName ?? null}
-        advisorRole={advisorRole ?? null}
-        brandName={brandName}
+        brandShortName={brandShortName}
         onReschedule={async () => {
           await onCancel(activeBooking.id);
           setLocalBooking(null);
@@ -126,8 +127,8 @@ export function ScheduleRenderer({
       stepId={stepId}
       config={config}
       brandName={brandName}
+      brandShortName={brandShortName}
       advisorName={advisorName ?? null}
-      advisorRole={advisorRole ?? null}
       onGetSlots={onGetSlots}
       onBook={onBook}
       onBooked={(result) => {
@@ -150,8 +151,8 @@ function PickerView({
   stepId,
   config,
   brandName,
+  brandShortName,
   advisorName,
-  advisorRole,
   onGetSlots,
   onBook,
   onBooked,
@@ -159,8 +160,8 @@ function PickerView({
   stepId: string;
   config: ScheduleConfig;
   brandName: string;
+  brandShortName: string;
   advisorName: string | null;
-  advisorRole: string | null;
   onGetSlots: Props["onGetSlots"];
   onBook: Props["onBook"];
   onBooked: (result: {
@@ -173,6 +174,7 @@ function PickerView({
   const [slots, setSlots] = useState<Slot[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [confirming, setConfirming] = useState<Slot | null>(null);
   const [booking, startBooking] = useTransition();
   const [bookError, setBookError] = useState<string | null>(null);
@@ -186,7 +188,8 @@ function PickerView({
         if (cancelled) return;
         if (!result.configured) {
           setLoadError(
-            "Scheduling is being set up. Check back in a bit — the franchise team is finalizing the calendar.",
+            result.error ??
+              "Scheduling is being set up. Check back in a bit — the franchise team is finalizing the calendar.",
           );
           setSlots([]);
           return;
@@ -209,7 +212,8 @@ function PickerView({
     };
   }, [stepId, onGetSlots]);
 
-  const grouped = useMemo(() => {
+  // Slots bucketed by day key (YYYY-MM-DD in the configured tz).
+  const slotsByDay = useMemo(() => {
     const out = new Map<string, Slot[]>();
     for (const s of slots ?? []) {
       const key = dayKeyInZone(s.start, config.timezone);
@@ -217,8 +221,27 @@ function PickerView({
       arr.push(s);
       out.set(key, arr);
     }
-    return Array.from(out.entries()).sort(([a], [b]) => a.localeCompare(b));
+    return out;
   }, [slots, config.timezone]);
+
+  // All days the picker covers (whether or not they have slots).
+  const dayCards = useMemo(
+    () => enumerateDayCards(config.timezone, config.days_ahead),
+    [config.timezone, config.days_ahead],
+  );
+
+  // Default the selected day to the first day with availability; falling
+  // back to the first day in the picker if the window is entirely empty.
+  useEffect(() => {
+    if (selectedDay !== null) return;
+    if (dayCards.length === 0) return;
+    const firstWithSlots = dayCards.find((c) => slotsByDay.has(c.dayKey));
+    setSelectedDay((firstWithSlots ?? dayCards[0]).dayKey);
+  }, [dayCards, slotsByDay, selectedDay]);
+
+  const slotsForSelectedDay = selectedDay
+    ? slotsByDay.get(selectedDay) ?? []
+    : [];
 
   const handleConfirmBook = () => {
     if (!confirming) return;
@@ -234,22 +257,18 @@ function PickerView({
     });
   };
 
+  const heading = advisorName
+    ? `Book your call with ${advisorName} from ${brandShortName}`
+    : `Book your call with ${brandShortName}`;
+
+  const hasAnySlots = (slots?.length ?? 0) > 0;
+
   return (
     <div className="schedule-renderer">
       <div className="schedule-head">
-        <h3>
-          {advisorName
-            ? `Book your call with ${advisorName}`
-            : "Book your discovery call"}
-        </h3>
-        {advisorRole && (
-          <p className="schedule-advisor-role">{advisorRole}</p>
-        )}
+        <h3>{heading}</h3>
+        <p className="schedule-meta">{config.duration_minutes}-minute call</p>
         {config.body && <p className="schedule-body">{config.body}</p>}
-        <p className="schedule-meta">
-          {config.duration_minutes}-minute call
-          {advisorName ? ` with ${advisorName}` : ` with the ${brandName} team`}
-        </p>
       </div>
 
       {loading ? (
@@ -258,39 +277,69 @@ function PickerView({
         <div className="schedule-setup-card">
           <p>{loadError}</p>
         </div>
-      ) : grouped.length === 0 ? (
+      ) : !hasAnySlots ? (
         <div className="schedule-setup-card">
           <p>
-            No open times in the next {config.days_ahead} days. The team is
-            reaching out to find another slot that works — nothing to do on
-            your end.
+            No open times in the next {config.days_ahead} days. The{" "}
+            {brandName} team is reaching out to find another slot that
+            works — nothing to do on your end.
           </p>
         </div>
       ) : (
-        <div className="schedule-grid">
-          {grouped.map(([dayKey, daySlots]) => {
-            const first = daySlots[0];
-            return (
-              <div key={dayKey} className="schedule-day">
-                <div className="schedule-day-label">
-                  {formatDayLabel(first.start, config.timezone)}
-                </div>
-                <div className="schedule-day-slots">
-                  {daySlots.map((s) => (
-                    <button
-                      key={s.start}
-                      type="button"
-                      className="schedule-slot-pill"
-                      onClick={() => setConfirming(s)}
-                    >
-                      {formatTimeLabel(s.start, config.timezone)}
-                    </button>
-                  ))}
-                </div>
+        <>
+          <div
+            className="schedule-day-carousel"
+            role="radiogroup"
+            aria-label="Select a day"
+          >
+            {dayCards.map((card) => {
+              const hasSlots = slotsByDay.has(card.dayKey);
+              const isSelected = selectedDay === card.dayKey;
+              return (
+                <button
+                  key={card.dayKey}
+                  type="button"
+                  role="radio"
+                  aria-checked={isSelected}
+                  className={[
+                    "schedule-day-card",
+                    isSelected && "selected",
+                    !hasSlots && "empty",
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
+                  onClick={() => setSelectedDay(card.dayKey)}
+                >
+                  <span className="schedule-day-card-wday">
+                    {card.weekday}
+                  </span>
+                  <span className="schedule-day-card-num">
+                    {card.dayOfMonth}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="schedule-slots-grid">
+            {slotsForSelectedDay.length === 0 ? (
+              <div className="schedule-slots-empty">
+                No availability on this day. Try another day.
               </div>
-            );
-          })}
-        </div>
+            ) : (
+              slotsForSelectedDay.map((s) => (
+                <button
+                  key={s.start}
+                  type="button"
+                  className="schedule-slot-pill"
+                  onClick={() => setConfirming(s)}
+                >
+                  {formatTimeLabel(s.start, config.timezone)}
+                </button>
+              ))
+            )}
+          </div>
+        </>
       )}
 
       {confirming && (
@@ -303,9 +352,9 @@ function PickerView({
               {formatTzAbbrev(confirming.start, config.timezone)}
             </p>
             <p className="schedule-confirm-meta">
-              {config.duration_minutes}-minute video call with the{" "}
-              {brandName} team. You&apos;ll get a calendar invite with the
-              Google Meet link right away.
+              {config.duration_minutes}-minute video call
+              {advisorName ? ` with ${advisorName}` : ""}. You&apos;ll get
+              a calendar invite with the Google Meet link right away.
             </p>
             {bookError && (
               <div className="adm-form-error adm-form-error-inline">
@@ -342,28 +391,34 @@ function PickerView({
 function BookedView({
   booking,
   timezone,
+  eventLabel,
   advisorName,
-  advisorRole,
-  brandName,
+  brandShortName,
   onReschedule,
   onContinue,
 }: {
   booking: ExistingBooking;
   timezone: string;
+  eventLabel: string;
   advisorName: string | null;
-  advisorRole: string | null;
-  brandName: string;
+  brandShortName: string;
   onReschedule: () => Promise<void>;
   onContinue: () => void;
 }) {
   const [rescheduling, startReschedule] = useTransition();
 
+  const eventLabelLower = eventLabel.toLowerCase();
+  const icsTitle = advisorName
+    ? `${brandShortName} ${eventLabel} with ${advisorName}`
+    : `${brandShortName} ${eventLabel}`;
+  const icsFilename = `${eventLabel.toLowerCase().replace(/\s+/g, "-")}.ics`;
+
   const downloadIcs = () => {
     const ics = buildIcs({
-      title: `Discovery call · ${brandName}`,
+      title: icsTitle,
       description: advisorName
-        ? `Chat with ${advisorName} from the ${brandName} team.`
-        : `Chat with the ${brandName} team.`,
+        ? `Your ${eventLabelLower} with ${advisorName} from ${brandShortName}.`
+        : `Your ${eventLabelLower} with the ${brandShortName} team.`,
       startIso: booking.start_time,
       endIso: booking.end_time,
       meetingUrl: booking.meeting_url,
@@ -372,7 +427,7 @@ function BookedView({
     const href = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = href;
-    a.download = "discovery-call.ics";
+    a.download = icsFilename;
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -383,20 +438,22 @@ function BookedView({
     <div className="schedule-booked">
       <div className="schedule-booked-icon">📅</div>
       <h3>You&apos;re on the calendar</h3>
+      <p className="schedule-booked-primary">
+        Your {eventLabelLower}
+        {advisorName ? (
+          <>
+            {" "}
+            with <strong>{advisorName}</strong>
+          </>
+        ) : null}{" "}
+        from {brandShortName}
+      </p>
       <div className="schedule-booked-time">
         {formatDayLabel(booking.start_time, timezone)} at{" "}
         {formatTimeLabel(booking.start_time, timezone)}{" "}
         {formatTzAbbrev(booking.start_time, timezone)}
       </div>
       <p className="schedule-booked-meta">
-        {advisorName ? (
-          <>
-            You&apos;ll meet with <strong>{advisorName}</strong>
-            {advisorRole ? `, ${advisorRole}` : ""}.
-          </>
-        ) : (
-          <>You&apos;ll meet with the {brandName} team.</>
-        )}{" "}
         A calendar invite with the Google Meet link is on its way to your
         inbox.
       </p>

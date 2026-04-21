@@ -12,13 +12,14 @@ interface Props {
 }
 
 const DEFAULT_CONFIG: ScheduleConfig = {
-  duration_minutes: 30,
+  duration_minutes: 60,
   days_ahead: 14,
   start_hour: 9,
   end_hour: 17,
   timezone: "America/New_York",
   buffer_minutes: 15,
   body: "",
+  event_label: "Discovery Call",
 };
 
 const DURATION_OPTIONS = [15, 30, 45, 60];
@@ -59,6 +60,10 @@ function normalize(raw: unknown): ScheduleConfig {
         ? r.buffer_minutes
         : DEFAULT_CONFIG.buffer_minutes,
     body: typeof r.body === "string" ? r.body : "",
+    event_label:
+      typeof r.event_label === "string" && r.event_label.trim().length > 0
+        ? r.event_label.trim()
+        : DEFAULT_CONFIG.event_label,
   };
 }
 
@@ -141,6 +146,23 @@ export function ScheduleEditor({
           onChange={(e) => setConfig({ ...config, body: e.target.value })}
           placeholder="Optional copy shown above the slot picker"
         />
+      </label>
+
+      <label className="adm-field">
+        <span className="adm-form-label">Event label</span>
+        <input
+          type="text"
+          className="adm-input"
+          value={config.event_label}
+          onChange={(e) =>
+            setConfig({ ...config, event_label: e.target.value })
+          }
+          placeholder="Discovery Call"
+        />
+        <span className="adm-form-hint">
+          Used in the Google Calendar event title for parsing. Examples:
+          &ldquo;Discovery Call&rdquo;, &ldquo;FDD Review Call&rdquo;.
+        </span>
       </label>
 
       <div className="adm-schedule-row">

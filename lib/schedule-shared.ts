@@ -10,6 +10,9 @@ export interface ScheduleConfig {
   timezone: string;
   buffer_minutes: number;
   body?: string;
+  /** Used in the Google Calendar event title + candidate-facing booked
+   * confirmation copy. e.g., "Discovery Call", "FDD Review Call". */
+  event_label: string;
 }
 
 export interface Slot {
@@ -76,4 +79,47 @@ export function formatTzAbbrev(isoInstant: string, timeZone: string): string {
 export function dayKeyInZone(isoInstant: string, timeZone: string): string {
   const d = dateInZone(new Date(isoInstant), timeZone);
   return `${d.year}-${String(d.month).padStart(2, "0")}-${String(d.day).padStart(2, "0")}`;
+}
+
+export interface DayCard {
+  dayKey: string;
+  weekday: string;
+  dayOfMonth: string;
+}
+
+/**
+ * Produce the list of day cards that make up the slot picker's horizontal
+ * carousel. Days run from tomorrow (matching the server-side slot
+ * generator's startOffsetDays = 1) through daysAhead-1 more days, all
+ * expressed in the configured timezone.
+ */
+export function enumerateDayCards(
+  timeZone: string,
+  daysAhead: number,
+): DayCard[] {
+  const today = dateInZone(new Date(), timeZone);
+  // Calendar-day arithmetic in UTC avoids DST edge cases — we never look
+  // at the time component, just the triple.
+  const anchor = new Date(Date.UTC(today.year, today.month - 1, today.day));
+  const cards: DayCard[] = [];
+  for (let i = 1; i <= daysAhead; i++) {
+    const next = new Date(anchor);
+    next.setUTCDate(next.getUTCDate() + i);
+    const y = next.getUTCFullYear();
+    const m = next.getUTCMonth() + 1;
+    const d = next.getUTCDate();
+    // Format weekday in UTC so the day-triple matches what the user sees.
+    const weekday = new Intl.DateTimeFormat("en-US", {
+      weekday: "short",
+      timeZone: "UTC",
+    })
+      .format(next)
+      .toUpperCase();
+    cards.push({
+      dayKey: `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`,
+      weekday,
+      dayOfMonth: String(d),
+    });
+  }
+  return cards;
 }

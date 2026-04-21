@@ -233,7 +233,11 @@ export async function bookSlot(args: {
   advisorEmail: string;
   candidateEmail: string;
   candidateName: string;
-  brandName: string;
+  candidatePhone?: string | null;
+  /** Conversational brand name — e.g., "Hounds Town", not "Hounds Town USA". */
+  brandShortName: string;
+  /** Step-configurable label — e.g., "Discovery Call", "FDD Review Call". */
+  eventLabel: string;
   startIso: string;
   endIso: string;
   timezone: string;
@@ -241,13 +245,25 @@ export async function bookSlot(args: {
   const auth = getAuth(args.advisorEmail);
   const calendar = google.calendar({ version: "v3", auth });
 
+  const summary = `${args.brandShortName} ${args.eventLabel} with ${args.candidateName}`;
+  const descriptionLines = [
+    `${args.eventLabel} for ${args.brandShortName} franchise.`,
+    "",
+    `Candidate: ${args.candidateName}`,
+    `Email: ${args.candidateEmail}`,
+  ];
+  if (args.candidatePhone) {
+    descriptionLines.push(`Phone: ${args.candidatePhone}`);
+  }
+  descriptionLines.push("", `Booked via the ${args.brandShortName} candidate portal.`);
+
   const res = await calendar.events.insert({
     calendarId: args.advisorEmail,
     conferenceDataVersion: 1,
     sendUpdates: "all",
     requestBody: {
-      summary: `Discovery call — ${args.candidateName} · ${args.brandName}`,
-      description: `Kickoff discovery call between ${args.candidateName} and the ${args.brandName} franchise team. Scheduled via the Blue Maven candidate portal.`,
+      summary,
+      description: descriptionLines.join("\n"),
       start: { dateTime: args.startIso, timeZone: args.timezone },
       end: { dateTime: args.endIso, timeZone: args.timezone },
       attendees: [
