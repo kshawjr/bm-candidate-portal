@@ -128,6 +128,7 @@ export default async function PortalTokenPage({
       .from("stops_config")
       .select("stop_key, position, label, name, icon")
       .eq("brand_id", brand.id)
+      .eq("is_archived", false)
       .order("position"),
     app
       .from("steps_config")
@@ -135,6 +136,7 @@ export default async function PortalTokenPage({
         "stop_key, position, step_key, label, description, content_type, config, content_cards",
       )
       .eq("brand_id", brand.id)
+      .eq("is_archived", false)
       .order("stop_key")
       .order("position"),
     app
@@ -148,8 +150,20 @@ export default async function PortalTokenPage({
   ]);
 
   if (!stopsRows?.length) {
-    throw new Error(
-      `No stops_config rows for brand ${brand.slug}. Run 'npm run seed'.`,
+    // Brand has no active stops — either freshly seeded with nothing yet, or
+    // every stop has been archived in the admin. Render a friendly holding
+    // page instead of crashing; admin can set up the structure and the
+    // candidate can come back.
+    return (
+      <main className="portal-empty">
+        <div className="portal-empty-card">
+          <h1>Welcome to {brand.name}</h1>
+          <p>
+            This portal is still being set up. Check back soon — your
+            franchise development team is finalizing the journey.
+          </p>
+        </div>
+      </main>
     );
   }
 
@@ -203,9 +217,37 @@ export default async function PortalTokenPage({
   const colors = brand.colors as BrandColorsWithPalette;
   const palette = colors.palette ?? {};
   const typography = resolveTypography(brand.font_overrides as FontOverrides | null);
-  const currentStopIdx = Math.min(session.current_stop ?? 0, stops.length - 1);
+
+  // The stored current_stop is an index into the brand's active stops. If an
+  // admin deletes or archives a stop, that index may now point past the end
+  // (or at a different stop entirely). Clamp to the valid range and persist
+  // the fallback so the candidate always lands somewhere real.
+  const storedStopIdx = session.current_stop ?? 0;
+  const currentStopIdx = Math.min(
+    Math.max(0, storedStopIdx),
+    stops.length - 1,
+  );
+  const storedStepIdx = session.current_step ?? 0;
+  const currentStopKey_ = stops[currentStopIdx]?.stop_key;
+  const stepsInCurrentStop = currentStopKey_
+    ? (stepsRows ?? []).filter((r) => r.stop_key === currentStopKey_).length
+    : 0;
+  const currentStepIdx = Math.min(
+    Math.max(0, storedStepIdx),
+    Math.max(0, stepsInCurrentStop - 1),
+  );
+  if (storedStopIdx !== currentStopIdx || storedStepIdx !== currentStepIdx) {
+    await app
+      .from("candidates_in_portal")
+      .update({
+        current_stop: currentStopIdx,
+        current_step: currentStepIdx,
+      })
+      .eq("id", session.id);
+  }
+
   const initialStopIdx = currentStopIdx;
-  const initialStepIdx = Math.max(0, session.current_step ?? 0);
+  const initialStepIdx = currentStepIdx;
 
   const fontClasses = `${baloo2.variable} ${nunitoSans.variable} ${montserrat.variable}`;
 

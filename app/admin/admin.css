@@ -387,7 +387,32 @@
   display: flex;
   flex-direction: column;
 }
+.adm-rail-stop.archived > .adm-rail-stop-head-row {
+  opacity: 0.55;
+}
+.adm-rail-stop-head-row {
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+}
+.adm-rail-stop-caret-btn {
+  flex-shrink: 0;
+  width: 20px;
+  background: transparent;
+  border: none;
+  font-size: 10px;
+  color: #9ca3af;
+  cursor: pointer;
+  border-radius: 6px;
+  font-family: inherit;
+  transition: background 0.1s, color 0.1s;
+}
+.adm-rail-stop-caret-btn:hover {
+  background: #f3f4f6;
+  color: #4b5563;
+}
 .adm-rail-stop-head {
+  flex: 1;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -400,10 +425,19 @@
   color: #374151;
   border-radius: 6px;
   font-family: inherit;
-  transition: background 0.1s;
+  transition: background 0.1s, color 0.1s;
 }
-.adm-rail-stop-head:hover {
+.adm-rail-stop-head:hover:not(.active) {
   background: #f3f4f6;
+}
+.adm-rail-stop-head.active {
+  background: #e0e7ff;
+  color: #3b82f6;
+  font-weight: 600;
+}
+.adm-rail-stop-head.active .adm-rail-stop-num {
+  background: #3b82f6;
+  color: #ffffff;
 }
 .adm-rail-stop-caret {
   width: 12px;
@@ -855,10 +889,35 @@
   background: #f3f4f6;
   flex-shrink: 0;
 }
+.adm-upload-preview-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
 .adm-upload-preview-actions {
   display: flex;
   gap: 4px;
   flex-wrap: wrap;
+}
+.adm-upload-dims {
+  font-size: 11.5px;
+  color: #047857;
+  font-weight: 500;
+}
+.adm-upload-purpose {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #6b7280;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.adm-upload-reco {
+  font-size: 11.5px;
+  color: #6b7280;
+  margin-bottom: 8px;
 }
 .adm-upload-file {
   display: none;
@@ -989,6 +1048,159 @@
 }
 .adm-notice p {
   margin: 0;
+}
+
+/* ---- structure page (stops list) ---- */
+.structure-page {
+  max-width: 960px;
+}
+.structure-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 22px;
+}
+.structure-stoplist {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.structure-stoprow {
+  display: grid;
+  grid-template-columns: 18px 28px auto 1fr auto auto;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+.structure-stoprow.archived {
+  opacity: 0.65;
+  background: #f9fafb;
+}
+.structure-stoprow-handle {
+  color: #d1d5db;
+  font-size: 15px;
+  cursor: grab;
+  user-select: none;
+}
+.structure-stoprow-num {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #e0e7ff;
+  color: #3b82f6;
+  font-size: 11px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.structure-stoprow-icon {
+  font-size: 16px;
+}
+.structure-stoprow-meta {
+  min-width: 0;
+}
+.structure-stoprow-title {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.structure-stoprow-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: #111827;
+}
+.structure-stoprow-name {
+  font-size: 13px;
+  color: #6b7280;
+}
+.structure-stoprow-sub {
+  font-size: 12px;
+  color: #6b7280;
+  margin-top: 2px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.structure-stoprow-steps {
+  color: #3b82f6;
+  text-decoration: none;
+  font-weight: 500;
+}
+.structure-stoprow-steps:hover {
+  text-decoration: underline;
+}
+.structure-muted {
+  color: #9ca3af;
+}
+.structure-chip {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: #92400e;
+  background: #fef3c7;
+  padding: 2px 7px;
+  border-radius: 4px;
+}
+.structure-stoprow-reorder {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.structure-stoprow-actions {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+/* ---- steps manager (reuses stop row styles inside the content pane) ---- */
+.structure-steplist {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.structure-steprow {
+  display: grid;
+  grid-template-columns: 28px 1fr auto auto;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+.structure-steprow.archived {
+  opacity: 0.65;
+  background: #f9fafb;
+}
+.structure-steprow-type {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: #4b5563;
+  background: #f3f4f6;
+  padding: 2px 7px;
+  border-radius: 4px;
+}
+
+/* archived rail step gets a dimmed look */
+.adm-rail-step.archived {
+  opacity: 0.55;
+  font-style: italic;
 }
 
 /* ---- toast ---- */

@@ -1,10 +1,11 @@
-import Link from "next/link";
 import { getAdminUser } from "@/lib/supabase-auth";
 import { createCoreClient } from "@/lib/core-client";
 import {
   AdminBrandSwitcher,
   type AdminSwitcherBrand,
 } from "@/components/admin/brand-switcher";
+import { AdminNav } from "@/components/admin/admin-nav";
+import Link from "next/link";
 import "./admin.css";
 
 export default async function AdminLayout({
@@ -60,15 +61,7 @@ export default async function AdminLayout({
       </header>
       <div className="admin-body">
         <aside className="admin-sidenav">
-          <Link href="/admin/content" className="admin-navlink admin-navlink-active">
-            Content
-          </Link>
-          <span className="admin-navlink admin-navlink-disabled">
-            Candidates <small>Coming soon</small>
-          </span>
-          <span className="admin-navlink admin-navlink-disabled">
-            Settings <small>Coming soon</small>
-          </span>
+          <AdminNav />
         </aside>
         <main className="admin-main">{children}</main>
       </div>

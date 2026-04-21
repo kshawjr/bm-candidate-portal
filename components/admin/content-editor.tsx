@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { ContentCard } from "@/components/content-cards/types";
 import type { Slide } from "@/components/content-types/slides-renderer";
+import type { StepFormData } from "@/app/admin/structure/actions";
 import { CardEditor } from "./card-editor";
 import { SlideEditor } from "./slide-editor";
+import { StepsManager, type AdminStepRow } from "./steps-manager";
 
 type UploadFn = (
   brandSlug: string,
@@ -13,10 +15,12 @@ type UploadFn = (
 ) => Promise<{ url: string } | { error: string }>;
 
 export interface AdminStop {
+  id: string;
   stop_key: string;
   position: number;
   label: string;
   name: string;
+  is_archived: boolean;
 }
 
 export interface AdminStep {
@@ -29,14 +33,17 @@ export interface AdminStep {
   content_type: string;
   content_cards: ContentCard[];
   slides: Slide[];
+  is_archived: boolean;
 }
 
 interface Props {
+  brandId: string;
   brandSlug: string;
   brandName: string;
   stops: AdminStop[];
   stepsByStop: Record<string, AdminStep[]>;
   initialStepId: string | null;
+  initialStopKey: string | null;
   saveCard: (
     stepId: string,
     card: ContentCard,
@@ -47,6 +54,22 @@ interface Props {
   upload: UploadFn;
   uploadSlide: UploadFn;
   candidateTokenForPreview: string | null;
+  createStep: (
+    brandId: string,
+    stopKey: string,
+    data: StepFormData,
+  ) => Promise<string>;
+  updateStep: (
+    stepId: string,
+    data: Omit<StepFormData, "step_key"> & { confirmTypeReset?: boolean },
+  ) => Promise<void>;
+  deleteStep: (stepId: string) => Promise<void>;
+  archiveStep: (stepId: string, archived: boolean) => Promise<void>;
+  reorderSteps: (
+    brandId: string,
+    stopKey: string,
+    orderedStepIds: string[],
+  ) => Promise<void>;
 }
 
 const CARD_TYPES: Array<{ type: ContentCard["type"]; label: string }> = [
@@ -65,58 +88,63 @@ function flattenSteps(
 }
 
 export function ContentEditor({
+  brandId,
   brandSlug,
   brandName,
   stops,
   stepsByStop,
   initialStepId,
+  initialStopKey,
   saveCard,
   deleteCard,
   saveSlides,
   upload,
   uploadSlide,
   candidateTokenForPreview,
+  createStep,
+  updateStep,
+  deleteStep,
+  archiveStep,
+  reorderSteps,
 }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const allSteps = flattenSteps(stops, stepsByStop);
-  const fallbackStepId = allSteps[0]?.id ?? null;
+  const allSteps = useMemo(
+    () => flattenSteps(stops, stepsByStop),
+    [stops, stepsByStop],
+  );
+
+  // Resolve initial selection: step wins over stop; otherwise fall back to
+  // nothing and let the user pick.
+  const initialStep =
+    initialStepId ? allSteps.find((s) => s.id === initialStepId) : null;
+  const initialResolvedStopKey =
+    initialStep?.stop_key ?? initialStopKey ?? null;
 
   const [selectedStepId, setSelectedStepId] = useState<string | null>(
-    initialStepId ?? fallbackStepId,
+    initialStep?.id ?? null,
   );
+  const [selectedStopKey, setSelectedStopKey] = useState<string | null>(
+    initialStep ? initialStep.stop_key : initialStopKey,
+  );
+
   const [expandedStops, setExpandedStops] = useState<Set<string>>(() => {
-    // Auto-expand the stop containing the selected step.
-    const stepId = initialStepId ?? fallbackStepId;
     const initial = new Set<string>();
-    if (stepId) {
-      const step = allSteps.find((s) => s.id === stepId);
-      if (step) initial.add(step.stop_key);
-    } else if (stops[0]) {
-      initial.add(stops[0].stop_key);
-    }
+    if (initialResolvedStopKey) initial.add(initialResolvedStopKey);
     return initial;
   });
 
   const [editorState, setEditorState] = useState<
     | null
-    | {
-        mode: "create";
-        type: ContentCard["type"];
-      }
-    | {
-        mode: "edit";
-        card: ContentCard;
-        cardIndex: number;
-      }
+    | { mode: "create"; type: ContentCard["type"] }
+    | { mode: "edit"; card: ContentCard; cardIndex: number }
   >(null);
 
   const [addMenuOpen, setAddMenuOpen] = useState(false);
   const [deleting, startDeleting] = useTransition();
   const [toast, setToast] = useState<string | null>(null);
 
-  // Show + auto-clear toast.
   useEffect(() => {
     if (!toast) return;
     const t = setTimeout(() => setToast(null), 3000);
@@ -129,11 +157,43 @@ export function ContentEditor({
       : null;
   const selectedStop = selectedStep
     ? stops.find((s) => s.stop_key === selectedStep.stop_key) ?? null
-    : null;
+    : selectedStopKey
+      ? stops.find((s) => s.stop_key === selectedStopKey) ?? null
+      : null;
+
   const stopNumber = selectedStop ? selectedStop.position + 1 : null;
   const stepNumber = selectedStep ? selectedStep.position + 1 : null;
 
-  const toggleStop = (stopKey: string) => {
+  const updateUrl = (stopKey: string | null, stepId: string | null) => {
+    const params = new URLSearchParams(searchParams?.toString() ?? "");
+    params.set("brand", brandSlug);
+    if (stepId) {
+      params.set("step", stepId);
+      params.delete("stop");
+    } else if (stopKey) {
+      params.set("stop", stopKey);
+      params.delete("step");
+    } else {
+      params.delete("stop");
+      params.delete("step");
+    }
+    router.replace(`?${params.toString()}`);
+  };
+
+  const selectStop = (stopKey: string) => {
+    setSelectedStopKey(stopKey);
+    setSelectedStepId(null);
+    setEditorState(null);
+    setAddMenuOpen(false);
+    setExpandedStops((prev) => {
+      const next = new Set(prev);
+      next.add(stopKey);
+      return next;
+    });
+    updateUrl(stopKey, null);
+  };
+
+  const toggleStopExpansion = (stopKey: string) => {
     setExpandedStops((prev) => {
       const next = new Set(prev);
       if (next.has(stopKey)) next.delete(stopKey);
@@ -144,6 +204,7 @@ export function ContentEditor({
 
   const selectStep = (stepId: string, stopKey: string) => {
     setSelectedStepId(stepId);
+    setSelectedStopKey(null);
     setEditorState(null);
     setAddMenuOpen(false);
     setExpandedStops((prev) => {
@@ -151,11 +212,7 @@ export function ContentEditor({
       next.add(stopKey);
       return next;
     });
-    // Reflect the selection in the URL so a refresh keeps the user in place.
-    const params = new URLSearchParams(searchParams?.toString() ?? "");
-    params.set("brand", brandSlug);
-    params.set("step", stepId);
-    router.replace(`?${params.toString()}`);
+    updateUrl(null, stepId);
   };
 
   const handleSave = async (card: ContentCard, cardIndex?: number) => {
@@ -185,9 +242,20 @@ export function ContentEditor({
     ? `/portal/${candidateTokenForPreview}`
     : null;
 
+  const stepsForSelectedStop: AdminStepRow[] = selectedStop
+    ? (stepsByStop[selectedStop.stop_key] ?? []).map((s) => ({
+        id: s.id,
+        step_key: s.step_key,
+        position: s.position,
+        label: s.label,
+        description: s.description,
+        content_type: s.content_type,
+        is_archived: s.is_archived,
+      }))
+    : [];
+
   return (
     <div className="adm-content-shell">
-      {/* ---- Left rail: stops + steps ---- */}
       <aside className="adm-rail">
         <div className="adm-rail-head">
           <div className="adm-rail-eyebrow">Editing</div>
@@ -197,21 +265,36 @@ export function ContentEditor({
           {stops.map((stop) => {
             const expanded = expandedStops.has(stop.stop_key);
             const steps = stepsByStop[stop.stop_key] ?? [];
+            const stopActive =
+              selectedStopKey === stop.stop_key && !selectedStepId;
             return (
-              <div key={stop.stop_key} className="adm-rail-stop">
-                <button
-                  type="button"
-                  className="adm-rail-stop-head"
-                  onClick={() => toggleStop(stop.stop_key)}
-                >
-                  <span className="adm-rail-stop-caret">
+              <div
+                key={stop.stop_key}
+                className={`adm-rail-stop${stop.is_archived ? " archived" : ""}`}
+              >
+                <div className="adm-rail-stop-head-row">
+                  <button
+                    type="button"
+                    className="adm-rail-stop-caret-btn"
+                    onClick={() => toggleStopExpansion(stop.stop_key)}
+                    aria-label={expanded ? "Collapse stop" : "Expand stop"}
+                  >
                     {expanded ? "▾" : "▸"}
-                  </span>
-                  <span className="adm-rail-stop-num">
-                    {stop.position + 1}
-                  </span>
-                  <span className="adm-rail-stop-label">{stop.label}</span>
-                </button>
+                  </button>
+                  <button
+                    type="button"
+                    className={`adm-rail-stop-head${stopActive ? " active" : ""}`}
+                    onClick={() => selectStop(stop.stop_key)}
+                  >
+                    <span className="adm-rail-stop-num">
+                      {stop.position + 1}
+                    </span>
+                    <span className="adm-rail-stop-label">{stop.label}</span>
+                    {stop.is_archived && (
+                      <span className="structure-chip">Archived</span>
+                    )}
+                  </button>
+                </div>
                 {expanded && (
                   <ul className="adm-rail-steps">
                     {steps.map((step) => {
@@ -224,7 +307,7 @@ export function ContentEditor({
                         <li key={step.id}>
                           <button
                             type="button"
-                            className={`adm-rail-step${active ? " active" : ""}`}
+                            className={`adm-rail-step${active ? " active" : ""}${step.is_archived ? " archived" : ""}`}
                             onClick={() => selectStep(step.id, stop.stop_key)}
                           >
                             <span className="adm-rail-step-label">
@@ -247,13 +330,12 @@ export function ContentEditor({
         </nav>
       </aside>
 
-      {/* ---- Right pane: cards on selected step ---- */}
       <section className="adm-editor-pane">
-        {!selectedStep ? (
+        {!selectedStep && !selectedStop ? (
           <div className="adm-empty">
-            <p>Select a step on the left to edit its cards.</p>
+            <p>Select a stop or step on the left to start editing.</p>
           </div>
-        ) : (
+        ) : selectedStep ? (
           <>
             <header className="adm-editor-head">
               <div>
@@ -335,25 +417,47 @@ export function ContentEditor({
               </>
             )}
           </>
-        )}
+        ) : selectedStop ? (
+          <StepsManager
+            key={selectedStop.stop_key}
+            brandId={brandId}
+            brandSlug={brandSlug}
+            stopKey={selectedStop.stop_key}
+            stopLabel={selectedStop.label}
+            stopName={selectedStop.name}
+            stopNumber={stopNumber ?? 1}
+            steps={stepsForSelectedStop}
+            onSelectStep={(stepId) =>
+              selectStep(stepId, selectedStop.stop_key)
+            }
+            createStep={createStep}
+            updateStep={updateStep}
+            deleteStep={deleteStep}
+            archiveStep={archiveStep}
+            reorderSteps={reorderSteps}
+          />
+        ) : null}
       </section>
 
-      {editorState && selectedStep && selectedStep.content_type !== "slides" && selectedStep.content_type !== "application" && (
-        <CardEditor
-          brandSlug={brandSlug}
-          initial={
-            editorState.mode === "create"
-              ? { type: editorState.type, create: true }
-              : editorState.card
-          }
-          cardIndex={
-            editorState.mode === "edit" ? editorState.cardIndex : undefined
-          }
-          onSave={handleSave}
-          onCancel={() => setEditorState(null)}
-          upload={upload}
-        />
-      )}
+      {editorState &&
+        selectedStep &&
+        selectedStep.content_type !== "slides" &&
+        selectedStep.content_type !== "application" && (
+          <CardEditor
+            brandSlug={brandSlug}
+            initial={
+              editorState.mode === "create"
+                ? { type: editorState.type, create: true }
+                : editorState.card
+            }
+            cardIndex={
+              editorState.mode === "edit" ? editorState.cardIndex : undefined
+            }
+            onSave={handleSave}
+            onCancel={() => setEditorState(null)}
+            upload={upload}
+          />
+        )}
 
       {toast && <div className="adm-toast">{toast}</div>}
     </div>
