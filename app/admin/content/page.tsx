@@ -17,6 +17,7 @@ import {
   uploadCardImageAction,
   uploadSlideImageAction,
   uploadStepVideoAction,
+  uploadCallPrepImageAction,
 } from "./actions";
 import {
   archiveStepAction,
@@ -48,7 +49,7 @@ export default async function ContentEditorPage({ searchParams }: Props) {
   const core = createCoreClient();
   const { data: brandsRaw } = await core
     .from("brands")
-    .select("id, slug, name")
+    .select("id, slug, name, short_name")
     .order("name");
   const brands = brandsRaw ?? [];
 
@@ -137,11 +138,16 @@ export default async function ContentEditorPage({ searchParams }: Props) {
       ? requestedChapterKey
       : null;
 
+  const brandShortName =
+    ((brand as { short_name?: string | null }).short_name ?? "").trim() ||
+    (brand.name as string);
+
   return (
     <ContentEditor
       brandId={brand.id}
       brandSlug={brand.slug}
       brandName={brand.name}
+      brandShortName={brandShortName}
       stops={stops}
       stepsByChapter={stepsByChapter}
       initialStepId={initialStepId}
@@ -153,6 +159,7 @@ export default async function ContentEditorPage({ searchParams }: Props) {
       upload={uploadCardImageAction}
       uploadSlide={uploadSlideImageAction}
       uploadVideo={uploadStepVideoAction}
+      uploadCallPrep={uploadCallPrepImageAction}
       candidateTokenForPreview={PREVIEW_TOKEN[brand.slug] ?? null}
       isGCalConfigured={isGCalConfigured()}
       createStep={createStepAction}

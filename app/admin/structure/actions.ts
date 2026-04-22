@@ -15,6 +15,7 @@ export type ContentType =
   | "application"
   | "schedule"
   | "video"
+  | "call_prep"
   | "document"
   | "checklist";
 

@@ -356,6 +356,7 @@ export default async function PortalTokenPage({
   // as a fallback display name elsewhere in the shell.
   const hasAssignedRep = !!activeRep;
   const scheduleAdvisorName = activeRep?.name ?? null;
+  const scheduleAdvisorEmail = activeRep?.calendarEmail ?? null;
   const scheduleConfigured = isGCalConfigured();
 
   return (
@@ -395,6 +396,7 @@ export default async function PortalTokenPage({
         bookingsByStepId={bookingsByStepId}
         hasAssignedRep={hasAssignedRep}
         advisorName={scheduleAdvisorName}
+        advisorEmail={scheduleAdvisorEmail}
         brandShortName={brandShortName}
         isGCalConfigured={scheduleConfigured}
       />

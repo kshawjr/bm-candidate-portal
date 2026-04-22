@@ -546,6 +546,21 @@
   margin: 0;
 }
 
+/* ---- cards section (when paired with another editor on slides steps) ---- */
+.adm-cards-section {
+  margin-top: 40px;
+  padding-top: 24px;
+  border-top: 1px solid #e5e7eb;
+}
+.adm-cards-section-eyebrow {
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #6b7280;
+  font-weight: 600;
+  margin: 0 0 14px;
+}
+
 /* ---- card list ---- */
 .adm-cardlist {
   list-style: none;
@@ -1399,4 +1414,35 @@
   border-radius: 6px;
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.18);
   z-index: 60;
+}
+
+/* ---- call_prep editor ---- */
+.adm-call-prep-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  max-width: 880px;
+}
+.adm-call-prep-preview {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 18px 20px;
+}
+.adm-call-prep-form {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 18px 20px;
+}
+.adm-call-prep-bullets {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.adm-call-prep-bullet {
+  display: grid;
+  grid-template-columns: 1fr 26px 26px auto;
+  gap: 4px;
+  align-items: center;
 }
