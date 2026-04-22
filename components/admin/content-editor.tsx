@@ -10,7 +10,12 @@ import { SlideEditor } from "./slide-editor";
 import { StepsManager, type AdminStepRow } from "./steps-manager";
 import { VideoEditor } from "./video-editor";
 import { ScheduleEditor } from "./schedule-editor";
+import {
+  CallPrepEditor,
+  type AvailableScheduleStep,
+} from "./call-prep-editor";
 import type { VideoConfig } from "@/components/content-types/video-renderer";
+import type { CallPrepConfig } from "@/components/content-types/call-prep-renderer";
 import type { ScheduleConfig } from "@/lib/schedule-shared";
 
 type UploadFn = (
@@ -60,8 +65,10 @@ interface Props {
   upload: UploadFn;
   uploadSlide: UploadFn;
   uploadVideo: UploadFn;
+  uploadCallPrep: UploadFn;
   candidateTokenForPreview: string | null;
   isGCalConfigured: boolean;
+  brandShortName: string;
   createStep: (
     brandId: string,
     stopKey: string,
@@ -110,8 +117,10 @@ export function ContentEditor({
   upload,
   uploadSlide,
   uploadVideo,
+  uploadCallPrep,
   candidateTokenForPreview,
   isGCalConfigured,
+  brandShortName,
   createStep,
   updateStep,
   deleteStep,
@@ -368,7 +377,7 @@ export function ContentEditor({
               )}
             </header>
 
-            {selectedStep.content_type === "slides" ? (
+            {selectedStep.content_type === "slides" && (
               <SlideEditor
                 key={selectedStep.id}
                 brandSlug={brandSlug}
@@ -377,7 +386,9 @@ export function ContentEditor({
                 saveSlides={saveSlides}
                 upload={uploadSlide}
               />
-            ) : selectedStep.content_type === "video" ? (
+            )}
+
+            {selectedStep.content_type === "video" && (
               <VideoEditor
                 key={selectedStep.id}
                 brandSlug={brandSlug}
@@ -388,7 +399,9 @@ export function ContentEditor({
                 }
                 uploadVideo={uploadVideo}
               />
-            ) : selectedStep.content_type === "schedule" ? (
+            )}
+
+            {selectedStep.content_type === "schedule" && (
               <ScheduleEditor
                 key={selectedStep.id}
                 stepId={selectedStep.id}
@@ -398,7 +411,49 @@ export function ContentEditor({
                   saveStepConfig(stepId, config as unknown as Record<string, unknown>)
                 }
               />
-            ) : selectedStep.content_type === "application" ? (
+            )}
+
+            {selectedStep.content_type === "call_prep" && (
+              <CallPrepEditor
+                key={selectedStep.id}
+                brandSlug={brandSlug}
+                brandName={brandName}
+                brandShortName={brandShortName}
+                stepId={selectedStep.id}
+                initialConfig={selectedStep.config as unknown as CallPrepConfig}
+                availableScheduleSteps={(
+                  stepsByStop[selectedStep.stop_key] ?? []
+                )
+                  .filter(
+                    (s) =>
+                      s.content_type === "schedule" && !s.is_archived,
+                  )
+                  .map<AvailableScheduleStep>((s) => {
+                    const sc = s.config as Record<string, unknown>;
+                    return {
+                      id: s.id,
+                      label: s.label,
+                      event_label:
+                        typeof sc?.event_label === "string"
+                          ? (sc.event_label as string)
+                          : "Discovery Call",
+                      duration_minutes:
+                        typeof sc?.duration_minutes === "number"
+                          ? (sc.duration_minutes as number)
+                          : 60,
+                    };
+                  })}
+                saveConfig={(stepId, config) =>
+                  saveStepConfig(
+                    stepId,
+                    config as unknown as Record<string, unknown>,
+                  )
+                }
+                uploadImage={uploadCallPrep}
+              />
+            )}
+
+            {selectedStep.content_type === "application" && (
               <div className="adm-notice">
                 <div className="adm-notice-eyebrow">Not user-editable</div>
                 <p>
@@ -408,8 +463,23 @@ export function ContentEditor({
                   map.
                 </p>
               </div>
-            ) : (
-              <>
+            )}
+
+            {(selectedStep.content_type === "slides" ||
+              selectedStep.content_type === "static") && (
+              <div
+                className={
+                  selectedStep.content_type === "slides"
+                    ? "adm-cards-section"
+                    : undefined
+                }
+              >
+                {selectedStep.content_type === "slides" && (
+                  <div className="adm-cards-section-eyebrow">
+                    Content cards
+                  </div>
+                )}
+
                 <CardList
                   cards={selectedStep.content_cards}
                   onEdit={(card, idx) =>
@@ -446,7 +516,7 @@ export function ContentEditor({
                     </div>
                   )}
                 </div>
-              </>
+              </div>
             )}
           </>
         ) : selectedStop ? (
@@ -473,10 +543,8 @@ export function ContentEditor({
 
       {editorState &&
         selectedStep &&
-        selectedStep.content_type !== "slides" &&
-        selectedStep.content_type !== "application" &&
-        selectedStep.content_type !== "video" &&
-        selectedStep.content_type !== "schedule" && (
+        (selectedStep.content_type === "slides" ||
+          selectedStep.content_type === "static") && (
           <CardEditor
             brandSlug={brandSlug}
             initial={

@@ -55,6 +55,13 @@ const CONTENT_TYPE_OPTIONS: Array<{
     disabled: false,
   },
   {
+    value: "call_prep",
+    label: "Call prep",
+    description:
+      "Pre-call briefing that links to a schedule step and templates in rep + brand + call details.",
+    disabled: false,
+  },
+  {
     value: "document",
     label: "Document",
     description: "Long-form document like the FDD (coming soon).",

@@ -1,6 +1,7 @@
 import "server-only";
 
 import { google } from "googleapis";
+import { dayKeyInZone as _dayKeyInZone } from "./schedule-shared";
 import type { ScheduleConfig, Slot } from "./schedule-shared";
 
 export type { ScheduleConfig, Slot };
@@ -210,9 +211,30 @@ export async function getAvailableSlots(
   advisorEmail: string,
   config: ScheduleConfig,
 ): Promise<Slot[]> {
-  if (!advisorEmail) return [];
+  console.log("[gcal] getAvailableSlots: start", {
+    advisorEmail,
+    days_ahead: config.days_ahead,
+    min_notice_hours: config.min_notice_hours,
+    working_days: config.working_days,
+    duration_minutes: config.duration_minutes,
+    start_hour: config.start_hour,
+    end_hour: config.end_hour,
+    buffer_minutes: config.buffer_minutes,
+    timezone: config.timezone,
+  });
+  if (!advisorEmail) {
+    console.log("[gcal] getAvailableSlots: no advisorEmail, returning []");
+    return [];
+  }
   const slots = generateCandidateSlots(config);
-  if (slots.length === 0) return [];
+  console.log(
+    "[gcal] getAvailableSlots: candidate slots before Google query",
+    { count: slots.length },
+  );
+  if (slots.length === 0) {
+    console.log("[gcal] getAvailableSlots: zero candidate slots, returning []");
+    return [];
+  }
 
   const auth = getAuth(advisorEmail);
   const calendar = google.calendar({ version: "v3", auth });
@@ -220,6 +242,11 @@ export async function getAvailableSlots(
   const windowStart = slots[0].start;
   const windowEnd = slots[slots.length - 1].end;
   const bufferMs = (config.buffer_minutes ?? 0) * 60 * 1000;
+  console.log("[gcal] getAvailableSlots: freeBusy window", {
+    windowStart,
+    windowEnd,
+    bufferMs,
+  });
 
   const { data } = await calendar.freebusy.query({
     requestBody: {
@@ -230,11 +257,31 @@ export async function getAvailableSlots(
     },
   });
   const busy = data.calendars?.[advisorEmail]?.busy ?? [];
+  const calendarErrors = data.calendars?.[advisorEmail]?.errors ?? [];
+  console.log("[gcal] getAvailableSlots: freeBusy response", {
+    busyCount: busy.length,
+    busy,
+    errors: calendarErrors,
+  });
 
-  return slots.filter(
+  const filtered = slots.filter(
     (s) =>
       !overlaps(Date.parse(s.start), Date.parse(s.end), busy, bufferMs),
   );
+
+  // Group by local-zone day for a quick visual of spread.
+  const byDay: Record<string, number> = {};
+  for (const s of filtered) {
+    const key = _dayKeyInZone(s.start, config.timezone);
+    byDay[key] = (byDay[key] ?? 0) + 1;
+  }
+  console.log("[gcal] getAvailableSlots: after busy filter", {
+    filteredCount: filtered.length,
+    droppedByBusy: slots.length - filtered.length,
+    perDay: byDay,
+  });
+
+  return filtered;
 }
 
 export async function bookSlot(args: {

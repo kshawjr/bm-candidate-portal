@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { useState, useTransition, type CSSProperties } from "react";
+import { useEffect, useState, useTransition, type CSSProperties } from "react";
 import { SlidesRenderer, type Slide } from "@/components/content-types/slides-renderer";
 import {
   ApplicationRenderer,
@@ -16,6 +16,11 @@ import {
   ScheduleRenderer,
   type ExistingBooking,
 } from "@/components/content-types/schedule-renderer";
+import {
+  CallPrepRenderer,
+  type CallPrepConfig,
+  type LinkedScheduleInfo,
+} from "@/components/content-types/call-prep-renderer";
 import { ContentCardStrip } from "@/components/content-cards/content-card-strip";
 import type { ContentCard } from "@/components/content-cards/types";
 import type { ScheduleConfig, Slot } from "@/lib/schedule-shared";
@@ -40,6 +45,7 @@ export type ContentType =
   | "application"
   | "schedule"
   | "video"
+  | "call_prep"
   | "document"
   | "checklist";
 
@@ -99,8 +105,8 @@ export interface ShellProps {
   initialStopIdx: number;
   initialStepIdx: number;
   // Bound server actions — page binds the candidate's token into each.
-  onTourComplete: (nextStepIdx: number) => Promise<void>;
-  onStepAdvance: (nextStepIdx: number) => Promise<void>;
+  onTourComplete: (stopIdx: number, nextStepIdx: number) => Promise<void>;
+  onStepAdvance: (stopIdx: number, nextStepIdx: number) => Promise<void>;
   onSaveApplicationAnswer: (
     fieldKey: string,
     fieldValue: unknown,
@@ -171,6 +177,18 @@ export function CinematicShell({
   const [selectedStopIdx, setSelectedStopIdx] = useState(initialStopIdx);
   const [selectedStepIdx, setSelectedStepIdx] = useState(initialStepIdx);
 
+  // Disable the browser's native scroll restoration and jump to the top on
+  // mount. Next's App Router sometimes leaves the page restored to a prior
+  // scroll position on hard refresh; this guarantees the candidate always
+  // lands at the top of the content area.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if ("scrollRestoration" in window.history) {
+      window.history.scrollRestoration = "manual";
+    }
+    window.scrollTo(0, 0);
+  }, []);
+
   const selectedStop = stops[selectedStopIdx];
   const steps = stepsByStop[selectedStop.stop_key] ?? [];
   const selectedStep = steps[Math.min(selectedStepIdx, steps.length - 1)] ?? null;
@@ -187,8 +205,12 @@ export function CinematicShell({
     // Optimistic UI update — move to the next step immediately.
     setSelectedStepIdx(nextIdx);
     // Persist, then refetch server data so current_step + is_tour_complete match.
+    // Pass the stop the user is on; the server no-ops the advance if the
+    // candidate has already progressed past this position (e.g. replaying a
+    // completed stop) so their resume point doesn't drift.
+    const stopIdx = selectedStopIdx;
     startTransition(async () => {
-      await onTourComplete(nextIdx);
+      await onTourComplete(stopIdx, nextIdx);
       router.refresh();
     });
   };
@@ -201,8 +223,9 @@ export function CinematicShell({
         ? selectedStepIdx + 1
         : selectedStepIdx;
     setSelectedStepIdx(nextIdx);
+    const stopIdx = selectedStopIdx;
     startTransition(async () => {
-      await onStepAdvance(nextIdx);
+      await onStepAdvance(stopIdx, nextIdx);
       router.refresh();
     });
   };
@@ -409,6 +432,7 @@ export function CinematicShell({
             <>
               <StepRenderer
                 step={selectedStep}
+                stepsInStop={steps}
                 stopNumber={selectedStopIdx + 1}
                 onTourComplete={handleTourComplete}
                 onStepAdvance={handleStepAdvance}
@@ -443,6 +467,7 @@ export function CinematicShell({
 
 function StepRenderer({
   step,
+  stepsInStop,
   stopNumber,
   onTourComplete,
   onStepAdvance,
@@ -465,6 +490,7 @@ function StepRenderer({
   onCancelBooking,
 }: {
   step: Step;
+  stepsInStop: Step[];
   stopNumber: number;
   onTourComplete: () => void;
   onStepAdvance: () => void;
@@ -551,6 +577,45 @@ function StepRenderer({
         onGetSlots={onGetSlots}
         onBook={onBookSlot}
         onCancel={onCancelBooking}
+        onComplete={onStepAdvance}
+      />
+    );
+  }
+  if (step.content_type === "call_prep") {
+    const config = step.config as unknown as CallPrepConfig;
+    const linkedId = config?.linked_schedule_step_id ?? null;
+    const linkedStep = linkedId
+      ? stepsInStop.find((s) => s.id === linkedId)
+      : null;
+    let linkedSchedule: LinkedScheduleInfo | null = null;
+    if (linkedStep && linkedStep.content_type === "schedule") {
+      const sc = linkedStep.config as Record<string, unknown> | undefined;
+      linkedSchedule = {
+        eventLabel:
+          typeof sc?.event_label === "string"
+            ? (sc.event_label as string)
+            : "Discovery Call",
+        durationMinutes:
+          typeof sc?.duration_minutes === "number"
+            ? (sc.duration_minutes as number)
+            : 60,
+      };
+    } else if (linkedId) {
+      // Linked step no longer exists or isn't a schedule step — log once
+      // on the server but don't crash the candidate view. Placeholders
+      // fall back to their literal {form} per resolveTemplate.
+      console.warn(
+        `[call_prep] step ${step.id} links to missing/non-schedule step ${linkedId}`,
+      );
+    }
+    return (
+      <CallPrepRenderer
+        config={config}
+        linkedSchedule={linkedSchedule}
+        repName={advisorName}
+        brandName={brandName}
+        brandShortName={brandShortName}
+        candidateFirstName={candidate.first_name ?? null}
         onComplete={onStepAdvance}
       />
     );

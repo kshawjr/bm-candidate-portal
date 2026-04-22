@@ -13,17 +13,47 @@ import {
 } from "@/lib/google-calendar";
 
 /**
+ * Has the candidate already progressed past (stopIdx, nextStepIdx)? If so
+ * the advance actions below no-op — otherwise a candidate replaying a prior
+ * stop's content would overwrite current_step and drift their resume point.
+ */
+function hasAlreadyAdvancedPast(
+  current: { current_stop: number | null; current_step: number | null },
+  stopIdx: number,
+  nextStepIdx: number,
+): boolean {
+  const cs = current.current_stop ?? 0;
+  const cp = current.current_step ?? 0;
+  if (cs > stopIdx) return true;
+  if (cs === stopIdx && cp >= nextStepIdx) return true;
+  return false;
+}
+
+/**
  * Generic "advance the candidate past the step they just finished" — bumps
  * current_step only, no stop-wide flags. Used by video and schedule steps.
+ * No-ops if the candidate has already progressed past this position (e.g.
+ * they're replaying a completed stop and clicked "next").
  */
 export async function advanceStepAction(
   token: string,
+  stopIdx: number,
   nextStepIdx: number,
 ): Promise<void> {
   const app = createAppServiceClient();
+  const { data: current, error: readErr } = await app
+    .from("candidates_in_portal")
+    .select("current_stop, current_step")
+    .eq("token", token)
+    .maybeSingle();
+  if (readErr) throw new Error(`advanceStepAction read failed: ${readErr.message}`);
+  if (!current) return;
+  if (hasAlreadyAdvancedPast(current, stopIdx, nextStepIdx)) return;
+
   const { error } = await app
     .from("candidates_in_portal")
     .update({
+      current_stop: stopIdx,
       current_step: nextStepIdx,
       last_activity_at: new Date().toISOString(),
     })
@@ -34,22 +64,37 @@ export async function advanceStepAction(
 
 /**
  * Mark the brand tour complete for the candidate on this token, and advance
- * current_step to the supplied index. The caller (client shell) computes
- * nextStepIdx based on how many steps exist in the current stop, so this
- * action doesn't need to re-derive it.
+ * current_step to the supplied index. No-ops on the step/stop write if the
+ * candidate has already progressed past this position; still flips
+ * is_tour_complete since that's idempotent.
  */
 export async function completeTourAction(
   token: string,
+  stopIdx: number,
   nextStepIdx: number,
 ): Promise<void> {
   const app = createAppServiceClient();
+  const { data: current, error: readErr } = await app
+    .from("candidates_in_portal")
+    .select("current_stop, current_step")
+    .eq("token", token)
+    .maybeSingle();
+  if (readErr) throw new Error(`completeTourAction read failed: ${readErr.message}`);
+  if (!current) return;
+
+  const alreadyPast = hasAlreadyAdvancedPast(current, stopIdx, nextStepIdx);
+  const update: Record<string, unknown> = {
+    is_tour_complete: true,
+    last_activity_at: new Date().toISOString(),
+  };
+  if (!alreadyPast) {
+    update.current_stop = stopIdx;
+    update.current_step = nextStepIdx;
+  }
+
   const { error } = await app
     .from("candidates_in_portal")
-    .update({
-      is_tour_complete: true,
-      current_step: nextStepIdx,
-      last_activity_at: new Date().toISOString(),
-    })
+    .update(update)
     .eq("token", token);
   if (error) {
     throw new Error(`completeTourAction failed: ${error.message}`);
