@@ -44,7 +44,7 @@ export type ContentType =
   | "checklist";
 
 export interface Stop {
-  stop_key: string;
+  chapter_key: string;
   position: number;
   label: string;
   name: string;
@@ -54,7 +54,7 @@ export interface Stop {
 export interface Step {
   id: string;
   step_key: string;
-  stop_key: string;
+  chapter_key: string;
   position: number;
   label: string;
   description: string;
@@ -95,7 +95,7 @@ export interface ShellProps {
   heroStats: Array<{ num: string; label: string }>;
   heroStripHeading: string;
   stops: Stop[];
-  stepsByStop: Record<string, Step[]>;
+  stepsByChapter: Record<string, Step[]>;
   currentChapterIdx: number;
   initialStopIdx: number;
   initialStepIdx: number;
@@ -147,7 +147,7 @@ export function CinematicShell({
   heroStats,
   heroStripHeading,
   stops,
-  stepsByStop,
+  stepsByChapter,
   currentChapterIdx,
   initialStopIdx,
   initialStepIdx,
@@ -173,7 +173,7 @@ export function CinematicShell({
   const [selectedStepIdx, setSelectedStepIdx] = useState(initialStepIdx);
 
   const selectedStop = stops[selectedStopIdx];
-  const steps = stepsByStop[selectedStop.stop_key] ?? [];
+  const steps = stepsByChapter[selectedStop.chapter_key] ?? [];
   const selectedStep = steps[Math.min(selectedStepIdx, steps.length - 1)] ?? null;
 
   const completedCount = currentChapterIdx;
@@ -304,7 +304,7 @@ export function CinematicShell({
 
             return (
               <button
-                key={stop.stop_key}
+                key={stop.chapter_key}
                 className={cls}
                 title={stop.name}
                 disabled={!clickable}
@@ -343,7 +343,7 @@ export function CinematicShell({
       </aside>
 
       <section className="cine-content">
-        {selectedStop.stop_key === "explore" && heroStats.length > 0 && (
+        {selectedStop.chapter_key === "explore" && heroStats.length > 0 && (
           <div className="cine-hero-strip">
             <div className="cine-hero-strip-heading">{heroStripHeading}</div>
             <div className="cine-hero-strip-grid">

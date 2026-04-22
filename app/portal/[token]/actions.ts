@@ -152,7 +152,7 @@ export async function submitApplicationAction(
   // Audit: log completion of explore/app.
   const { error: prErr } = await app.from("candidate_progress").insert({
     candidate_in_portal_id: portalId,
-    stop_key: "explore",
+    chapter_key: "explore",
     step_key: "app",
   });
   if (prErr) throw new Error(`candidate_progress insert failed: ${prErr.message}`);
@@ -166,7 +166,7 @@ export async function submitApplicationAction(
 
 interface StepContext {
   stepId: string;
-  stopKey: string;
+  chapterKey: string;
   stepPosition: number;
   stopPosition: number;
   config: ScheduleConfig;
@@ -204,7 +204,7 @@ async function loadStepContext(
 
   const { data: step, error: stepErr } = await app
     .from("steps_config")
-    .select("id, brand_id, stop_key, position, content_type, config")
+    .select("id, brand_id, chapter_key, position, content_type, config")
     .eq("id", stepId)
     .maybeSingle();
   if (stepErr) throw new Error(`step lookup failed: ${stepErr.message}`);
@@ -214,10 +214,10 @@ async function loadStepContext(
   }
 
   const { data: stop, error: stopErr } = await app
-    .from("stops_config")
+    .from("chapters_config")
     .select("position")
     .eq("brand_id", step.brand_id)
-    .eq("stop_key", step.stop_key)
+    .eq("chapter_key", step.chapter_key)
     .maybeSingle();
   if (stopErr) throw new Error(`stop lookup failed: ${stopErr.message}`);
   if (!stop) throw new Error("stop not found");
@@ -320,7 +320,7 @@ async function loadStepContext(
 
   return {
     stepId: step.id as string,
-    stopKey: step.stop_key as string,
+    chapterKey: step.chapter_key as string,
     stepPosition: step.position as number,
     stopPosition: stop.position as number,
     config,
@@ -459,7 +459,7 @@ export async function bookSlotAction(
   // whichever step comes next within the same stop.
   await app.from("candidate_progress").insert({
     candidate_in_portal_id: ctx.portalId,
-    stop_key: ctx.stopKey,
+    chapter_key: ctx.chapterKey,
     step_key: null,
   });
   await app

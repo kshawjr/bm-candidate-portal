@@ -7,7 +7,7 @@ import type { StopFormData } from "@/app/admin/structure/actions";
 
 export interface AdminStopRow {
   id: string;
-  stop_key: string;
+  chapter_key: string;
   position: number;
   label: string;
   name: string;
@@ -26,7 +26,7 @@ interface Props {
   createStop: (brandId: string, data: StopFormData) => Promise<void>;
   updateStop: (
     stopId: string,
-    data: Omit<StopFormData, "stop_key">,
+    data: Omit<StopFormData, "chapter_key">,
   ) => Promise<void>;
   deleteStop: (stopId: string) => Promise<void>;
   archiveStop: (stopId: string, archived: boolean) => Promise<void>;
@@ -107,7 +107,7 @@ export function StructureEditor({
     if (stopId === null) {
       run(() => createStop(brandId, data), "Stop added");
     } else {
-      const { stop_key: _unused, ...rest } = data;
+      const { chapter_key: _unused, ...rest } = data;
       void _unused;
       run(() => updateStop(stopId, rest), "Stop updated");
     }
@@ -164,7 +164,7 @@ export function StructureEditor({
                 </div>
                 <div className="structure-stoprow-sub">
                   <Link
-                    href={`/admin/content?brand=${brandSlug}&stop=${stop.stop_key}`}
+                    href={`/admin/content?brand=${brandSlug}&chapter=${stop.chapter_key}`}
                     className="structure-stoprow-steps"
                   >
                     {stop.step_count === 0
@@ -178,7 +178,7 @@ export function StructureEditor({
                     )}
                     {" →"}
                   </Link>
-                  <span className="structure-muted">· key: {stop.stop_key}</span>
+                  <span className="structure-muted">· key: {stop.chapter_key}</span>
                 </div>
               </div>
               <div className="structure-stoprow-reorder">
@@ -270,7 +270,7 @@ interface DrawerProps {
 function StopDrawer({ initial, onCancel, onSave, saving }: DrawerProps) {
   const isEdit = initial !== null;
   const [form, setForm] = useState<StopFormData>(() => ({
-    stop_key: initial?.stop_key ?? "",
+    chapter_key: initial?.chapter_key ?? "",
     label: initial?.label ?? "",
     name: initial?.name ?? "",
     icon: initial?.icon ?? null,
@@ -280,7 +280,7 @@ function StopDrawer({ initial, onCancel, onSave, saving }: DrawerProps) {
   const valid =
     form.label.trim().length > 0 &&
     form.name.trim().length > 0 &&
-    (isEdit || /^[a-z][a-z0-9_]*$/.test(form.stop_key));
+    (isEdit || /^[a-z][a-z0-9_]*$/.test(form.chapter_key));
 
   return (
     <div className="adm-drawer-backdrop" role="dialog" aria-modal="true">
@@ -315,9 +315,9 @@ function StopDrawer({ initial, onCancel, onSave, saving }: DrawerProps) {
             <input
               type="text"
               className="adm-input"
-              value={form.stop_key}
+              value={form.chapter_key}
               onChange={(e) =>
-                setForm({ ...form, stop_key: e.target.value.toLowerCase() })
+                setForm({ ...form, chapter_key: e.target.value.toLowerCase() })
               }
               placeholder="first_chat"
               disabled={isEdit}

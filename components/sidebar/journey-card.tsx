@@ -40,7 +40,7 @@ export function JourneyCard({ state }: { state: JourneyCardState }) {
 
 // Stop shape only needs what the resolver uses.
 export interface JourneyStop {
-  stop_key: string;
+  chapter_key: string;
   label: string;
   name: string;
 }
