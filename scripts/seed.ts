@@ -119,9 +119,8 @@ const STOP_STEPS: Record<string, Array<{ key: string; label: string; type: Conte
     { key: "app",      label: "Light application",  type: "application", desc: "Quick questions so we can get to know you" },
   ],
   first_chat: [
-    { key: "prep",     label: "Before the call",    type: "static",      desc: "What to expect, who you'll meet" },
-    { key: "schedule", label: "Pick a time",        type: "schedule",    desc: "Book a 30-minute call" },
-    { key: "recap",    label: "Call notes",         type: "static",      desc: "Summary + next steps (available after the call)" },
+    { key: "hello",    label: "Quick hello",        type: "video",       desc: "A 30-second intro before we jump on a call" },
+    { key: "book",     label: "Book your call",     type: "schedule",    desc: "Pick a time that works — Google Meet, 30 minutes" },
   ],
   deep_dive: [
     { key: "register", label: "Register",           type: "schedule",    desc: "Tuesday 2pm ET, or watch on demand" },
@@ -154,6 +153,14 @@ type BrandCode = "ht" | "ct";
 const SLUG_TO_CODE: Record<string, BrandCode> = {
   "hounds-town-usa": "ht",
   "cruisin-tikis": "ct",
+};
+
+// Conversational brand name used in candidate-facing copy + Google
+// Calendar event titles. null means the brand's existing `name` is
+// already short enough (e.g., "Cruisin' Tikis").
+const BRAND_SHORT_NAME: Record<BrandCode, string | null> = {
+  ht: "Hounds Town",
+  ct: null,
 };
 
 interface StatItem {
@@ -485,19 +492,74 @@ const app = createClient(
 // ---------- seeders ----------
 
 async function seedBrandInfra(brandId: string, code: BrandCode) {
-  const { error } = await core
-    .from("brands")
-    .update({
-      logo_url: LOGO_URL[code],
-      colors: BRAND_COLORS[code],
-      font_overrides: FONT_OVERRIDES[code],
-    })
-    .eq("id", brandId);
-  if (error) throw new Error(`brands update failed: ${error.message}`);
+  const update: Record<string, unknown> = {
+    logo_url: LOGO_URL[code],
+    colors: BRAND_COLORS[code],
+    font_overrides: FONT_OVERRIDES[code],
+  };
+  // brands.short_name is nullable; only populate for brands whose full
+  // name needs shortening. Falls back to `name` in the app when null.
+  const shortName = BRAND_SHORT_NAME[code];
+  if (shortName !== null) {
+    update.short_name = shortName;
+  }
+  const { error } = await core.from("brands").update(update).eq("id", brandId);
+  if (error) {
+    // If the migration hasn't been run yet, short_name won't exist. Give
+    // a helpful hint instead of cryptic PG.
+    if (/short_name/.test(error.message)) {
+      throw new Error(
+        `brands update failed (did you run 20260421_brands_short_name_bmave_core.sql?): ${error.message}`,
+      );
+    }
+    throw new Error(`brands update failed: ${error.message}`);
+  }
   const paletteCount = Object.keys(BRAND_COLORS[code].palette).length;
   console.log(
-    `[seed] brands -> ${code} (logo, ${paletteCount}-swatch palette, ${FONT_OVERRIDES[code].heading_font} / ${FONT_OVERRIDES[code].body_font})`,
+    `[seed] brands -> ${code} (logo, ${paletteCount}-swatch palette, ${FONT_OVERRIDES[code].heading_font} / ${FONT_OVERRIDES[code].body_font}${shortName ? `, short_name: "${shortName}"` : ""})`,
   );
+}
+
+/**
+ * Seed the single demo rep — Kevin, kevin@bmave.com — and return its id so
+ * test candidates can be assigned to it. Idempotent: reruns find the row
+ * by email and return its id without touching anything else. When real
+ * reps arrive this is replaced by a proper rep admin UI + Zoho sync.
+ */
+async function seedDemoRep(): Promise<string> {
+  const demoEmail = "kevin@bmave.com";
+
+  const { data: existing, error: readErr } = await core
+    .from("reps")
+    .select("id")
+    .eq("email", demoEmail)
+    .maybeSingle();
+  if (readErr) {
+    throw new Error(
+      `reps read failed (did you run 20260421_reps_bmave_core.sql?): ${readErr.message}`,
+    );
+  }
+  if (existing?.id) {
+    console.log(`[seed] reps: demo rep already exists (${demoEmail})`);
+    return existing.id as string;
+  }
+
+  const { data: inserted, error: insErr } = await core
+    .from("reps")
+    .insert({
+      name: "Kevin Shaw",
+      email: demoEmail,
+      calendar_email: demoEmail,
+      role: "Blue Maven Franchise Development",
+      is_active: true,
+    })
+    .select("id")
+    .single();
+  if (insErr || !inserted) {
+    throw new Error(`reps insert failed: ${insErr?.message}`);
+  }
+  console.log(`[seed] reps: created demo rep (${demoEmail})`);
+  return inserted.id as string;
 }
 
 async function seedPortalContent(brandId: string, code: BrandCode) {
@@ -600,6 +662,27 @@ async function seedSteps(brandId: string, code: BrandCode) {
       if (stopKey === "explore" && step.key === "tour") {
         config.slides = BRAND_TOUR_SLIDES[code];
       }
+      if (stopKey === "first_chat" && step.key === "hello") {
+        config.source = "youtube";
+        config.url = "https://www.youtube.com/watch?v=aqz-KE-bpKQ";
+        config.title = "A quick hello before we chat";
+        config.body =
+          "30 seconds on who we are and what to expect on the call.";
+        config.cta_label = "Book my call →";
+      }
+      if (stopKey === "first_chat" && step.key === "book") {
+        config.duration_minutes = 60;
+        config.days_ahead = 14;
+        config.start_hour = 9;
+        config.end_hour = 17;
+        config.timezone = "America/New_York";
+        config.buffer_minutes = 15;
+        config.body =
+          "A real conversation with your franchise growth leader. No pressure — just a chat about what you're looking for.";
+        config.event_label = "Discovery Call";
+        config.working_days = [1, 2, 3, 4, 5];
+        config.min_notice_hours = 24;
+      }
       // Only Stop 1 Step 1 (explore/tour) ships with content cards in PR 8.
       // Every other step gets [] so the strip renders nothing.
       const cards: SeedContentCard[] =
@@ -625,10 +708,143 @@ async function seedSteps(brandId: string, code: BrandCode) {
   console.log(`[seed] steps_config: ${rows.length} rows for ${code}`);
 }
 
-async function seedDevCandidate(brandId: string, code: BrandCode) {
+/**
+ * PR 16 demo: if a brand's Stop 2 (first_chat) has no steps, seed the new
+ * video + schedule demo. The full-structure seedSteps already handles
+ * brand-new brands (their Stop 2 gets the new defaults because STOP_STEPS
+ * changed). This helper is for brands that already had the old 3-step
+ * Stop 2 from PR 15 — admin can delete those steps, then a re-seed fills
+ * in the new demo content.
+ */
+async function seedStop2Defaults(brandId: string, _code: BrandCode) {
+  const { data: existing, error: readErr } = await app
+    .from("steps_config")
+    .select("id")
+    .eq("brand_id", brandId)
+    .eq("stop_key", "first_chat")
+    .limit(1);
+  if (readErr) throw new Error(`stop 2 probe failed: ${readErr.message}`);
+  if (existing && existing.length > 0) {
+    // Stop 2 already has steps — leave them alone. Admin owns structure.
+    return;
+  }
+
+  const rows = [
+    {
+      brand_id: brandId,
+      stop_key: "first_chat",
+      position: 0,
+      step_key: "hello",
+      label: "Quick hello",
+      description: "A 30-second intro before we jump on a call",
+      content_type: "video" as const,
+      config: {
+        source: "youtube",
+        url: "https://www.youtube.com/watch?v=aqz-KE-bpKQ",
+        title: "A quick hello before we chat",
+        body: "30 seconds on who we are and what to expect on the call.",
+        cta_label: "Book my call →",
+      },
+      content_cards: [],
+    },
+    {
+      brand_id: brandId,
+      stop_key: "first_chat",
+      position: 1,
+      step_key: "book",
+      label: "Book your call",
+      description: "Pick a time that works — Google Meet, 60 minutes",
+      content_type: "schedule" as const,
+      config: {
+        duration_minutes: 60,
+        days_ahead: 14,
+        start_hour: 9,
+        end_hour: 17,
+        timezone: "America/New_York",
+        buffer_minutes: 15,
+        body: "A real conversation with your franchise growth leader. No pressure — just a chat about what you're looking for.",
+        event_label: "Discovery Call",
+        working_days: [1, 2, 3, 4, 5],
+        min_notice_hours: 24,
+      },
+      content_cards: [],
+    },
+  ];
+  const { error } = await app.from("steps_config").insert(rows);
+  if (error) throw new Error(`stop 2 defaults insert failed: ${error.message}`);
+  console.log(`[seed] steps_config: seeded Stop 2 defaults for brand ${brandId}`);
+}
+
+/**
+ * PR 16 polish: ensure every schedule-type step has the config fields
+ * introduced across the polish passes — event_label, working_days,
+ * min_notice_hours — so existing seeded steps (from before these
+ * defaults landed) behave sensibly. Only fills missing fields; admin
+ * edits are preserved. Safe to re-run.
+ */
+async function backfillScheduleConfigDefaults() {
+  const { data: steps, error } = await app
+    .from("steps_config")
+    .select("id, config")
+    .eq("content_type", "schedule");
+  if (error) {
+    throw new Error(`steps_config probe failed: ${error.message}`);
+  }
+  if (!steps || steps.length === 0) return;
+
+  let updated = 0;
+  for (const step of steps) {
+    const config =
+      step.config && typeof step.config === "object" && !Array.isArray(step.config)
+        ? (step.config as Record<string, unknown>)
+        : {};
+    const next: Record<string, unknown> = { ...config };
+    let changed = false;
+
+    const existingLabel =
+      typeof config.event_label === "string" ? config.event_label.trim() : "";
+    if (existingLabel.length === 0) {
+      next.event_label = "Discovery Call";
+      changed = true;
+    }
+    const hasWorkingDays =
+      Array.isArray(config.working_days) && config.working_days.length > 0;
+    if (!hasWorkingDays) {
+      next.working_days = [1, 2, 3, 4, 5];
+      changed = true;
+    }
+    if (typeof config.min_notice_hours !== "number") {
+      next.min_notice_hours = 24;
+      changed = true;
+    }
+
+    if (!changed) continue;
+
+    const { error: upErr } = await app
+      .from("steps_config")
+      .update({ config: next })
+      .eq("id", step.id);
+    if (upErr) {
+      throw new Error(`steps_config update failed: ${upErr.message}`);
+    }
+    updated += 1;
+  }
+  if (updated > 0) {
+    console.log(
+      `[seed] schedule config defaults: backfilled ${updated} step${updated === 1 ? "" : "s"}`,
+    );
+  }
+}
+
+async function seedDevCandidate(
+  brandId: string,
+  code: BrandCode,
+  repId: string,
+) {
   const { token, firstName, email } = DEV_TOKENS[code];
 
-  // Upsert candidate identity in bmave-core
+  // Upsert candidate identity in bmave-core — includes the assigned rep
+  // so scheduling knows whose calendar to query.
   const { data: candidate, error: cErr } = await core
     .from("candidates")
     .upsert(
@@ -638,6 +854,7 @@ async function seedDevCandidate(brandId: string, code: BrandCode) {
         last_name: "Rivera",
         brand_id: brandId,
         lifecycle_stage: "candidate",
+        assigned_rep_id: repId,
       },
       { onConflict: "email" },
     )
@@ -679,6 +896,10 @@ async function main() {
     process.exit(1);
   }
 
+  // One demo rep (Kevin) — all test candidates get assigned to him so the
+  // schedule content type has a real calendar to talk to.
+  const repId = await seedDemoRep();
+
   for (const brand of brands) {
     const code = SLUG_TO_CODE[brand.slug];
     if (!code) {
@@ -690,8 +911,14 @@ async function main() {
     await seedPortalContent(brand.id, code);
     await seedStops(brand.id, brand.slug);
     await seedSteps(brand.id, code);
-    await seedDevCandidate(brand.id, code);
+    await seedStop2Defaults(brand.id, code);
+    await seedDevCandidate(brand.id, code, repId);
   }
+
+  // One-off across brands: any existing schedule step that predates the
+  // PR 16 polish passes gets event_label / working_days / min_notice_hours
+  // filled in so behavior matches new steps.
+  await backfillScheduleConfigDefaults();
 
   console.log("[seed] done");
 }

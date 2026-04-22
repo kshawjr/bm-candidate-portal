@@ -8,8 +8,17 @@ import {
   ApplicationRenderer,
   type ApplicationCandidate,
 } from "@/components/content-types/application-renderer";
+import {
+  VideoRenderer,
+  type VideoConfig,
+} from "@/components/content-types/video-renderer";
+import {
+  ScheduleRenderer,
+  type ExistingBooking,
+} from "@/components/content-types/schedule-renderer";
 import { ContentCardStrip } from "@/components/content-cards/content-card-strip";
 import type { ContentCard } from "@/components/content-cards/types";
+import type { ScheduleConfig, Slot } from "@/lib/schedule-shared";
 import {
   JourneyCard,
   type JourneyCardState,
@@ -43,6 +52,7 @@ export interface Stop {
 }
 
 export interface Step {
+  id: string;
   step_key: string;
   stop_key: string;
   position: number;
@@ -91,15 +101,37 @@ export interface ShellProps {
   initialStepIdx: number;
   // Bound server actions — page binds the candidate's token into each.
   onTourComplete: (nextStepIdx: number) => Promise<void>;
+  onStepAdvance: (nextStepIdx: number) => Promise<void>;
   onSaveApplicationAnswer: (
     fieldKey: string,
     fieldValue: unknown,
   ) => Promise<void>;
   onSubmitApplication: (finalAnswers: Record<string, unknown>) => Promise<void>;
+  onGetSlots: (stepId: string) => Promise<{
+    configured: boolean;
+    slots: Slot[];
+    error?: string;
+  }>;
+  onBookSlot: (
+    stepId: string,
+    slotIso: string,
+  ) => Promise<{
+    id: string;
+    start_time: string;
+    end_time: string;
+    meeting_url: string | null;
+  }>;
+  onCancelBooking: (bookingId: string) => Promise<void>;
   // Application runtime inputs
   candidate: ApplicationCandidate;
   initialApplicationAnswers: Record<string, unknown>;
   isApplicationSubmitted: boolean;
+  // Schedule content-type inputs
+  bookingsByStepId: Record<string, ExistingBooking>;
+  hasAssignedRep: boolean;
+  advisorName: string | null;
+  brandShortName: string;
+  isGCalConfigured: boolean;
 }
 
 export function CinematicShell({
@@ -120,11 +152,20 @@ export function CinematicShell({
   initialStopIdx,
   initialStepIdx,
   onTourComplete,
+  onStepAdvance,
   onSaveApplicationAnswer,
   onSubmitApplication,
+  onGetSlots,
+  onBookSlot,
+  onCancelBooking,
   candidate,
   initialApplicationAnswers,
   isApplicationSubmitted,
+  bookingsByStepId,
+  hasAssignedRep,
+  advisorName,
+  brandShortName,
+  isGCalConfigured,
 }: ShellProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -149,6 +190,20 @@ export function CinematicShell({
     // Persist, then refetch server data so current_step + is_tour_complete match.
     startTransition(async () => {
       await onTourComplete(nextIdx);
+      router.refresh();
+    });
+  };
+
+  // For non-tour steps (video, schedule) that just need to advance without
+  // flipping the is_tour_complete flag.
+  const handleStepAdvance = () => {
+    const nextIdx =
+      selectedStepIdx + 1 < steps.length
+        ? selectedStepIdx + 1
+        : selectedStepIdx;
+    setSelectedStepIdx(nextIdx);
+    startTransition(async () => {
+      await onStepAdvance(nextIdx);
       router.refresh();
     });
   };
@@ -353,14 +408,24 @@ export function CinematicShell({
                 step={selectedStep}
                 stopNumber={selectedStopIdx + 1}
                 onTourComplete={handleTourComplete}
+                onStepAdvance={handleStepAdvance}
                 tourPending={pending}
                 candidate={candidate}
                 leaderName={leader.name}
+                brandName={brandName}
                 initialApplicationAnswers={initialApplicationAnswers}
                 isApplicationSubmitted={isApplicationSubmitted}
                 onSaveApplicationAnswer={onSaveApplicationAnswer}
                 onSubmitApplication={onSubmitApplication}
                 onContinueAfterApplication={handleContinueAfterApplication}
+                bookingsByStepId={bookingsByStepId}
+                hasAssignedRep={hasAssignedRep}
+                advisorName={advisorName}
+                brandShortName={brandShortName}
+                isGCalConfigured={isGCalConfigured}
+                onGetSlots={onGetSlots}
+                onBookSlot={onBookSlot}
+                onCancelBooking={onCancelBooking}
               />
               <ContentCardStrip cards={selectedStep.content_cards} />
             </>
@@ -377,21 +442,33 @@ function StepRenderer({
   step,
   stopNumber,
   onTourComplete,
+  onStepAdvance,
   tourPending,
   candidate,
   leaderName,
+  brandName,
   initialApplicationAnswers,
   isApplicationSubmitted,
   onSaveApplicationAnswer,
   onSubmitApplication,
   onContinueAfterApplication,
+  bookingsByStepId,
+  hasAssignedRep,
+  advisorName,
+  brandShortName,
+  isGCalConfigured,
+  onGetSlots,
+  onBookSlot,
+  onCancelBooking,
 }: {
   step: Step;
   stopNumber: number;
   onTourComplete: () => void;
+  onStepAdvance: () => void;
   tourPending: boolean;
   candidate: ApplicationCandidate;
   leaderName: string;
+  brandName: string;
   initialApplicationAnswers: Record<string, unknown>;
   isApplicationSubmitted: boolean;
   onSaveApplicationAnswer: (
@@ -400,6 +477,26 @@ function StepRenderer({
   ) => Promise<void>;
   onSubmitApplication: (finalAnswers: Record<string, unknown>) => Promise<void>;
   onContinueAfterApplication: () => void;
+  bookingsByStepId: Record<string, ExistingBooking>;
+  hasAssignedRep: boolean;
+  advisorName: string | null;
+  brandShortName: string;
+  isGCalConfigured: boolean;
+  onGetSlots: (stepId: string) => Promise<{
+    configured: boolean;
+    slots: Slot[];
+    error?: string;
+  }>;
+  onBookSlot: (
+    stepId: string,
+    slotIso: string,
+  ) => Promise<{
+    id: string;
+    start_time: string;
+    end_time: string;
+    meeting_url: string | null;
+  }>;
+  onCancelBooking: (bookingId: string) => Promise<void>;
 }) {
   if (step.content_type === "slides") {
     const raw = step.config?.slides;
@@ -428,6 +525,32 @@ function StepRenderer({
   if (step.content_type === "static") {
     const body = typeof step.config?.body === "string" ? step.config.body : "";
     return <StaticStep step={step} stopNumber={stopNumber} body={body} />;
+  }
+  if (step.content_type === "video") {
+    return (
+      <VideoRenderer
+        config={step.config as unknown as VideoConfig}
+        onComplete={onStepAdvance}
+      />
+    );
+  }
+  if (step.content_type === "schedule") {
+    return (
+      <ScheduleRenderer
+        stepId={step.id}
+        config={step.config as unknown as ScheduleConfig}
+        existingBooking={bookingsByStepId[step.id] ?? null}
+        brandName={brandName}
+        brandShortName={brandShortName}
+        advisorName={advisorName}
+        isGCalConfigured={isGCalConfigured}
+        hasAssignedRep={hasAssignedRep}
+        onGetSlots={onGetSlots}
+        onBook={onBookSlot}
+        onCancel={onCancelBooking}
+        onComplete={onStepAdvance}
+      />
+    );
   }
   return <PlaceholderStep step={step} stopNumber={stopNumber} />;
 }

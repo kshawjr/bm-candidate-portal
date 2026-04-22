@@ -44,8 +44,15 @@ const CONTENT_TYPE_OPTIONS: Array<{
   {
     value: "video",
     label: "Video",
-    description: "Embedded video player (coming soon).",
-    disabled: true,
+    description: "Embedded YouTube / Vimeo / uploaded video.",
+    disabled: false,
+  },
+  {
+    value: "schedule",
+    label: "Schedule",
+    description:
+      "Calendar booking widget (Google Calendar). Needs an advisor email on the brand.",
+    disabled: false,
   },
   {
     value: "document",
@@ -57,12 +64,6 @@ const CONTENT_TYPE_OPTIONS: Array<{
     value: "checklist",
     label: "Checklist",
     description: "Items the candidate completes (coming soon).",
-    disabled: true,
-  },
-  {
-    value: "schedule",
-    label: "Schedule",
-    description: "Calendar booking widget (coming soon).",
     disabled: true,
   },
 ];

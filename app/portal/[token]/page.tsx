@@ -11,11 +11,17 @@ import {
   type BrandTypography,
 } from "@/components/cinematic-shell";
 import {
+  bookSlotAction,
+  cancelBookingAction,
   completeTourAction,
+  getAvailableSlotsAction,
   saveApplicationAnswerAction,
   submitApplicationAction,
+  advanceStepAction,
 } from "./actions";
+import { isGCalConfigured } from "@/lib/google-calendar";
 import { resolveJourneyCardState } from "@/components/sidebar/journey-card";
+import type { ExistingBooking } from "@/components/content-types/schedule-renderer";
 
 export const dynamic = "force-dynamic";
 
@@ -99,7 +105,9 @@ export default async function PortalTokenPage({
   const core = createCoreClient();
   const { data: candidate } = await core
     .from("candidates")
-    .select("first_name, last_name, email, phone, brand_id")
+    .select(
+      "first_name, last_name, email, phone, brand_id, assigned_rep_id",
+    )
     .eq("id", session.candidate_id)
     .maybeSingle();
   if (!candidate) notFound();
@@ -107,11 +115,33 @@ export default async function PortalTokenPage({
   const { data: brand } = await core
     .from("brands")
     .select(
-      "id, slug, name, tagline, colors, font_overrides, logo_url",
+      "id, slug, name, short_name, tagline, colors, font_overrides, logo_url",
     )
     .eq("id", candidate.brand_id)
     .maybeSingle();
   if (!brand) notFound();
+
+  const brandShortName =
+    (((brand as { short_name?: string | null }).short_name) ?? "").trim() ||
+    (brand.name as string);
+
+  const assignedRepId =
+    ((candidate as { assigned_rep_id?: string | null }).assigned_rep_id) ?? null;
+  const { data: rep } = assignedRepId
+    ? await core
+        .from("reps")
+        .select("id, name, calendar_email, is_active")
+        .eq("id", assignedRepId)
+        .maybeSingle()
+    : { data: null };
+  const activeRep =
+    rep && (rep as { is_active?: boolean }).is_active !== false
+      ? {
+          id: (rep as { id: string }).id,
+          name: (rep as { name: string }).name,
+          calendarEmail: (rep as { calendar_email: string }).calendar_email,
+        }
+      : null;
 
   const [
     { data: portalContent },
@@ -119,6 +149,7 @@ export default async function PortalTokenPage({
     { data: stepsRows },
     { data: applicationRows },
     { data: progressRows },
+    { data: bookingsRows },
   ] = await Promise.all([
     core
       .from("portal_content")
@@ -133,7 +164,7 @@ export default async function PortalTokenPage({
     app
       .from("steps_config")
       .select(
-        "stop_key, position, step_key, label, description, content_type, config, content_cards",
+        "id, stop_key, position, step_key, label, description, content_type, config, content_cards",
       )
       .eq("brand_id", brand.id)
       .eq("is_archived", false)
@@ -146,6 +177,10 @@ export default async function PortalTokenPage({
     app
       .from("candidate_progress")
       .select("stop_key, step_key, completed_at")
+      .eq("candidate_in_portal_id", session.id),
+    app
+      .from("bookings")
+      .select("id, step_id, start_time, end_time, meeting_url, status")
       .eq("candidate_in_portal_id", session.id),
   ]);
 
@@ -199,6 +234,7 @@ export default async function PortalTokenPage({
   const stepsByStop: Record<string, Step[]> = {};
   for (const row of stepsRows ?? []) {
     const step: Step = {
+      id: row.id,
       step_key: row.step_key,
       stop_key: row.stop_key,
       position: row.position,
@@ -290,6 +326,7 @@ export default async function PortalTokenPage({
   });
 
   const onTourComplete = completeTourAction.bind(null, params.token);
+  const onStepAdvance = advanceStepAction.bind(null, params.token);
   const onSaveApplicationAnswer = saveApplicationAnswerAction.bind(
     null,
     params.token,
@@ -298,6 +335,28 @@ export default async function PortalTokenPage({
     null,
     params.token,
   );
+  const onGetSlots = getAvailableSlotsAction.bind(null, params.token);
+  const onBookSlot = bookSlotAction.bind(null, params.token);
+  const onCancelBooking = cancelBookingAction.bind(null, params.token);
+
+  const bookingsByStepId: Record<string, ExistingBooking> = {};
+  for (const b of bookingsRows ?? []) {
+    if (b.status !== "confirmed") continue;
+    bookingsByStepId[b.step_id as string] = {
+      id: b.id as string,
+      start_time: b.start_time as string,
+      end_time: b.end_time as string,
+      meeting_url: (b.meeting_url as string | null) ?? null,
+      status: b.status as "confirmed" | "cancelled",
+    };
+  }
+
+  // Scheduling resolves the booking calendar from the candidate's assigned
+  // rep (new as of PR 16). The brand's own leader card copy is still used
+  // as a fallback display name elsewhere in the shell.
+  const hasAssignedRep = !!activeRep;
+  const scheduleAdvisorName = activeRep?.name ?? null;
+  const scheduleConfigured = isGCalConfigured();
 
   return (
     <main className={`portal-page ${fontClasses}`}>
@@ -319,8 +378,12 @@ export default async function PortalTokenPage({
         initialStopIdx={initialStopIdx}
         initialStepIdx={initialStepIdx}
         onTourComplete={onTourComplete}
+        onStepAdvance={onStepAdvance}
         onSaveApplicationAnswer={onSaveApplicationAnswer}
         onSubmitApplication={onSubmitApplication}
+        onGetSlots={onGetSlots}
+        onBookSlot={onBookSlot}
+        onCancelBooking={onCancelBooking}
         candidate={{
           first_name: candidate.first_name ?? "",
           last_name: candidate.last_name ?? null,
@@ -329,6 +392,11 @@ export default async function PortalTokenPage({
         }}
         initialApplicationAnswers={initialApplicationAnswers}
         isApplicationSubmitted={Boolean(session.is_app_submitted)}
+        bookingsByStepId={bookingsByStepId}
+        hasAssignedRep={hasAssignedRep}
+        advisorName={scheduleAdvisorName}
+        brandShortName={brandShortName}
+        isGCalConfigured={scheduleConfigured}
       />
     </main>
   );
