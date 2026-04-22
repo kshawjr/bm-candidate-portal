@@ -1,7 +1,7 @@
 # Blue Maven Candidate Portal
 
 Client-facing portal at `bmave.com/portal/[token]` where franchise candidates
-move through the seven-stop journey (Explore → First chat → Deep dive → Playbook
+move through the seven-chapter journey (Explore → First chat → Deep dive → Playbook
 → Verify → Visit → Welcome), brand-skinned per client.
 
 ## Stack
@@ -25,7 +25,7 @@ move through the seven-stop journey (Explore → First chat → Deep dive → Pl
    You'll need Supabase URL + anon + service-role keys for the app's own
    project, plus the URL + service-role key for `bmave-core`. Everything else
    is optional for local dev.
-3. Seed stops, steps, per-brand portal content, and two dev tokens:
+3. Seed chapters, steps, per-brand portal content, and two dev tokens:
    ```bash
    npm run seed
    ```
@@ -46,7 +46,7 @@ What it writes:
 | Target                                      | Rows |
 | ------------------------------------------- | ---- |
 | `bmave-core.portal_content` (per brand)     | 9    |
-| `bm-candidate-portal.stops_config`          | 7    |
+| `bm-candidate-portal.chapters_config`          | 7    |
 | `bm-candidate-portal.steps_config`          | 20   |
 | `bmave-core.candidates` (dev test accounts) | 1    |
 | `bm-candidate-portal.candidates_in_portal`  | 1    |
@@ -58,11 +58,11 @@ brands in `bmave-core.brands` are skipped with a warning.
 
 | Token             | Brand          | Lands on                                 |
 | ----------------- | -------------- | ---------------------------------------- |
-| `test-token-123`  | Hounds Town    | Stop 2 · First chat → Before the call    |
-| `test-token-456`  | Cruisin' Tikis | Stop 2 · First chat → Before the call    |
+| `test-token-123`  | Hounds Town    | Chapter 2 · First chat → Before the call    |
+| `test-token-456`  | Cruisin' Tikis | Chapter 2 · First chat → Before the call    |
 
-Dev tokens land on Stop 2 (First chat) rather than Stop 1 so the static
-content type renders on first load. Click any earlier stop in the sidebar to
+Dev tokens land on Chapter 2 (First chat) rather than Chapter 1 so the static
+content type renders on first load. Click any earlier chapter in the sidebar to
 see the other content types (all show placeholders until their renderers ship).
 
 ## Proof of life
@@ -71,10 +71,10 @@ Visit `http://localhost:3000/portal/test-token-123` after seeding. You should
 see:
 
 - Full cinematic shell (280px brand sidebar + sticky step strip + content area)
-- All 7 stops in the sidebar with per-brand primary color, progress meter, and
+- All 7 chapters in the sidebar with per-brand primary color, progress meter, and
   advisor card
 - "Before the call" static step rendering real seeded copy
-- Clicking other stops/steps switches the content area
+- Clicking other chapters/steps switches the content area
 
 ## Data architecture
 
@@ -84,7 +84,7 @@ Two Supabase projects:
   `brands`, `candidates`, `portal_content`, `users`. Server-side reads only,
   via `lib/core-client.ts`.
 - **`bm-candidate-portal`** — this app's own project. Owns
-  `candidates_in_portal`, `stops_config`, `steps_config`, `candidate_progress`,
+  `candidates_in_portal`, `chapters_config`, `steps_config`, `candidate_progress`,
   `application_responses`. Accessed via `lib/supabase-app.ts`.
 
 Cross-project foreign keys (e.g., `candidates_in_portal.candidate_id` →

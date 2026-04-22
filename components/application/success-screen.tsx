@@ -24,7 +24,7 @@ export function SuccessScreen({ firstName, leaderName, onContinue }: Props) {
             {leaderName || "Your franchise growth leader"} will reach out to
             schedule a call.
           </li>
-          <li>Your journey continues at Stop 2: Say hi.</li>
+          <li>Your journey continues at Chapter 2: Say hi.</li>
         </ul>
       </div>
 
@@ -33,7 +33,7 @@ export function SuccessScreen({ firstName, leaderName, onContinue }: Props) {
         className="app-nav-btn primary app-success-continue"
         onClick={onContinue}
       >
-        Continue to Stop 2 →
+        Continue to Chapter 2 →
       </button>
     </div>
   );

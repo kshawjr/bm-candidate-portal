@@ -4,7 +4,7 @@ import { createAppServiceClient } from "@/lib/supabase-app";
 import { createCoreClient } from "@/lib/core-client";
 import {
   CinematicShell,
-  type Stop,
+  type Chapter,
   type Step,
   type ContentType,
   type BrandColors,
@@ -96,7 +96,7 @@ export default async function PortalTokenPage({
   const { data: session } = await app
     .from("candidates_in_portal")
     .select(
-      "id, candidate_id, current_stop, current_step, is_app_submitted, last_activity_at",
+      "id, candidate_id, current_chapter, current_step, is_app_submitted, last_activity_at",
     )
     .eq("token", params.token)
     .maybeSingle();
@@ -146,7 +146,7 @@ export default async function PortalTokenPage({
 
   const [
     { data: portalContent },
-    { data: stopsRows },
+    { data: chaptersRows },
     { data: stepsRows },
     { data: applicationRows },
     { data: progressRows },
@@ -157,19 +157,19 @@ export default async function PortalTokenPage({
       .select("content_key, body, data")
       .eq("brand_id", brand.id),
     app
-      .from("stops_config")
-      .select("stop_key, position, label, name, icon")
+      .from("chapters_config")
+      .select("chapter_key, position, label, name, icon")
       .eq("brand_id", brand.id)
       .eq("is_archived", false)
       .order("position"),
     app
       .from("steps_config")
       .select(
-        "id, stop_key, position, step_key, label, description, content_type, config, content_cards",
+        "id, chapter_key, position, step_key, label, description, content_type, config, content_cards",
       )
       .eq("brand_id", brand.id)
       .eq("is_archived", false)
-      .order("stop_key")
+      .order("chapter_key")
       .order("position"),
     app
       .from("application_responses")
@@ -177,7 +177,7 @@ export default async function PortalTokenPage({
       .eq("candidate_in_portal_id", session.id),
     app
       .from("candidate_progress")
-      .select("stop_key, step_key, completed_at")
+      .select("chapter_key, step_key, completed_at")
       .eq("candidate_in_portal_id", session.id),
     app
       .from("bookings")
@@ -185,11 +185,11 @@ export default async function PortalTokenPage({
       .eq("candidate_in_portal_id", session.id),
   ]);
 
-  if (!stopsRows?.length) {
-    // Brand has no active stops — either freshly seeded with nothing yet, or
-    // every stop has been archived in the admin. Render a friendly holding
-    // page instead of crashing; admin can set up the structure and the
-    // candidate can come back.
+  if (!chaptersRows?.length) {
+    // Brand has no active chapters — either freshly seeded with nothing yet,
+    // or every chapter has been archived in the admin. Render a friendly
+    // holding page instead of crashing; admin can set up the structure and
+    // the candidate can come back.
     return (
       <main className="portal-empty">
         <div className="portal-empty-card">
@@ -217,7 +217,7 @@ export default async function PortalTokenPage({
       }
     : { name: "", email: "" };
 
-  // Stop 1 hero strip — 4 stats. Empty num drops the row.
+  // Chapter 1 hero strip — 4 stats. Empty num drops the row.
   const heroStats = [1, 2, 3, 4]
     .map((n) => ({
       num: pickText(content, `hero_stat_${n}_num`),
@@ -230,20 +230,20 @@ export default async function PortalTokenPage({
     `${brand.name} by the numbers`,
   );
 
-  const stops: Stop[] = stopsRows.map((s) => ({
-    stop_key: s.stop_key,
+  const chapters: Chapter[] = chaptersRows.map((s) => ({
+    chapter_key: s.chapter_key,
     position: s.position,
     label: s.label,
     name: s.name,
     icon: s.icon,
   }));
 
-  const stepsByStop: Record<string, Step[]> = {};
+  const stepsByChapter: Record<string, Step[]> = {};
   for (const row of stepsRows ?? []) {
     const step: Step = {
       id: row.id,
       step_key: row.step_key,
-      stop_key: row.stop_key,
+      chapter_key: row.chapter_key,
       position: row.position,
       label: row.label,
       description: row.description,
@@ -251,45 +251,45 @@ export default async function PortalTokenPage({
       config: (row.config ?? {}) as Record<string, unknown>,
       content_cards: Array.isArray(row.content_cards) ? row.content_cards : [],
     };
-    (stepsByStop[row.stop_key] ??= []).push(step);
+    (stepsByChapter[row.chapter_key] ??= []).push(step);
   }
-  for (const key of Object.keys(stepsByStop)) {
-    stepsByStop[key].sort((a, b) => a.position - b.position);
+  for (const key of Object.keys(stepsByChapter)) {
+    stepsByChapter[key].sort((a, b) => a.position - b.position);
   }
 
   const colors = brand.colors as BrandColorsWithPalette;
   const palette = colors.palette ?? {};
   const typography = resolveTypography(brand.font_overrides as FontOverrides | null);
 
-  // The stored current_stop is an index into the brand's active stops. If an
-  // admin deletes or archives a stop, that index may now point past the end
-  // (or at a different stop entirely). Clamp to the valid range and persist
-  // the fallback so the candidate always lands somewhere real.
-  const storedStopIdx = session.current_stop ?? 0;
-  const currentStopIdx = Math.min(
-    Math.max(0, storedStopIdx),
-    stops.length - 1,
+  // The stored current_chapter is an index into the brand's active chapters.
+  // If an admin deletes or archives a chapter, that index may now point past
+  // the end (or at a different chapter entirely). Clamp to the valid range
+  // and persist the fallback so the candidate always lands somewhere real.
+  const storedChapterIdx = session.current_chapter ?? 0;
+  const currentChapterIdx = Math.min(
+    Math.max(0, storedChapterIdx),
+    chapters.length - 1,
   );
   const storedStepIdx = session.current_step ?? 0;
-  const currentStopKey_ = stops[currentStopIdx]?.stop_key;
-  const stepsInCurrentStop = currentStopKey_
-    ? (stepsRows ?? []).filter((r) => r.stop_key === currentStopKey_).length
+  const currentChapterKey_ = chapters[currentChapterIdx]?.chapter_key;
+  const stepsInCurrentChapter = currentChapterKey_
+    ? (stepsRows ?? []).filter((r) => r.chapter_key === currentChapterKey_).length
     : 0;
   const currentStepIdx = Math.min(
     Math.max(0, storedStepIdx),
-    Math.max(0, stepsInCurrentStop - 1),
+    Math.max(0, stepsInCurrentChapter - 1),
   );
-  if (storedStopIdx !== currentStopIdx || storedStepIdx !== currentStepIdx) {
+  if (storedChapterIdx !== currentChapterIdx || storedStepIdx !== currentStepIdx) {
     await app
       .from("candidates_in_portal")
       .update({
-        current_stop: currentStopIdx,
+        current_chapter: currentChapterIdx,
         current_step: currentStepIdx,
       })
       .eq("id", session.id);
   }
 
-  const initialStopIdx = currentStopIdx;
+  const initialChapterIdx = currentChapterIdx;
   const initialStepIdx = currentStepIdx;
 
   const fontClasses = `${baloo2.variable} ${nunitoSans.variable} ${montserrat.variable}`;
@@ -306,30 +306,30 @@ export default async function PortalTokenPage({
   const recentlyActive = progressList.some(
     (r) => r.completed_at && new Date(r.completed_at).getTime() >= twoDaysAgo,
   );
-  // Count distinct step_keys completed in the CURRENT stop — feeds the
-  // "between stops" variant.
-  const currentStop = stops[currentStopIdx];
-  const currentStopKey = currentStop?.stop_key;
-  const currentStopCompletedKeys = new Set(
+  // Count distinct step_keys completed in the CURRENT chapter — feeds the
+  // "between chapters" variant.
+  const currentChapter = chapters[currentChapterIdx];
+  const currentChapterKey = currentChapter?.chapter_key;
+  const currentChapterCompletedKeys = new Set(
     progressList
-      .filter((r) => r.stop_key === currentStopKey)
+      .filter((r) => r.chapter_key === currentChapterKey)
       .map((r) => r.step_key)
       .filter((k): k is string => typeof k === "string"),
   );
-  const currentStopStepCount =
-    currentStopKey && stepsByStop[currentStopKey]
-      ? stepsByStop[currentStopKey].length
+  const currentChapterStepCount =
+    currentChapterKey && stepsByChapter[currentChapterKey]
+      ? stepsByChapter[currentChapterKey].length
       : 0;
   const lastActivityAt = session.last_activity_at
     ? new Date(session.last_activity_at)
     : null;
   const journeyState = resolveJourneyCardState({
-    currentStopIdx,
-    stops,
+    currentChapterIdx,
+    chapters,
     lastActivityAt,
     recentlyActive,
-    currentStopStepsCompleted: currentStopCompletedKeys.size,
-    currentStopStepCount,
+    currentChapterStepsCompleted: currentChapterCompletedKeys.size,
+    currentChapterStepCount,
   });
 
   const onTourComplete = completeTourAction.bind(null, params.token);
@@ -379,10 +379,10 @@ export default async function PortalTokenPage({
         journeyState={journeyState}
         heroStats={heroStats}
         heroStripHeading={heroStripHeading}
-        stops={stops}
-        stepsByStop={stepsByStop}
-        currentStopIdx={currentStopIdx}
-        initialStopIdx={initialStopIdx}
+        chapters={chapters}
+        stepsByChapter={stepsByChapter}
+        currentChapterIdx={currentChapterIdx}
+        initialChapterIdx={initialChapterIdx}
         initialStepIdx={initialStepIdx}
         onTourComplete={onTourComplete}
         onStepAdvance={onStepAdvance}

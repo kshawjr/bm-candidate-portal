@@ -5,7 +5,7 @@ import { createCoreClient } from "@/lib/core-client";
 import {
   ContentEditor,
   type AdminStep,
-  type AdminStop,
+  type AdminChapter,
 } from "@/components/admin/content-editor";
 import type { ContentCard } from "@/components/content-cards/types";
 import type { Slide } from "@/components/content-types/slides-renderer";
@@ -31,7 +31,7 @@ import { isGCalConfigured } from "@/lib/google-calendar";
 export const dynamic = "force-dynamic";
 
 interface Props {
-  searchParams?: { brand?: string; step?: string; stop?: string };
+  searchParams?: { brand?: string; step?: string; chapter?: string };
 }
 
 // Hardcoded preview tokens per brand. Matches the dev tokens seeded in
@@ -70,32 +70,32 @@ export default async function ContentEditorPage({ searchParams }: Props) {
     brands.find((b) => b.slug === requestedSlug) ?? brands[0]!;
 
   const app = createAppServiceClient();
-  const [{ data: stopsRows }, { data: stepsRows }] = await Promise.all([
+  const [{ data: chaptersRows }, { data: stepsRows }] = await Promise.all([
     app
-      .from("stops_config")
-      .select("id, stop_key, position, label, name, is_archived")
+      .from("chapters_config")
+      .select("id, chapter_key, position, label, name, is_archived")
       .eq("brand_id", brand.id)
       .order("position"),
     app
       .from("steps_config")
       .select(
-        "id, stop_key, position, step_key, label, description, content_type, content_cards, config, is_archived",
+        "id, chapter_key, position, step_key, label, description, content_type, content_cards, config, is_archived",
       )
       .eq("brand_id", brand.id)
-      .order("stop_key")
+      .order("chapter_key")
       .order("position"),
   ]);
 
-  const stops: AdminStop[] = (stopsRows ?? []).map((s) => ({
+  const chapters: AdminChapter[] = (chaptersRows ?? []).map((s) => ({
     id: s.id,
-    stop_key: s.stop_key,
+    chapter_key: s.chapter_key,
     position: s.position,
     label: s.label,
     name: s.name,
     is_archived: !!s.is_archived,
   }));
 
-  const stepsByStop: Record<string, AdminStep[]> = {};
+  const stepsByChapter: Record<string, AdminStep[]> = {};
   for (const row of stepsRows ?? []) {
     const config =
       row.config && typeof row.config === "object" && !Array.isArray(row.config)
@@ -106,7 +106,7 @@ export default async function ContentEditorPage({ searchParams }: Props) {
       : [];
     const step: AdminStep = {
       id: row.id,
-      stop_key: row.stop_key,
+      chapter_key: row.chapter_key,
       step_key: row.step_key,
       position: row.position,
       label: row.label,
@@ -119,23 +119,23 @@ export default async function ContentEditorPage({ searchParams }: Props) {
       config,
       is_archived: !!row.is_archived,
     };
-    (stepsByStop[row.stop_key] ??= []).push(step);
+    (stepsByChapter[row.chapter_key] ??= []).push(step);
   }
-  for (const k of Object.keys(stepsByStop)) {
-    stepsByStop[k].sort((a, b) => a.position - b.position);
+  for (const k of Object.keys(stepsByChapter)) {
+    stepsByChapter[k].sort((a, b) => a.position - b.position);
   }
 
   const requestedStepId = searchParams?.step ?? null;
-  const requestedStopKey = searchParams?.stop ?? null;
+  const requestedChapterKey = searchParams?.chapter ?? null;
   const allStepIds = new Set(
-    Object.values(stepsByStop).flatMap((arr) => arr.map((s) => s.id)),
+    Object.values(stepsByChapter).flatMap((arr) => arr.map((s) => s.id)),
   );
-  const allStopKeys = new Set(stops.map((s) => s.stop_key));
+  const allChapterKeys = new Set(chapters.map((s) => s.chapter_key));
   const initialStepId =
     requestedStepId && allStepIds.has(requestedStepId) ? requestedStepId : null;
-  const initialStopKey =
-    !initialStepId && requestedStopKey && allStopKeys.has(requestedStopKey)
-      ? requestedStopKey
+  const initialChapterKey =
+    !initialStepId && requestedChapterKey && allChapterKeys.has(requestedChapterKey)
+      ? requestedChapterKey
       : null;
 
   return (
@@ -143,10 +143,10 @@ export default async function ContentEditorPage({ searchParams }: Props) {
       brandId={brand.id}
       brandSlug={brand.slug}
       brandName={brand.name}
-      stops={stops}
-      stepsByStop={stepsByStop}
+      chapters={chapters}
+      stepsByChapter={stepsByChapter}
       initialStepId={initialStepId}
-      initialStopKey={initialStopKey}
+      initialChapterKey={initialChapterKey}
       saveCard={saveContentCardAction}
       deleteCard={deleteContentCardAction}
       saveSlides={saveSlidesAction}

@@ -1,9 +1,12 @@
 ---
 name: candidate-portal
-description: Use when building, modifying, or reasoning about the Blue Maven Candidate Portal — a multi-brand Next.js client-facing portal that guides franchise candidates from invitation through franchise award. Covers architecture, data model, brand theming system, the seven-stop journey, content types, design voice, and integration points with Zoho CRM and Supabase. Invoke for any task involving the portal's UI, per-brand customization, stop/step configuration, candidate flows, or admin interfaces.
+description: Use when building, modifying, or reasoning about the Blue Maven Candidate Portal — a multi-brand Next.js client-facing portal that guides franchise candidates from invitation through franchise award. Covers architecture, data model, brand theming system, the seven-chapter journey, content types, design voice, and integration points with Zoho CRM and Supabase. Invoke for any task involving the portal's UI, per-brand customization, chapter/step configuration, candidate flows, or admin interfaces.
 ---
 
 # Candidate Portal — Build Guide
+
+> **Note:** The term "chapter" replaced "stop" in PR 20 (April 2026). Legacy
+> references may still exist in older commits and merged PR descriptions.
 
 ## What this is
 
@@ -13,13 +16,13 @@ The portal is separate from but part of the same ecosystem as FlightDeck (the cl
 
 ## Core metaphor and vocabulary
 
-The candidate is on a **journey**. The journey has **stops** (7 of them). Each stop has **steps** (typically 2-4). Each step has its own **content type**.
+The candidate is on a **journey**. The journey has **chapters** (7 of them). Each chapter has **steps** (typically 2-4). Each step has its own **content type**.
 
-**Do not** use the word "stages" — it was deprecated in favor of "stops." The journey metaphor is central: candidates travel through stops, they don't grind through stages.
+**Do not** use the word "stages" — it was deprecated in favor of "chapters." The journey metaphor is central: candidates travel through chapters, they don't grind through stages.
 
-**Seven stops, in order:**
+**Seven chapters, in order:**
 
-| # | Stop (label) | Full name | Purpose |
+| # | Chapter (label) | Full name | Purpose |
 |---|---|---|---|
 | 1 | Explore | Education & qualification | Brand tour + light application |
 | 2 | First chat | Discovery call | 30-min kickoff call with franchise team |
@@ -29,7 +32,7 @@ The candidate is on a **journey**. The journey has **stops** (7 of them). Each s
 | 6 | Visit | Discovery Day | In-person visit to HQ |
 | 7 | Welcome | Franchise award | Agreement signing, onboarding kickoff |
 
-Stop 1 (Explore) is always the starting stop. Candidates do not enter the journey pre-qualified; they start at Stop 1 and complete it first.
+Chapter 1 (Explore) is always the starting chapter. Candidates do not enter the journey pre-qualified; they start at Chapter 1 and complete it first.
 
 ## Design voice and principles
 
@@ -38,7 +41,7 @@ Stop 1 (Explore) is always the starting stop. Candidates do not enter the journe
 - **Never feels like paperwork.** Even the FDD stage is framed as "under the hood" not "mandatory disclosure document."
 - **Sensitive questions get permission.** Bankruptcy, criminal history, financials — always prefaced with "we ask because we have to — it won't automatically disqualify you."
 - **Ranges over exact numbers.** Financial fields use 5-bucket dropdown ranges, never open text.
-- **The candidate is always in control.** Saves as they go. Pause anytime. Revisit any completed stop.
+- **The candidate is always in control.** Saves as they go. Pause anytime. Revisit any completed chapter.
 - **Color palette comes from the brand.** Blue Maven provides the skeleton; the brand provides the skin.
 
 ## Tech stack
@@ -144,8 +147,8 @@ Per-candidate session state in the Portal. `candidate_id` links to `bmave-core.c
 id                 uuid primary key default gen_random_uuid()
 candidate_id       uuid not null              -- FK to bmave-core.candidates.id (cross-project)
 token              text unique not null       -- URL token for /portal/[token]
-current_stop       int not null default 0     -- index into stops (0 = Explore)
-current_step       int not null default 0     -- current step within current stop
+current_chapter       int not null default 0     -- index into chapters (0 = Explore)
+current_step       int not null default 0     -- current step within current chapter
 progress           jsonb not null default '{}'::jsonb
 is_tour_complete   boolean not null default false
 is_app_submitted   boolean not null default false
@@ -154,29 +157,29 @@ last_active_at     timestamptz default now()
 ```
 Indexed on `token`, `candidate_id`. RLS enabled.
 
-**Why this table, not in `bmave-core`:** Portal session state (current_stop, current_step, is_tour_complete) is Portal-specific. Other apps don't need it. The identity fields (email, name, brand) stay in `bmave-core.candidates`.
+**Why this table, not in `bmave-core`:** Portal session state (current_chapter, current_step, is_tour_complete) is Portal-specific. Other apps don't need it. The identity fields (email, name, brand) stay in `bmave-core.candidates`.
 
-#### `stops_config`
-Per-brand override of the default 7-stop structure. Most brands won't override. `brand_id` references `bmave-core.brands.id`.
+#### `chapters_config`
+Per-brand override of the default 7-chapter structure. Most brands won't override. `brand_id` references `bmave-core.brands.id`.
 ```
 id             uuid primary key default gen_random_uuid()
 brand_id       uuid not null             -- FK to bmave-core.brands.id
-stop_key       text not null             -- "explore", "first_chat", etc.
+chapter_key       text not null             -- "explore", "first_chat", etc.
 position       int not null
 label          text not null
 name           text not null
 icon           text
 content        jsonb
 created_at     timestamptz default now()
-unique(brand_id, stop_key)
+unique(brand_id, chapter_key)
 ```
 
 #### `steps_config`
-Per-brand per-stop configuration of steps. Where the team decides which content types go into each step for each brand.
+Per-brand per-chapter configuration of steps. Where the team decides which content types go into each step for each brand.
 ```
 id             uuid primary key default gen_random_uuid()
 brand_id       uuid not null             -- FK to bmave-core.brands.id
-stop_key       text not null
+chapter_key       text not null
 position       int not null
 step_key       text not null             -- "tour", "schedule", etc.
 label          text not null
@@ -184,23 +187,23 @@ description    text
 content_type   text not null             -- enum: slides|static|application|schedule|video|document|checklist
 config         jsonb not null default '{}'::jsonb
 created_at     timestamptz default now()
-unique(brand_id, stop_key, step_key)
+unique(brand_id, chapter_key, step_key)
 ```
 Check constraint on `content_type`.
 
 #### `candidate_progress`
-Audit log of stop/step completions.
+Audit log of chapter/step completions.
 ```
 id                        uuid primary key default gen_random_uuid()
 candidate_in_portal_id    uuid not null references candidates_in_portal(id) on delete cascade
-stop_key                  text not null
+chapter_key                  text not null
 step_key                  text
 completed_at              timestamptz default now()
 metadata                  jsonb
 ```
 
 #### `application_responses`
-Stores candidate answers to the Stop 1 light application. Maps to Zoho fields on submit.
+Stores candidate answers to the Chapter 1 light application. Maps to Zoho fields on submit.
 ```
 id                        uuid primary key default gen_random_uuid()
 candidate_in_portal_id    uuid not null references candidates_in_portal(id) on delete cascade
@@ -237,7 +240,7 @@ Preferred pattern: **write to Zoho first, let the webhook propagate**. This keep
 
 Rule of thumb: **does another Blue Maven app need to read this?**
 - **Yes → `bmave-core`.** Brands, candidates (the identity), users, portal content.
-- **No → Candidate Portal's own project.** Stops/steps configuration, application answers, per-candidate session state, progress audit log.
+- **No → Candidate Portal's own project.** Chapters/steps configuration, application answers, per-candidate session state, progress audit log.
 
 When in doubt, start in Portal's own project. Promoting to `bmave-core` is easy later; demoting from it is painful.
 
@@ -274,10 +277,10 @@ A person moves through multiple Blue Maven systems over the course of their fran
 - First visit to `/portal/[token]`:
   - `bmave-core.candidates` row created (or located by `zoho_contact_id`) with `lifecycle_stage = 'candidate'`
   - Candidate Portal's `candidates` row created, keyed by `person_id`
-- Candidate moves through Stops 1-4 (Explore, First chat, Deep dive, Playbook)
+- Candidate moves through Chapters 1-4 (Explore, First chat, Deep dive, Playbook)
 
 ### Stage 2: Verification activates Validation project
-- When candidate reaches Stop 5 (Verify), the Validation project activates for this person
+- When candidate reaches Chapter 5 (Verify), the Validation project activates for this person
 - Validation project queries `bmave-core.candidates` to find their session
 - Validation creates its own `validation_sessions` rows referencing `person_id`
 - The validation calls they make, validators assigned, status updates — all owned by Validation
@@ -290,7 +293,7 @@ A person moves through multiple Blue Maven systems over the course of their fran
 - Blue Maven users review/approve in Candidate Profile's admin views
 - Candidate Portal does NOT directly render these narratives to candidates — they're internal artifacts
 
-### Stage 4: Stops 6-7 (Visit, Welcome)
+### Stage 4: Chapters 6-7 (Visit, Welcome)
 - Discovery Day attendance tracked (via `candidate_progress` in Portal + Zoho updates)
 - On Welcome completion, `bmave-core.candidates.lifecycle_stage` flips to `'awarded'`
 - Then `'franchisee'` once the franchise agreement is countersigned
@@ -332,17 +335,17 @@ Every authenticated view renders inside the cinematic shell. The shell has three
 ### Left sidebar (persistent, 280px)
 - **Brand mark** at top — brand name in brand-primary color, serif italic on emphasis word (e.g., "Cruisin' *Tikis*", "Hounds Town *USA*")
 - **Brand subtitle** — small caps "FRANCHISE DISCOVERY PORTAL" and optional "POWERED BY [parent brand]"
-- **Progress meter** — "YOUR JOURNEY 0%" label, thin progress bar, "X of 7 stops / ~Y weeks left"
-- **Stops list** — the 7 stops as vertical tab buttons with emoji icons, active-state highlight (3px brand-color accent bar on left edge + light bg), done/current/locked states with different icons
+- **Progress meter** — "YOUR JOURNEY 0%" label, thin progress bar, "X of 7 chapters / ~Y weeks left"
+- **Chapters list** — the 7 chapters as vertical tab buttons with emoji icons, active-state highlight (3px brand-color accent bar on left edge + light bg), done/current/locked states with different icons
 - **Advisor card** at bottom — "YOUR FRANCHISE GROWTH LEADER" label + name + role + email
 
 ### Top step strip (persistent, 80px)
-- **Title line** — "Stop X · [Stop Full Name]"
+- **Title line** — "Chapter X · [Chapter Full Name]"
 - **Step count** — "N steps"
 - **Step cells** — each showing step number, label, one-line description. Active cell has brand-color bottom border. Done cells have filled number circle.
 
 ### Main content area (adapts to content type)
-- On first arrival to Stop 1 (fresh candidate, nothing done): shows a **marketing hero** above the step content — editorial headline with italic serif accent on emphasis words, body paragraph, warm-amber stat bar. This hero is shown **only** on the first visit to the portal; it collapses to just step content on subsequent views.
+- On first arrival to Chapter 1 (fresh candidate, nothing done): shows a **marketing hero** above the step content — editorial headline with italic serif accent on emphasis words, body paragraph, warm-amber stat bar. This hero is shown **only** on the first visit to the portal; it collapses to just step content on subsequent views.
 - Otherwise: shows the step header (eyebrow "Step X of N", title, description) followed by the step's content type component, followed by a step footer with Previous/Next/Finish navigation.
 
 ### Design details
@@ -357,30 +360,30 @@ Every authenticated view renders inside the cinematic shell. The shell has three
 ## Flow and state machine
 
 ### Initial state (new candidate, no progress)
-- `current_stop = 0` (Explore)
-- `selectedStopIdx = 0` (viewing Explore)
+- `current_chapter = 0` (Explore)
+- `selectedChapterIdx = 0` (viewing Explore)
 - `selectedStepIdx = 0` (viewing first step = Brand tour)
 - Marketing hero visible above step content
-- Only Stop 1 is interactive in sidebar; Stops 2-7 show locked icons
+- Only Chapter 1 is interactive in sidebar; Chapters 2-7 show locked icons
 - Step strip shows Explore's two steps: Brand tour (current) + Light application (locked-ish, visible but unclickable until tour done)
 
-### Completing Stop 1
+### Completing Chapter 1
 - Candidate walks through Brand tour slides, hits "Finish tour" on last slide → sets `isTourComplete = true`, auto-advances `selectedStepIdx` to 1 (Light application)
-- Candidate fills out + submits Light application → sets `isAppSubmitted = true`, advances `current_stop` to 1 (First chat), confetti fires, hero collapses permanently
-- On return to journey view: Stop 1 shows check in sidebar, Stop 2 pulses as current
+- Candidate fills out + submits Light application → sets `isAppSubmitted = true`, advances `current_chapter` to 1 (First chat), confetti fires, hero collapses permanently
+- On return to journey view: Chapter 1 shows check in sidebar, Chapter 2 pulses as current
 
 ### Mid-journey
-- Candidate always defaults to viewing their current stop on login
-- They can click any completed or current stop in the sidebar to revisit
-- They cannot click locked stops (clearly disabled)
-- Within a stop, they can click any step (no artificial locking between steps of the same stop — they can skip around or go backward)
+- Candidate always defaults to viewing their current chapter on login
+- They can click any completed or current chapter in the sidebar to revisit
+- They cannot click locked chapters (clearly disabled)
+- Within a chapter, they can click any step (no artificial locking between steps of the same chapter — they can skip around or go backward)
 
-### Completing a stop
-- Stops 2-7 have no single "submit" gesture; they're either marked complete by the candidate (e.g., "I've finished the webinar") or by Blue Maven team intervention (e.g., Discovery Day attended, agreement signed)
-- In production, stop completion triggers come from Zoho CRM via webhook — not from candidate-side button clicks alone
-- For prototyping/testing, include a "mark complete" dev button on each stop
+### Completing a chapter
+- Chapters 2-7 have no single "submit" gesture; they're either marked complete by the candidate (e.g., "I've finished the webinar") or by Blue Maven team intervention (e.g., Discovery Day attended, agreement signed)
+- In production, chapter completion triggers come from Zoho CRM via webhook — not from candidate-side button clicks alone
+- For prototyping/testing, include a "mark complete" dev button on each chapter
 
-### All stops complete
+### All chapters complete
 - Final Welcome celebration: "You're officially part of [brand]" with confetti
 - Sidebar shows all 7 checks
 - Optional: portal transitions to a "you're now a franchisee" post-award experience (out of scope for v1)
@@ -415,7 +418,7 @@ Hero titles use HTML `<em>` tags for the words that should render in Fraunces it
 ## Integration points
 
 ### Zoho CRM webhook receivers (Next.js API routes)
-- `POST /api/webhooks/zoho/deal-updated` — when a Zoho deal stage changes, update `candidates.current_stop`
+- `POST /api/webhooks/zoho/deal-updated` — when a Zoho deal stage changes, update `candidates.current_chapter`
 - `POST /api/webhooks/zoho/deal-field-changed` — sync other fields (validator list, financials)
 
 ### Webhook → Supabase flow
@@ -446,7 +449,7 @@ Admin location is **TBD** — Kevin is deciding whether admin lives inside Fligh
 
 - **Brand Studio** — edit `bmave-core.brands` colors, logos, fonts. Likely syncs from Zoho eventually.
 - **Portal Content Editor** — edit `bmave-core.portal_content` per-brand. Hero titles, stat numbers, slide copy, marketing narratives.
-- **Stop/Step Config** — edit `stops_config` and `steps_config` in Candidate Portal's own Supabase per-brand.
+- **Chapter/Step Config** — edit `chapters_config` and `steps_config` in Candidate Portal's own Supabase per-brand.
 - **Candidate list** — search/filter candidates, impersonate view, resend tokens.
 - **Unified view per brand** — single admin login that shows help desk + candidate pipeline + operational tools + brand config, all for one brand, all in one interface.
 
@@ -455,11 +458,11 @@ Admin location is **TBD** — Kevin is deciding whether admin lives inside Fligh
 These were settled during 18 rounds of prototyping and architecture conversations — do not re-litigate without cause:
 
 1. **Light theme, always.** Dark theme was explicitly rejected.
-2. **Stops not stages.** Journey metaphor is core.
-3. **Seven stops, in this order.** Explore → First chat → Deep dive → Playbook → Verify → Visit → Welcome.
-4. **Stop 1 (Explore) has two sub-steps:** Brand tour + Light application. No exceptions.
-5. **Stage 5 (Verify) combines three things:** background check, financial verification, franchisee validation calls. Not three separate stops.
-6. **Steps are per-brand configurable.** Brand A might have 3 steps in Stop 3 while Brand B has 4. The data model supports this.
+2. **Chapters not stages.** Journey metaphor is core.
+3. **Seven chapters, in this order.** Explore → First chat → Deep dive → Playbook → Verify → Visit → Welcome.
+4. **Chapter 1 (Explore) has two sub-steps:** Brand tour + Light application. No exceptions.
+5. **Stage 5 (Verify) combines three things:** background check, financial verification, franchisee validation calls. Not three separate chapters.
+6. **Steps are per-brand configurable.** Brand A might have 3 steps in Chapter 3 while Brand B has 4. The data model supports this.
 7. **Step completion triggers come from Zoho**, not from candidate buttons (production behavior). Prototypes can include dev buttons.
 8. **Replace-all for multi-record sync**, never diff. Applies to validator attendees, contact lists, any array field.
 9. **Timestamps are database-set** (`created_at`), never client `new Date()`.
@@ -485,7 +488,7 @@ These were settled during 18 rounds of prototyping and architecture conversation
 **Prerequisites — ALREADY COMPLETE:**
 1. ✅ `bmave-core` Supabase project exists with four tables: `brands`, `candidates`, `portal_content`, `users`. RLS enabled on all, no public policies (service role access only). Indexes in place. Triggers for `updated_at` on `brands` and `portal_content`.
 2. ✅ `brands` seeded with Hounds Town USA and Cruisin' Tikis (slug, name, parent_brand, tagline, colors).
-3. ✅ `bm-candidate-portal` Supabase project exists with five tables: `candidates_in_portal`, `stops_config`, `steps_config`, `candidate_progress`, `application_responses`. RLS enabled. Indexes and FK cascades in place.
+3. ✅ `bm-candidate-portal` Supabase project exists with five tables: `candidates_in_portal`, `chapters_config`, `steps_config`, `candidate_progress`, `application_responses`. RLS enabled. Indexes and FK cascades in place.
 
 **Then, inside `~/candidate-portal/`:**
 1. Scaffolding: Next.js 14 with App Router, TypeScript, Tailwind CSS v4
@@ -501,7 +504,7 @@ These were settled during 18 rounds of prototyping and architecture conversation
 
 **Decisions deferred to later PRs (don't do these in PR 1):**
 - Shell component rendering (sidebar, step strip, content area) — PR 2
-- Seeding `stops_config` and `steps_config` — PR 2 or via SQL/seed file (Kevin to decide when he gets there)
+- Seeding `chapters_config` and `steps_config` — PR 2 or via SQL/seed file (Kevin to decide when he gets there)
 - Any content type implementations — PR 3+
 - Actual Zoho integration — later
 - Email sending — later
@@ -514,8 +517,8 @@ These were settled during 18 rounds of prototyping and architecture conversation
 The 18 HTML prototype versions (`candidate-portal-design-v1.html` through `candidate-portal-design-v18.html`) live in `docs/design-prototypes/` (or wherever the team stashes them). v18 is the canonical reference for structure and voice. Earlier versions are useful for seeing iterations and understanding what was tried and rejected.
 
 Key files to reference when building:
-- `v18` — final architecture (stops + steps + content types, cinematic shell)
-- `v14` — vertical timeline treatment (alternative considered, rejected for 7-stop density)
+- `v18` — final architecture (chapters + steps + content types, cinematic shell)
+- `v14` — vertical timeline treatment (alternative considered, rejected for 7-chapter density)
 - `v16` — cinematic marketing hero + stats + concepts (where the visual language was established)
 - `v8` — the 22-question conversational application in full detail
 
@@ -528,7 +531,7 @@ Candidate Portal is one of several Blue Maven projects that share infrastructure
 All of these live as sibling folders in `~/` on Kevin's machine:
 
 - **`~/flightdeck/`** — Admin portal for Blue Maven team. Manages clients (the brands themselves), users, help desk tickets, wishlist. Pulls select data from Zoho.
-- **`~/candidate-portal/`** — (this project) Client-facing portal for franchise candidates. Token-auth, brand-skinned, per-stop + per-step journey.
+- **`~/candidate-portal/`** — (this project) Client-facing portal for franchise candidates. Token-auth, brand-skinned, per-chapter + per-step journey.
 - **Candidate Profile project** — (location TBD — ask Kevin for path) Generates AI-authored candidate narratives from call transcripts. Heavy Zoho integration. Make.com + Rede.AI in the pipeline.
 - **Validation project** — (location TBD — ask Kevin for path) Tracks validation sessions between candidates and existing franchisees. Google Calendar ↔ Zoho CRM sync via Google Apps Script.
 - **`bmave-core` Supabase project** — (not a local codebase, lives only in Supabase) The shared data layer for `candidates` and `brands`.
@@ -560,7 +563,7 @@ All of these live as sibling folders in `~/` on Kevin's machine:
 **Google Calendar ↔ Zoho sync (Validation project)**
 - Built with Google Apps Script, not Make.com.
 - Watches calendar events → when validators are added/removed, replaces the full validator list on the Zoho Validation Session record (no diffing).
-- Candidate Portal's Stop 5 (Verify) "validation calls" step reads Validation's session state; it does NOT re-implement scheduling logic.
+- Candidate Portal's Chapter 5 (Verify) "validation calls" step reads Validation's session state; it does NOT re-implement scheduling logic.
 
 **Brand config editing (Brand Studio)**
 - Brand Studio is a set of admin pages *inside FlightDeck* (not in Candidate Portal). Team uses FlightDeck as their admin console.
@@ -603,8 +606,8 @@ For the scaffolding PR, **don't reach into other projects yet**. Get the Next.js
 
 ## Quick glossary
 
-- **Stop** — one of the seven phases of the journey (formerly "stage")
-- **Step** — a sub-activity within a stop (per-brand configurable)
+- **Chapter** — one of the seven phases of the journey (formerly "stage")
+- **Step** — a sub-activity within a chapter (per-brand configurable)
 - **Content type** — the kind of UI a step renders (slides, static, application, schedule, video, document, checklist)
 - **Cinematic shell** — the persistent layout: left sidebar + top step strip + main content
 - **`bmave-core`** — the shared Supabase project holding canonical `candidates` and `brands` tables, read by every Blue Maven app
@@ -612,8 +615,8 @@ For the scaffolding PR, **don't reach into other projects yet**. Get the Next.js
 - **Brand Studio** — admin pages *inside FlightDeck* for editing `bmave-core.brands`. Source of truth for brand config across all Blue Maven apps.
 - **Step Config** — admin pages for picking content types and configuring steps per brand (likely also inside FlightDeck, but could also live in Candidate Portal's admin area — TBD)
 - **Advisor card** — the "Your franchise growth leader" section in the sidebar bottom
-- **The FDD** — Franchise Disclosure Document, rendered in Stop 4 (Playbook)
-- **Discovery Day** — in-person HQ visit, Stop 6 (Visit)
-- **Validation calls** — candidate calls with current franchisees, part of Stop 5 (Verify). Managed by the Validation project, surfaced in Candidate Portal via cross-project read.
+- **The FDD** — Franchise Disclosure Document, rendered in Chapter 4 (Playbook)
+- **Discovery Day** — in-person HQ visit, Chapter 6 (Visit)
+- **Validation calls** — candidate calls with current franchisees, part of Chapter 5 (Verify). Managed by the Validation project, surfaced in Candidate Portal via cross-project read.
 - **Candidate Profile** — separate Blue Maven project that generates AI narratives from call transcripts. References `bmave-core.candidates.id`. Not to be confused with Candidate Portal.
 - **Validation project** — separate Blue Maven project tracking validation sessions. Google Apps Script-driven sync between Google Calendar and Zoho.

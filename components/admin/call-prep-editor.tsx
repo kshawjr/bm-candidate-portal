@@ -179,8 +179,8 @@ export function CallPrepEditor({
           <div className="adm-notice">
             <div className="adm-notice-eyebrow">No schedule step nearby</div>
             <p>
-              This stop doesn&apos;t have a schedule step yet. Add a
-              schedule step to the same stop first, then come back to link
+              This chapter doesn&apos;t have a schedule step yet. Add a
+              schedule step to the same chapter first, then come back to link
               it here — the call prep needs one to resolve{" "}
               <code>{"{call_type}"}</code> and <code>{"{duration}"}</code>.
             </p>

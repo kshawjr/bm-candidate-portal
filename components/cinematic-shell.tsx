@@ -49,8 +49,8 @@ export type ContentType =
   | "document"
   | "checklist";
 
-export interface Stop {
-  stop_key: string;
+export interface Chapter {
+  chapter_key: string;
   position: number;
   label: string;
   name: string;
@@ -60,7 +60,7 @@ export interface Stop {
 export interface Step {
   id: string;
   step_key: string;
-  stop_key: string;
+  chapter_key: string;
   position: number;
   label: string;
   description: string;
@@ -99,14 +99,14 @@ export interface ShellProps {
   journeyState: JourneyCardState;
   heroStats: Array<{ num: string; label: string }>;
   heroStripHeading: string;
-  stops: Stop[];
-  stepsByStop: Record<string, Step[]>;
-  currentStopIdx: number;
-  initialStopIdx: number;
+  chapters: Chapter[];
+  stepsByChapter: Record<string, Step[]>;
+  currentChapterIdx: number;
+  initialChapterIdx: number;
   initialStepIdx: number;
   // Bound server actions — page binds the candidate's token into each.
-  onTourComplete: (stopIdx: number, nextStepIdx: number) => Promise<void>;
-  onStepAdvance: (stopIdx: number, nextStepIdx: number) => Promise<void>;
+  onTourComplete: (chapterIdx: number, nextStepIdx: number) => Promise<void>;
+  onStepAdvance: (chapterIdx: number, nextStepIdx: number) => Promise<void>;
   onSaveApplicationAnswer: (
     fieldKey: string,
     fieldValue: unknown,
@@ -151,10 +151,10 @@ export function CinematicShell({
   journeyState,
   heroStats,
   heroStripHeading,
-  stops,
-  stepsByStop,
-  currentStopIdx,
-  initialStopIdx,
+  chapters,
+  stepsByChapter,
+  currentChapterIdx,
+  initialChapterIdx,
   initialStepIdx,
   onTourComplete,
   onStepAdvance,
@@ -174,7 +174,7 @@ export function CinematicShell({
 }: ShellProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const [selectedStopIdx, setSelectedStopIdx] = useState(initialStopIdx);
+  const [selectedChapterIdx, setSelectedChapterIdx] = useState(initialChapterIdx);
   const [selectedStepIdx, setSelectedStepIdx] = useState(initialStepIdx);
 
   // Disable the browser's native scroll restoration and jump to the top on
@@ -189,13 +189,13 @@ export function CinematicShell({
     window.scrollTo(0, 0);
   }, []);
 
-  const selectedStop = stops[selectedStopIdx];
-  const steps = stepsByStop[selectedStop.stop_key] ?? [];
+  const selectedChapter = chapters[selectedChapterIdx];
+  const steps = stepsByChapter[selectedChapter.chapter_key] ?? [];
   const selectedStep = steps[Math.min(selectedStepIdx, steps.length - 1)] ?? null;
 
-  const completedCount = currentStopIdx;
-  const progressPct = Math.round((completedCount / stops.length) * 100);
-  const weeksLeft = Math.max(2, stops.length - completedCount + 1);
+  const completedCount = currentChapterIdx;
+  const progressPct = Math.round((completedCount / chapters.length) * 100);
+  const weeksLeft = Math.max(2, chapters.length - completedCount + 1);
 
   const logoHeight = LOGO_HEIGHT_OVERRIDE[brandSlug] ?? DEFAULT_LOGO_HEIGHT;
 
@@ -205,12 +205,12 @@ export function CinematicShell({
     // Optimistic UI update — move to the next step immediately.
     setSelectedStepIdx(nextIdx);
     // Persist, then refetch server data so current_step + is_tour_complete match.
-    // Pass the stop the user is on; the server no-ops the advance if the
+    // Pass the chapter the user is on; the server no-ops the advance if the
     // candidate has already progressed past this position (e.g. replaying a
-    // completed stop) so their resume point doesn't drift.
-    const stopIdx = selectedStopIdx;
+    // completed chapter) so their resume point doesn't drift.
+    const chapterIdx = selectedChapterIdx;
     startTransition(async () => {
-      await onTourComplete(stopIdx, nextIdx);
+      await onTourComplete(chapterIdx, nextIdx);
       router.refresh();
     });
   };
@@ -223,18 +223,18 @@ export function CinematicShell({
         ? selectedStepIdx + 1
         : selectedStepIdx;
     setSelectedStepIdx(nextIdx);
-    const stopIdx = selectedStopIdx;
+    const chapterIdx = selectedChapterIdx;
     startTransition(async () => {
-      await onStepAdvance(stopIdx, nextIdx);
+      await onStepAdvance(chapterIdx, nextIdx);
       router.refresh();
     });
   };
 
   // Called from the success screen of the application renderer. Server already
-  // advanced current_stop -> 1, current_step -> 0 as part of submit; this just
+  // advanced current_chapter -> 1, current_step -> 0 as part of submit; this just
   // syncs the shell's local view state and refetches.
   const handleContinueAfterApplication = () => {
-    setSelectedStopIdx(1);
+    setSelectedChapterIdx(1);
     setSelectedStepIdx(0);
     startTransition(() => {
       router.refresh();
@@ -296,26 +296,26 @@ export function CinematicShell({
           </div>
           <div className="cine-progress-meta">
             <span>
-              {completedCount} of {stops.length} stops
+              {completedCount} of {chapters.length} chapters
             </span>
             <span>
-              {completedCount === stops.length
+              {completedCount === chapters.length
                 ? "Complete"
                 : `~${weeksLeft} weeks left`}
             </span>
           </div>
         </div>
 
-        <div className="cine-stops">
-          {stops.map((stop, i) => {
-            const isDone = i < currentStopIdx;
-            const isCurrent = i === currentStopIdx;
-            const isLocked = i > currentStopIdx;
-            const isActive = selectedStopIdx === i;
+        <div className="cine-chapters">
+          {chapters.map((chapter, i) => {
+            const isDone = i < currentChapterIdx;
+            const isCurrent = i === currentChapterIdx;
+            const isLocked = i > currentChapterIdx;
+            const isActive = selectedChapterIdx === i;
             const clickable = isDone || isCurrent;
 
             const cls = [
-              "cine-stop",
+              "cine-chapter",
               isDone && "done",
               isCurrent && "current",
               isLocked && "locked",
@@ -326,19 +326,19 @@ export function CinematicShell({
 
             return (
               <button
-                key={stop.stop_key}
+                key={chapter.chapter_key}
                 className={cls}
-                title={stop.name}
+                title={chapter.name}
                 disabled={!clickable}
                 onClick={() => {
                   if (!clickable) return;
-                  setSelectedStopIdx(i);
+                  setSelectedChapterIdx(i);
                   setSelectedStepIdx(0);
                 }}
               >
-                <span className="cine-stop-icon">{stop.icon ?? "•"}</span>
-                <span className="cine-stop-label">{stop.label}</span>
-                <span className="cine-stop-status">
+                <span className="cine-chapter-icon">{chapter.icon ?? "•"}</span>
+                <span className="cine-chapter-label">{chapter.label}</span>
+                <span className="cine-chapter-status">
                   {isDone ? (
                     <CheckIcon />
                   ) : isCurrent ? (
@@ -369,7 +369,7 @@ export function CinematicShell({
       </aside>
 
       <section className="cine-content">
-        {selectedStop.stop_key === "explore" && heroStats.length > 0 && (
+        {selectedChapter.chapter_key === "explore" && heroStats.length > 0 && (
           <div className="cine-hero-strip">
             <div className="cine-hero-strip-heading">{heroStripHeading}</div>
             <div className="cine-hero-strip-grid">
@@ -386,8 +386,8 @@ export function CinematicShell({
           <div className="cine-stepbar">
             <div className="cine-stepbar-head">
               <div className="cine-stepbar-title">
-                Stop {selectedStopIdx + 1} ·{" "}
-                <strong>{selectedStop.name}</strong>
+                Chapter {selectedChapterIdx + 1} ·{" "}
+                <strong>{selectedChapter.name}</strong>
               </div>
               <div className="cine-stepbar-count">
                 {steps.length} step{steps.length === 1 ? "" : "s"}
@@ -395,10 +395,10 @@ export function CinematicShell({
             </div>
             <div className="cine-steps">
               {steps.map((step, i) => {
-                const stopIsDone = selectedStopIdx < currentStopIdx;
+                const chapterIsDone = selectedChapterIdx < currentChapterIdx;
                 const isDone =
-                  stopIsDone ||
-                  (selectedStopIdx === currentStopIdx && i < selectedStepIdx);
+                  chapterIsDone ||
+                  (selectedChapterIdx === currentChapterIdx && i < selectedStepIdx);
                 const isActive = selectedStepIdx === i;
                 const cls = [
                   "cine-step",
@@ -432,8 +432,8 @@ export function CinematicShell({
             <>
               <StepRenderer
                 step={selectedStep}
-                stepsInStop={steps}
-                stopNumber={selectedStopIdx + 1}
+                stepsInChapter={steps}
+                chapterNumber={selectedChapterIdx + 1}
                 onTourComplete={handleTourComplete}
                 onStepAdvance={handleStepAdvance}
                 tourPending={pending}
@@ -457,7 +457,7 @@ export function CinematicShell({
               <ContentCardStrip cards={selectedStep.content_cards} />
             </>
           ) : (
-            <p>No steps configured for this stop yet.</p>
+            <p>No steps configured for this chapter yet.</p>
           )}
         </div>
       </section>
@@ -467,8 +467,8 @@ export function CinematicShell({
 
 function StepRenderer({
   step,
-  stepsInStop,
-  stopNumber,
+  stepsInChapter,
+  chapterNumber,
   onTourComplete,
   onStepAdvance,
   tourPending,
@@ -490,8 +490,8 @@ function StepRenderer({
   onCancelBooking,
 }: {
   step: Step;
-  stepsInStop: Step[];
-  stopNumber: number;
+  stepsInChapter: Step[];
+  chapterNumber: number;
   onTourComplete: () => void;
   onStepAdvance: () => void;
   tourPending: boolean;
@@ -553,7 +553,7 @@ function StepRenderer({
   }
   if (step.content_type === "static") {
     const body = typeof step.config?.body === "string" ? step.config.body : "";
-    return <StaticStep step={step} stopNumber={stopNumber} body={body} />;
+    return <StaticStep step={step} chapterNumber={chapterNumber} body={body} />;
   }
   if (step.content_type === "video") {
     return (
@@ -585,7 +585,7 @@ function StepRenderer({
     const config = step.config as unknown as CallPrepConfig;
     const linkedId = config?.linked_schedule_step_id ?? null;
     const linkedStep = linkedId
-      ? stepsInStop.find((s) => s.id === linkedId)
+      ? stepsInChapter.find((s) => s.id === linkedId)
       : null;
     let linkedSchedule: LinkedScheduleInfo | null = null;
     if (linkedStep && linkedStep.content_type === "schedule") {
@@ -620,16 +620,16 @@ function StepRenderer({
       />
     );
   }
-  return <PlaceholderStep step={step} stopNumber={stopNumber} />;
+  return <PlaceholderStep step={step} chapterNumber={chapterNumber} />;
 }
 
 function StaticStep({
   step,
-  stopNumber,
+  chapterNumber,
   body,
 }: {
   step: Step;
-  stopNumber: number;
+  chapterNumber: number;
   body: string;
 }) {
   const paragraphs = body
@@ -641,7 +641,7 @@ function StaticStep({
     <>
       <header className="cine-step-content-header">
         <div className="cine-step-content-eyebrow">
-          Stop {stopNumber} · Step {step.position + 1}
+          Chapter {chapterNumber} · Step {step.position + 1}
         </div>
         <h1 className="cine-step-content-title">{step.label}</h1>
         <p className="cine-step-content-desc">{step.description}</p>
@@ -668,16 +668,16 @@ function StaticStep({
 
 function PlaceholderStep({
   step,
-  stopNumber,
+  chapterNumber,
 }: {
   step: Step;
-  stopNumber: number;
+  chapterNumber: number;
 }) {
   return (
     <>
       <header className="cine-step-content-header">
         <div className="cine-step-content-eyebrow">
-          Stop {stopNumber} · Step {step.position + 1}
+          Chapter {chapterNumber} · Step {step.position + 1}
         </div>
         <h1 className="cine-step-content-title">{step.label}</h1>
         <p className="cine-step-content-desc">{step.description}</p>
