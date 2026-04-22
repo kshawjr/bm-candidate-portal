@@ -14,6 +14,11 @@ const NAV_ITEMS: Array<{ href: string; label: string; match: (p: string) => bool
     label: "Structure",
     match: (p) => p.startsWith("/admin/structure"),
   },
+  {
+    href: "/admin/candidates",
+    label: "Candidates",
+    match: (p) => p.startsWith("/admin/candidates"),
+  },
 ];
 
 export function AdminNav() {
@@ -36,9 +41,6 @@ export function AdminNav() {
           </Link>
         );
       })}
-      <span className="admin-navlink admin-navlink-disabled">
-        Candidates <small>Coming soon</small>
-      </span>
       <span className="admin-navlink admin-navlink-disabled">
         Settings <small>Coming soon</small>
       </span>

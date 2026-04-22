@@ -1446,3 +1446,60 @@
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.18);
   z-index: 60;
 }
+
+/* Reset-candidate modal styles live in app/globals.css under the bm-modal-*
+   namespace so the modal is styled regardless of which layout renders it
+   (admin uses this stylesheet; the candidate portal does not). */
+
+/* ---- candidates table ---- */
+.adm-candidates-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 13.5px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  overflow: hidden;
+}
+.adm-candidates-table thead th {
+  text-align: left;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #6b7280;
+  font-weight: 600;
+  padding: 10px 14px;
+  background: #f9fafb;
+  border-bottom: 1px solid #e5e7eb;
+}
+.adm-candidates-table tbody td {
+  padding: 12px 14px;
+  border-bottom: 1px solid #f3f4f6;
+  vertical-align: top;
+  color: #111827;
+}
+.adm-candidates-table tbody tr:last-child td {
+  border-bottom: none;
+}
+.adm-candidates-table tbody tr.is-test {
+  background: #fffbeb;
+}
+.adm-candidates-table tbody tr.is-test:hover {
+  background: #fef3c7;
+}
+.adm-candidates-table tbody tr:not(.is-test):hover {
+  background: #f9fafb;
+}
+.adm-candidates-token {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  color: #374151;
+  background: #f3f4f6;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+.adm-candidates-sub {
+  font-size: 12px;
+  margin-top: 2px;
+}
