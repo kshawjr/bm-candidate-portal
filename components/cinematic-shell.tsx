@@ -16,6 +16,11 @@ import {
   ScheduleRenderer,
   type ExistingBooking,
 } from "@/components/content-types/schedule-renderer";
+import {
+  CallPrepRenderer,
+  type CallPrepConfig,
+  type LinkedScheduleInfo,
+} from "@/components/content-types/call-prep-renderer";
 import { ContentCardStrip } from "@/components/content-cards/content-card-strip";
 import type { ContentCard } from "@/components/content-cards/types";
 import type { ScheduleConfig, Slot } from "@/lib/schedule-shared";
@@ -40,6 +45,7 @@ export type ContentType =
   | "application"
   | "schedule"
   | "video"
+  | "call_prep"
   | "document"
   | "checklist";
 
@@ -130,6 +136,7 @@ export interface ShellProps {
   bookingsByStepId: Record<string, ExistingBooking>;
   hasAssignedRep: boolean;
   advisorName: string | null;
+  advisorEmail: string | null;
   brandShortName: string;
   isGCalConfigured: boolean;
 }
@@ -164,6 +171,7 @@ export function CinematicShell({
   bookingsByStepId,
   hasAssignedRep,
   advisorName,
+  advisorEmail,
   brandShortName,
   isGCalConfigured,
 }: ShellProps) {
@@ -332,14 +340,18 @@ export function CinematicShell({
 
         <JourneyCard state={journeyState} />
 
-        <div className="cine-advisor">
-          <div className="cine-advisor-eyebrow">
-            Your franchise growth leader
+        {hasAssignedRep && advisorName && (
+          <div className="cine-advisor">
+            <div className="cine-advisor-eyebrow">Your guide</div>
+            <h4 className="cine-advisor-name">{advisorName}</h4>
+            <p className="cine-advisor-sub">from {brandShortName}</p>
+            {advisorEmail && (
+              <p className="cine-advisor-email">
+                <a href={`mailto:${advisorEmail}`}>{advisorEmail}</a>
+              </p>
+            )}
           </div>
-          <h4 className="cine-advisor-name">{leader.name}</h4>
-          <p className="cine-advisor-role">{leader.role}</p>
-          <p className="cine-advisor-email">{leader.email}</p>
-        </div>
+        )}
       </aside>
 
       <section className="cine-content">
@@ -406,6 +418,7 @@ export function CinematicShell({
             <>
               <StepRenderer
                 step={selectedStep}
+                stepsInChapter={steps}
                 stopNumber={selectedStopIdx + 1}
                 onTourComplete={handleTourComplete}
                 onStepAdvance={handleStepAdvance}
@@ -440,6 +453,7 @@ export function CinematicShell({
 
 function StepRenderer({
   step,
+  stepsInChapter,
   stopNumber,
   onTourComplete,
   onStepAdvance,
@@ -462,6 +476,7 @@ function StepRenderer({
   onCancelBooking,
 }: {
   step: Step;
+  stepsInChapter: Step[];
   stopNumber: number;
   onTourComplete: () => void;
   onStepAdvance: () => void;
@@ -548,6 +563,38 @@ function StepRenderer({
         onGetSlots={onGetSlots}
         onBook={onBookSlot}
         onCancel={onCancelBooking}
+        onComplete={onStepAdvance}
+      />
+    );
+  }
+  if (step.content_type === "call_prep") {
+    const config = step.config as unknown as CallPrepConfig;
+    const linkedId = config?.linked_schedule_step_id ?? null;
+    const linkedStep = linkedId
+      ? stepsInChapter.find((s) => s.id === linkedId)
+      : null;
+    let linkedSchedule: LinkedScheduleInfo | null = null;
+    if (linkedStep && linkedStep.content_type === "schedule") {
+      const sc = linkedStep.config as Record<string, unknown> | undefined;
+      linkedSchedule = {
+        eventLabel:
+          typeof sc?.event_label === "string"
+            ? (sc.event_label as string)
+            : "Discovery Call",
+        durationMinutes:
+          typeof sc?.duration_minutes === "number"
+            ? (sc.duration_minutes as number)
+            : 60,
+      };
+    }
+    return (
+      <CallPrepRenderer
+        config={config}
+        linkedSchedule={linkedSchedule}
+        repName={advisorName}
+        brandName={brandName}
+        brandShortName={brandShortName}
+        candidateFirstName={candidate.first_name ?? null}
         onComplete={onStepAdvance}
       />
     );

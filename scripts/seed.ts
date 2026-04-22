@@ -111,7 +111,7 @@ const STAGE_CONTENT: Record<string, Record<string, string>> = {
   },
 };
 
-type ContentType = "slides" | "static" | "application" | "schedule" | "video" | "document" | "checklist";
+type ContentType = "slides" | "static" | "application" | "schedule" | "video" | "call_prep" | "document" | "checklist";
 
 const STOP_STEPS: Record<string, Array<{ key: string; label: string; type: ContentType; desc: string }>> = {
   explore: [
@@ -199,7 +199,7 @@ const BRAND_MARKETING: Record<BrandCode, BrandMarketing> = {
       { icon: "💬", title: "Connect", body: "Speak with our development team, validate with existing franchisees, and get real answers from real owners." },
       { icon: "🎯", title: "Decide",  body: "Meet the full support team on Discovery Day, finalize your territory, and complete the ownership process with clarity." },
     ],
-    leaderName: "Zac Celaya",
+    leaderName: "Kevin Shaw",
     leaderRole: "Blue Maven Franchise Development",
     leaderEmail: "hounds@bmave.com",
     brandMarkHtml: "Hounds Town",
@@ -225,7 +225,7 @@ const BRAND_MARKETING: Record<BrandCode, BrandMarketing> = {
       { icon: "💬", title: "Connect", body: "Speak with our development team, validate with existing franchisees, and have a direct conversation with our Co-CEOs." },
       { icon: "🎯", title: "Decide",  body: "Meet the full support team on Confirmation Day, finalize your territory, and complete the ownership process with clarity." },
     ],
-    leaderName: "Zac Celaya",
+    leaderName: "Kevin Shaw",
     leaderRole: "Blue Maven Franchise Development",
     leaderEmail: "tourscale@bmave.com",
     brandMarkHtml: "Cruisin' Tikis",
@@ -326,32 +326,9 @@ const BRAND_TOUR_CONTENT_CARDS: Record<BrandCode, SeedContentCard[]> = {
   ],
 };
 
-// Real static body copy for the proof-of-life step (first_chat/prep).
-// Other static steps ship with empty body — content authoring is a later PR.
-const STATIC_BODIES: Partial<Record<BrandCode, Partial<Record<string, Partial<Record<string, string>>>>>> = {
-  ht: {
-    first_chat: {
-      prep: `Thanks for booking your first chat. Here's what to expect so nothing feels like a cold open.
-
-This is a 30-minute conversation, not a pitch. You'll meet Zac from our franchise development team. No slide deck. No hard sell. The goal is to hear what you're looking for and share honestly whether Hounds Town is likely to be a fit.
-
-Come with whatever questions are top of mind — about the pack model, the economics, what running a location actually looks like day-to-day. We'll also ask you about your timeline, what markets you're eyeing, and what "good" looks like for you.
-
-A few minutes before the call, we'll email you a short prep doc with the calendar link and a one-page summary of how the process works from here.`,
-    },
-  },
-  ct: {
-    first_chat: {
-      prep: `Thanks for booking your first chat. Here's the shape of it so you can come in relaxed.
-
-This is a 30-minute conversation, not a sales call. You'll meet Zac from Blue Maven and, depending on the day, a member of the Cruisin' Tikis leadership team. We'll walk you through how the Cruisin' Tikis franchise actually works and answer whatever's on your mind.
-
-Come with questions — about the vessel-based model, the licensing we handle for you, Captain school, what your first season realistically looks like. We'll also want to hear about your timeline, the waterfront markets you're thinking about, and what a win looks like for you.
-
-A few minutes before the call we'll email you the calendar link and a short prep doc so you're not scrambling at the top of the hour.`,
-    },
-  },
-};
+// Real static body copy for static-type steps. Other static steps ship
+// with empty body — content authoring is a later PR.
+const STATIC_BODIES: Partial<Record<BrandCode, Partial<Record<string, Partial<Record<string, string>>>>>> = {};
 
 // Brand-tour placeholder slides for the explore/tour step. Real slides will be
 // Canva PNGs uploaded to Supabase Storage; these placehold.co URLs let the
@@ -776,6 +753,104 @@ async function seedStop2Defaults(brandId: string, _code: BrandCode) {
 }
 
 /**
+ * Ensure Chapter 2 (first_chat) has a call_prep step ahead of the
+ * schedule step. Idempotent — skips brands that already have a
+ * call_prep step in first_chat.
+ *
+ * Given the typical starting state (video at pos 0, schedule at pos 1),
+ * this:
+ *   - inserts the call_prep step at position 0 linked to the schedule,
+ *   - moves the schedule step to position 1,
+ *   - shifts any non-schedule steps (the video) to positions >= 2,
+ *     preserving their relative order.
+ */
+async function seedCallPrepForChapter2(brandId: string) {
+  const { data: steps, error: readErr } = await app
+    .from("steps_config")
+    .select("id, position, content_type, step_key")
+    .eq("brand_id", brandId)
+    .eq("chapter_key", "first_chat")
+    .order("position");
+  if (readErr) throw new Error(`call_prep probe failed: ${readErr.message}`);
+  if (!steps || steps.length === 0) return;
+  if (steps.some((s) => s.content_type === "call_prep")) return;
+
+  const schedule = steps.find((s) => s.content_type === "schedule");
+  if (!schedule) {
+    console.log(
+      `[seed] call_prep: brand ${brandId} has no schedule step in first_chat — skipping`,
+    );
+    return;
+  }
+
+  // Phase 1: move every existing step to a temporary high position to
+  // avoid any transient unique collisions.
+  const tempOffset = 1000;
+  for (let i = 0; i < steps.length; i++) {
+    const { error } = await app
+      .from("steps_config")
+      .update({ position: tempOffset + i })
+      .eq("id", steps[i].id);
+    if (error) throw new Error(`call_prep temp reorder failed: ${error.message}`);
+  }
+
+  // Phase 2: schedule → 1, other existing steps → 2..N (in original order),
+  // leaving position 0 free for the new call_prep step.
+  await app
+    .from("steps_config")
+    .update({ position: 1 })
+    .eq("id", schedule.id);
+  const others = steps
+    .filter((s) => s.content_type !== "schedule")
+    .sort((a, b) => a.position - b.position);
+  for (let i = 0; i < others.length; i++) {
+    const { error } = await app
+      .from("steps_config")
+      .update({ position: 2 + i })
+      .eq("id", others[i].id);
+    if (error) throw new Error(`call_prep reorder failed: ${error.message}`);
+  }
+
+  const config: Record<string, unknown> = {
+    linked_schedule_step_id: schedule.id,
+    heading: "Before your {call_type}",
+    subheading: "What to expect, who you'll meet",
+    description:
+      "Here's what to expect so you can come in relaxed. This is a {duration}-minute conversation with {rep_first_name} from the {brand_short_name} team — not a pitch.",
+    hero_image_url: null,
+    what_well_cover: [
+      "Your timeline and what markets you're eyeing",
+      "How {brand_short_name} actually runs day-to-day",
+      "The economics — honestly",
+      "Whatever questions are top of mind for you",
+    ],
+    come_prepared: [
+      "Think about what 'good' looks like for you in a franchise",
+      "Jot down any questions about the brand or operations",
+    ],
+    partner_callout_text:
+      "If you have a spouse, partner, or co-investor — bring them along. These conversations are way better with the whole team. (Especially if that person is the one who'll make you write the check.)",
+    cta_label: "Ready to book",
+  };
+
+  const { error: insErr } = await app.from("steps_config").insert({
+    brand_id: brandId,
+    chapter_key: "first_chat",
+    position: 0,
+    step_key: "prep",
+    label: "Before the call",
+    description: "A quick read so the call feels like a real conversation",
+    content_type: "call_prep",
+    config,
+    content_cards: [],
+  });
+  if (insErr) throw new Error(`call_prep insert failed: ${insErr.message}`);
+  console.log(
+    `[seed] call_prep: inserted "Before the call" at Chapter 2 pos 0 for brand ${brandId}`,
+  );
+}
+
+/**
  * PR 16 polish: ensure every schedule-type step has the config fields
  * introduced across the polish passes — event_label, working_days,
  * min_notice_hours — so existing seeded steps (from before these
@@ -912,6 +987,7 @@ async function main() {
     await seedStops(brand.id, brand.slug);
     await seedSteps(brand.id, code);
     await seedStop2Defaults(brand.id, code);
+    await seedCallPrepForChapter2(brand.id);
     await seedDevCandidate(brand.id, code, repId);
   }
 
