@@ -96,7 +96,7 @@ export default async function PortalTokenPage({
   const { data: session } = await app
     .from("candidates_in_portal")
     .select(
-      "id, candidate_id, current_stop, current_step, is_app_submitted, last_activity_at",
+      "id, candidate_id, current_chapter, current_step, is_app_submitted, last_activity_at",
     )
     .eq("token", params.token)
     .maybeSingle();
@@ -254,35 +254,35 @@ export default async function PortalTokenPage({
   const palette = colors.palette ?? {};
   const typography = resolveTypography(brand.font_overrides as FontOverrides | null);
 
-  // The stored current_stop is an index into the brand's active stops. If an
+  // The stored current_chapter is an index into the brand's active stops. If an
   // admin deletes or archives a stop, that index may now point past the end
   // (or at a different stop entirely). Clamp to the valid range and persist
   // the fallback so the candidate always lands somewhere real.
-  const storedStopIdx = session.current_stop ?? 0;
-  const currentStopIdx = Math.min(
-    Math.max(0, storedStopIdx),
+  const storedChapterIdx = session.current_chapter ?? 0;
+  const currentChapterIdx = Math.min(
+    Math.max(0, storedChapterIdx),
     stops.length - 1,
   );
   const storedStepIdx = session.current_step ?? 0;
-  const currentStopKey_ = stops[currentStopIdx]?.stop_key;
-  const stepsInCurrentStop = currentStopKey_
-    ? (stepsRows ?? []).filter((r) => r.stop_key === currentStopKey_).length
+  const currentChapterKey_ = stops[currentChapterIdx]?.stop_key;
+  const stepsInCurrentChapter = currentChapterKey_
+    ? (stepsRows ?? []).filter((r) => r.stop_key === currentChapterKey_).length
     : 0;
   const currentStepIdx = Math.min(
     Math.max(0, storedStepIdx),
-    Math.max(0, stepsInCurrentStop - 1),
+    Math.max(0, stepsInCurrentChapter - 1),
   );
-  if (storedStopIdx !== currentStopIdx || storedStepIdx !== currentStepIdx) {
+  if (storedChapterIdx !== currentChapterIdx || storedStepIdx !== currentStepIdx) {
     await app
       .from("candidates_in_portal")
       .update({
-        current_stop: currentStopIdx,
+        current_chapter: currentChapterIdx,
         current_step: currentStepIdx,
       })
       .eq("id", session.id);
   }
 
-  const initialStopIdx = currentStopIdx;
+  const initialStopIdx = currentChapterIdx;
   const initialStepIdx = currentStepIdx;
 
   const fontClasses = `${baloo2.variable} ${nunitoSans.variable} ${montserrat.variable}`;
@@ -301,28 +301,28 @@ export default async function PortalTokenPage({
   );
   // Count distinct step_keys completed in the CURRENT stop — feeds the
   // "between stops" variant.
-  const currentStop = stops[currentStopIdx];
-  const currentStopKey = currentStop?.stop_key;
-  const currentStopCompletedKeys = new Set(
+  const currentChapter = stops[currentChapterIdx];
+  const currentChapterKey = currentChapter?.stop_key;
+  const currentChapterCompletedKeys = new Set(
     progressList
-      .filter((r) => r.stop_key === currentStopKey)
+      .filter((r) => r.stop_key === currentChapterKey)
       .map((r) => r.step_key)
       .filter((k): k is string => typeof k === "string"),
   );
-  const currentStopStepCount =
-    currentStopKey && stepsByStop[currentStopKey]
-      ? stepsByStop[currentStopKey].length
+  const currentChapterStepCount =
+    currentChapterKey && stepsByStop[currentChapterKey]
+      ? stepsByStop[currentChapterKey].length
       : 0;
   const lastActivityAt = session.last_activity_at
     ? new Date(session.last_activity_at)
     : null;
   const journeyState = resolveJourneyCardState({
-    currentStopIdx,
+    currentChapterIdx,
     stops,
     lastActivityAt,
     recentlyActive,
-    currentStopStepsCompleted: currentStopCompletedKeys.size,
-    currentStopStepCount,
+    currentChapterStepsCompleted: currentChapterCompletedKeys.size,
+    currentChapterStepCount,
   });
 
   const onTourComplete = completeTourAction.bind(null, params.token);
@@ -374,7 +374,7 @@ export default async function PortalTokenPage({
         heroStripHeading={heroStripHeading}
         stops={stops}
         stepsByStop={stepsByStop}
-        currentStopIdx={currentStopIdx}
+        currentChapterIdx={currentChapterIdx}
         initialStopIdx={initialStopIdx}
         initialStepIdx={initialStepIdx}
         onTourComplete={onTourComplete}

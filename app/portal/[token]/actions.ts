@@ -142,7 +142,7 @@ export async function submitApplicationAction(
     .from("candidates_in_portal")
     .update({
       is_app_submitted: true,
-      current_stop: 1,
+      current_chapter: 1,
       current_step: 0,
       last_activity_at: new Date().toISOString(),
     })

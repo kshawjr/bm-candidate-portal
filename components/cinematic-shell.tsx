@@ -96,7 +96,7 @@ export interface ShellProps {
   heroStripHeading: string;
   stops: Stop[];
   stepsByStop: Record<string, Step[]>;
-  currentStopIdx: number;
+  currentChapterIdx: number;
   initialStopIdx: number;
   initialStepIdx: number;
   // Bound server actions — page binds the candidate's token into each.
@@ -148,7 +148,7 @@ export function CinematicShell({
   heroStripHeading,
   stops,
   stepsByStop,
-  currentStopIdx,
+  currentChapterIdx,
   initialStopIdx,
   initialStepIdx,
   onTourComplete,
@@ -176,7 +176,7 @@ export function CinematicShell({
   const steps = stepsByStop[selectedStop.stop_key] ?? [];
   const selectedStep = steps[Math.min(selectedStepIdx, steps.length - 1)] ?? null;
 
-  const completedCount = currentStopIdx;
+  const completedCount = currentChapterIdx;
   const progressPct = Math.round((completedCount / stops.length) * 100);
   const weeksLeft = Math.max(2, stops.length - completedCount + 1);
 
@@ -209,7 +209,7 @@ export function CinematicShell({
   };
 
   // Called from the success screen of the application renderer. Server already
-  // advanced current_stop -> 1, current_step -> 0 as part of submit; this just
+  // advanced current_chapter -> 1, current_step -> 0 as part of submit; this just
   // syncs the shell's local view state and refetches.
   const handleContinueAfterApplication = () => {
     setSelectedStopIdx(1);
@@ -286,9 +286,9 @@ export function CinematicShell({
 
         <div className="cine-stops">
           {stops.map((stop, i) => {
-            const isDone = i < currentStopIdx;
-            const isCurrent = i === currentStopIdx;
-            const isLocked = i > currentStopIdx;
+            const isDone = i < currentChapterIdx;
+            const isCurrent = i === currentChapterIdx;
+            const isLocked = i > currentChapterIdx;
             const isActive = selectedStopIdx === i;
             const clickable = isDone || isCurrent;
 
@@ -369,10 +369,10 @@ export function CinematicShell({
             </div>
             <div className="cine-steps">
               {steps.map((step, i) => {
-                const stopIsDone = selectedStopIdx < currentStopIdx;
+                const stopIsDone = selectedStopIdx < currentChapterIdx;
                 const isDone =
                   stopIsDone ||
-                  (selectedStopIdx === currentStopIdx && i < selectedStepIdx);
+                  (selectedStopIdx === currentChapterIdx && i < selectedStepIdx);
                 const isActive = selectedStepIdx === i;
                 const cls = [
                   "cine-step",

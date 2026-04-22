@@ -46,12 +46,12 @@ export interface JourneyStop {
 }
 
 export interface ResolveInput {
-  currentStopIdx: number;
+  currentChapterIdx: number;
   stops: JourneyStop[];
   lastActivityAt: Date | null;
   recentlyActive: boolean; // any candidate_progress row within last ~48h
-  currentStopStepsCompleted: number;
-  currentStopStepCount: number;
+  currentChapterStepsCompleted: number;
+  currentChapterStepCount: number;
 }
 
 function daysSince(d: Date): number {
@@ -61,19 +61,19 @@ function daysSince(d: Date): number {
 
 export function resolveJourneyCardState(input: ResolveInput): JourneyCardState {
   const {
-    currentStopIdx,
+    currentChapterIdx,
     stops,
     lastActivityAt,
     recentlyActive,
-    currentStopStepsCompleted,
-    currentStopStepCount,
+    currentChapterStepsCompleted,
+    currentChapterStepCount,
   } = input;
   const total = stops.length;
-  const isFinalStop = currentStopIdx >= total - 1;
+  const isFinalStop = currentChapterIdx >= total - 1;
 
   // a) Almost there — Stop 6 or 7 (index >= 5)
-  if (currentStopIdx >= 5) {
-    const left = Math.max(0, total - currentStopIdx - 1);
+  if (currentChapterIdx >= 5) {
+    const left = Math.max(0, total - currentChapterIdx - 1);
     const tail =
       left === 0
         ? "You're at your signing day"
@@ -103,14 +103,14 @@ export function resolveJourneyCardState(input: ResolveInput): JourneyCardState {
   }
 
   // c) Between stops — every step in the current stop is complete but
-  // current_stop hasn't advanced yet (rare because submits auto-advance).
+  // current_chapter hasn't advanced yet (rare because submits auto-advance).
   if (
-    currentStopStepCount > 0 &&
-    currentStopStepsCompleted >= currentStopStepCount &&
+    currentChapterStepCount > 0 &&
+    currentChapterStepsCompleted >= currentChapterStepCount &&
     !isFinalStop
   ) {
-    const currentLabel = stops[currentStopIdx]?.label ?? "this stop";
-    const nextLabel = stops[currentStopIdx + 1]?.label ?? "what's next";
+    const currentLabel = stops[currentChapterIdx]?.label ?? "this stop";
+    const nextLabel = stops[currentChapterIdx + 1]?.label ?? "what's next";
     return {
       variant: "between_stops",
       heading: "Nicely done",
@@ -121,9 +121,9 @@ export function resolveJourneyCardState(input: ResolveInput): JourneyCardState {
   }
 
   // d) On a roll — mid-journey (stops 2-5 = index 1-4) with recent activity
-  if (currentStopIdx >= 1 && currentStopIdx <= 4 && recentlyActive) {
-    const done = currentStopIdx;
-    const weeksLeft = Math.max(2, total - currentStopIdx);
+  if (currentChapterIdx >= 1 && currentChapterIdx <= 4 && recentlyActive) {
+    const done = currentChapterIdx;
+    const weeksLeft = Math.max(2, total - currentChapterIdx);
     return {
       variant: "on_a_roll",
       heading: "You're on a roll",
