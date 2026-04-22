@@ -1447,58 +1447,9 @@
   z-index: 60;
 }
 
-/* ---- centered modal (used by reset-candidate-modal) ---- */
-.adm-modal-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(15, 23, 42, 0.32);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  padding: 24px;
-  z-index: 50;
-}
-.adm-reset-modal {
-  width: min(520px, 100%);
-  max-height: calc(100vh - 48px);
-  background: #ffffff;
-  border-radius: 12px;
-  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.18);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-.adm-reset-modal .adm-drawer-body {
-  max-height: 60vh;
-}
-.adm-reset-warning {
-  background: #fef2f2;
-  border: 1px solid #fecaca;
-  border-radius: 8px;
-  padding: 12px 14px;
-  margin-bottom: 16px;
-  font-size: 13px;
-  color: #7f1d1d;
-  line-height: 1.45;
-}
-.adm-reset-warning p {
-  margin: 0 0 6px;
-}
-.adm-reset-warning p:last-child {
-  margin-bottom: 0;
-}
-.adm-reset-warning ul {
-  margin: 4px 0 8px;
-  padding-left: 18px;
-}
-
-/* Danger variant on the primary button — used for Reset. */
-.adm-btn-primary.adm-btn-danger {
-  background: #dc2626;
-}
-.adm-btn-primary.adm-btn-danger:hover:not(:disabled) {
-  background: #b91c1c;
-}
+/* Reset-candidate modal styles live in app/globals.css under the bm-modal-*
+   namespace so the modal is styled regardless of which layout renders it
+   (admin uses this stylesheet; the candidate portal does not). */
 
 /* ---- candidates table ---- */
 .adm-candidates-table {

@@ -11,11 +11,11 @@ import {
 interface Props {
   /** The candidate's token — required; used to match the confirm input. */
   token: string;
-  /** Display name shown in the modal heading to help admins confirm who they're resetting. */
+  /** Optional label shown below the modal title (e.g. candidate name + brand). */
   candidateLabel?: string;
-  /** Fires once the modal is dismissed (cancel or success). */
+  /** Fires when the modal is dismissed (cancel, Escape, backdrop click, or success). */
   onClose: () => void;
-  /** Fires after a successful reset. Parent typically toasts + refreshes. */
+  /** Fires after a successful reset with the delete counts. */
   onSuccess?: (counts: ResetCounts) => void;
 }
 
@@ -45,9 +45,22 @@ export function ResetCandidateModal({
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
+  // Focus the input on mount so admins can start typing immediately.
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
+
+  // Close on Escape — but only when idle, so admins don't accidentally
+  // dismiss mid-reset and lose the server result.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !pending) {
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [pending, onClose]);
 
   const matches = confirmInput === token;
   const placeholder =
@@ -77,29 +90,30 @@ export function ResetCandidateModal({
     });
   };
 
+  const checkboxId = "bm-modal-delete-calendar";
+
   return (
     <div
-      className="adm-modal-backdrop"
+      className="bm-modal-backdrop"
       role="dialog"
       aria-modal="true"
+      aria-labelledby="bm-modal-title"
       onClick={(e) => {
         if (e.target === e.currentTarget && !pending) onClose();
       }}
     >
-      <div className="adm-reset-modal">
-        <header className="adm-drawer-head">
-          <div>
-            <div className="adm-drawer-eyebrow">Destructive</div>
-            <h2 className="adm-drawer-title">Reset candidate progress</h2>
-            {candidateLabel && (
-              <p className="adm-muted" style={{ margin: "4px 0 0" }}>
-                {candidateLabel}
-              </p>
-            )}
+      <div className="bm-modal">
+        <header className="bm-modal-head">
+          <div className="bm-modal-head-text">
+            <span className="bm-modal-chip">Destructive</span>
+            <h2 className="bm-modal-title" id="bm-modal-title">
+              Reset candidate progress
+            </h2>
+            {candidateLabel && <p className="bm-modal-sub">{candidateLabel}</p>}
           </div>
           <button
             type="button"
-            className="adm-drawer-close"
+            className="bm-modal-close"
             onClick={onClose}
             disabled={pending}
             aria-label="Close"
@@ -108,8 +122,8 @@ export function ResetCandidateModal({
           </button>
         </header>
 
-        <div className="adm-drawer-body">
-          <div className="adm-reset-warning">
+        <div className="bm-modal-body">
+          <div className="bm-modal-warning">
             <p>
               <strong>This will permanently delete:</strong>
             </p>
@@ -124,17 +138,17 @@ export function ResetCandidateModal({
             </p>
           </div>
 
-          <label className="adm-field">
-            <span className="adm-form-label">
-              Type the full token to confirm{" "}
-              <span className="adm-form-required" aria-hidden="true">
+          <label className="bm-modal-field">
+            <span className="bm-modal-label">
+              Type the full token to confirm
+              <span className="bm-modal-required" aria-hidden="true">
                 *
               </span>
             </span>
             <input
               ref={inputRef}
               type="text"
-              className="adm-input"
+              className="bm-modal-input"
               value={confirmInput}
               onChange={(e) => setConfirmInput(e.target.value)}
               placeholder={placeholder}
@@ -142,43 +156,38 @@ export function ResetCandidateModal({
               autoComplete="off"
               spellCheck={false}
             />
-            <span className="adm-form-hint">
+            <span className="bm-modal-hint">
               Must match exactly. Placeholder shows the first few characters.
             </span>
           </label>
 
-          <label
-            className="adm-field"
-            style={{ display: "flex", alignItems: "flex-start", gap: 10 }}
-          >
+          <div className="bm-modal-field bm-modal-checkbox">
             <input
+              id={checkboxId}
               type="checkbox"
               checked={deleteCalendar}
               onChange={(e) => setDeleteCalendar(e.target.checked)}
               disabled={pending}
-              style={{ marginTop: 3 }}
             />
-            <span>
-              <span className="adm-form-label" style={{ margin: 0 }}>
+            <span className="bm-modal-checkbox-text">
+              <label htmlFor={checkboxId} className="bm-modal-label">
                 Also delete Google Calendar events for this candidate&apos;s
                 bookings
-              </span>
-              <span className="adm-form-hint" style={{ display: "block" }}>
+              </label>
+              <span className="bm-modal-hint">
                 Deletes the real calendar events from the rep&apos;s Google
                 Calendar. Uncheck to keep them (orphaned) for manual cleanup.
               </span>
             </span>
-          </label>
+          </div>
 
-          {error && (
-            <div className="adm-form-error adm-form-error-inline">{error}</div>
-          )}
+          {error && <div className="bm-modal-error">{error}</div>}
         </div>
 
-        <footer className="adm-drawer-foot">
+        <footer className="bm-modal-foot">
           <button
             type="button"
-            className="adm-btn-ghost"
+            className="bm-btn bm-btn-ghost"
             onClick={onClose}
             disabled={pending}
           >
@@ -186,7 +195,7 @@ export function ResetCandidateModal({
           </button>
           <button
             type="button"
-            className="adm-btn-primary adm-btn-danger"
+            className="bm-btn bm-btn-danger"
             onClick={handleReset}
             disabled={!matches || pending}
           >
