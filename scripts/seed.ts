@@ -865,7 +865,7 @@ async function seedDevCandidate(
   // Look up any existing portal row for this token (idempotent safeguard)
   const { data: existing } = await app
     .from("candidates_in_portal")
-    .select("id, current_stop, current_step")
+    .select("id, current_chapter, current_step")
     .eq("token", token)
     .maybeSingle();
 
@@ -874,7 +874,7 @@ async function seedDevCandidate(
     token,
     // Land new dev tokens on Stop 1 / Step 0 (Brand tour) so the slides
     // renderer exercises on first load. Existing rows keep their state.
-    current_stop: existing?.current_stop ?? 0,
+    current_chapter: existing?.current_chapter ?? 0,
     current_step: existing?.current_step ?? 0,
   };
 

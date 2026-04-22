@@ -9,7 +9,7 @@ export interface CandidateOnJourney {
   token: string;
   first_name: string | null;
   last_name: string | null;
-  current_stop: number;
+  current_chapter: number;
   current_step: number;
 }
 
@@ -33,7 +33,7 @@ async function hydrateCandidates(
     id: string;
     candidate_id: string;
     token: string;
-    current_stop: number;
+    current_chapter: number;
     current_step: number;
   }>,
 ): Promise<CandidateOnJourney[]> {
@@ -55,7 +55,7 @@ async function hydrateCandidates(
       token: s.token,
       first_name: (person?.first_name as string | null | undefined) ?? null,
       last_name: (person?.last_name as string | null | undefined) ?? null,
-      current_stop: s.current_stop,
+      current_chapter: s.current_chapter,
       current_step: s.current_step,
     };
   });
@@ -64,7 +64,7 @@ async function hydrateCandidates(
 /**
  * Candidates currently sitting on a given stop. Positional: we resolve the
  * stop to its position within the brand's ordered stops and match
- * candidates_in_portal.current_stop by index.
+ * candidates_in_portal.current_chapter by index.
  */
 export async function getCandidatesOnStop(
   stopKey: string,
@@ -86,9 +86,9 @@ export async function getCandidatesOnStop(
 
   const { data: sessions, error: sessErr } = await app
     .from("candidates_in_portal")
-    .select("id, candidate_id, token, current_stop, current_step")
+    .select("id, candidate_id, token, current_chapter, current_step")
     .in("candidate_id", candidateIds)
-    .eq("current_stop", stopRow.position);
+    .eq("current_chapter", stopRow.position);
   if (sessErr) throw new Error(`sessions lookup failed: ${sessErr.message}`);
 
   return hydrateCandidates(sessions ?? []);
@@ -125,9 +125,9 @@ export async function getCandidatesOnStep(
 
   const { data: sessions, error: sessErr } = await app
     .from("candidates_in_portal")
-    .select("id, candidate_id, token, current_stop, current_step")
+    .select("id, candidate_id, token, current_chapter, current_step")
     .in("candidate_id", candidateIds)
-    .eq("current_stop", stopRow.position)
+    .eq("current_chapter", stopRow.position)
     .eq("current_step", stepRow.position);
   if (sessErr) throw new Error(`sessions lookup failed: ${sessErr.message}`);
 
