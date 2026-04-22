@@ -130,7 +130,7 @@ export default async function PortalTokenPage({
   const { data: rep } = assignedRepId
     ? await core
         .from("reps")
-        .select("id, name, calendar_email, is_active")
+        .select("id, name, email, calendar_email, is_active")
         .eq("id", assignedRepId)
         .maybeSingle()
     : { data: null };
@@ -139,6 +139,7 @@ export default async function PortalTokenPage({
       ? {
           id: (rep as { id: string }).id,
           name: (rep as { name: string }).name,
+          email: (rep as { email: string }).email,
           calendarEmail: (rep as { calendar_email: string }).calendar_email,
         }
       : null;
@@ -204,11 +205,17 @@ export default async function PortalTokenPage({
 
   const content = (portalContent ?? []) as PortalContentRow[];
   const brandMarkHtml = pickText(content, "brand_mark_html", brand.name);
-  const leader = {
-    name: pickText(content, "leader_name", "Your franchise growth leader"),
-    role: pickText(content, "leader_role", ""),
-    email: pickText(content, "leader_email", ""),
-  };
+  // The sidebar advisor card + application success-screen copy both
+  // resolve against the candidate's assigned rep (new as of PR 17).
+  // If no rep is assigned the card is hidden; downstream copy falls
+  // back to generic wording. The `leader_*` keys in portal_content are
+  // deprecated and no longer read.
+  const leader = activeRep
+    ? {
+        name: activeRep.name,
+        email: activeRep.email ?? "",
+      }
+    : { name: "", email: "" };
 
   // Stop 1 hero strip — 4 stats. Empty num drops the row.
   const heroStats = [1, 2, 3, 4]

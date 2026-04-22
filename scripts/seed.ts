@@ -174,9 +174,6 @@ interface BrandMarketing {
   body: string;
   stats: StatItem[];
   concepts: Array<{ icon: string; title: string; body: string }>;
-  leaderName: string;
-  leaderRole: string;
-  leaderEmail: string;
   brandMarkHtml: string;
   // Stop 1 hero strip — 4 larger stats, visible only when the candidate is
   // on Stop 1 (Explore).
@@ -199,9 +196,6 @@ const BRAND_MARKETING: Record<BrandCode, BrandMarketing> = {
       { icon: "💬", title: "Connect", body: "Speak with our development team, validate with existing franchisees, and get real answers from real owners." },
       { icon: "🎯", title: "Decide",  body: "Meet the full support team on Discovery Day, finalize your territory, and complete the ownership process with clarity." },
     ],
-    leaderName: "Zac Celaya",
-    leaderRole: "Blue Maven Franchise Development",
-    leaderEmail: "hounds@bmave.com",
     brandMarkHtml: "Hounds Town",
     heroStats: [
       { num: "150+", label: "franchises" },
@@ -225,9 +219,6 @@ const BRAND_MARKETING: Record<BrandCode, BrandMarketing> = {
       { icon: "💬", title: "Connect", body: "Speak with our development team, validate with existing franchisees, and have a direct conversation with our Co-CEOs." },
       { icon: "🎯", title: "Decide",  body: "Meet the full support team on Confirmation Day, finalize your territory, and complete the ownership process with clarity." },
     ],
-    leaderName: "Zac Celaya",
-    leaderRole: "Blue Maven Franchise Development",
-    leaderEmail: "tourscale@bmave.com",
     brandMarkHtml: "Cruisin' Tikis",
     heroStats: [
       { num: "44+",    label: "locations" },
@@ -572,10 +563,13 @@ async function seedPortalContent(brandId: string, code: BrandCode) {
     { brand_id: brandId, content_key: "hero_body",       content_type: "text",     body: m.body },
     { brand_id: brandId, content_key: "hero_stats",      content_type: "json",     data: m.stats },
     { brand_id: brandId, content_key: "concepts",        content_type: "json",     data: m.concepts },
-    { brand_id: brandId, content_key: "leader_name",     content_type: "text",     body: m.leaderName },
-    { brand_id: brandId, content_key: "leader_role",     content_type: "text",     body: m.leaderRole },
-    { brand_id: brandId, content_key: "leader_email",    content_type: "text",     body: m.leaderEmail },
     { brand_id: brandId, content_key: "brand_mark_html", content_type: "markdown", body: m.brandMarkHtml },
+    // NOTE: leader_name / leader_role / leader_email are deprecated as
+    // of PR 17. The sidebar advisor card + application success screen
+    // now resolve against the candidate's assigned rep (bmave-core.reps
+    // + candidates.assigned_rep_id). Rows seeded by earlier versions
+    // stay in portal_content as dead data; a future migration can drop
+    // them. Nothing is seeded here any more.
   ];
 
   // Flat stat keys for the Stop 1 hero strip (4 stats). The sidebar
