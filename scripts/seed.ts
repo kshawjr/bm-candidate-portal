@@ -3,7 +3,7 @@
  *
  * Idempotent. Safe to re-run. Writes to two Supabase projects:
  *   - bmave-core:  portal_content rows per brand, plus dev test candidates
- *   - this app:    stops_config, steps_config, candidates_in_portal rows
+ *   - this app:    chapters_config, steps_config, candidates_in_portal rows
  *
  * Source of truth: docs/design-prototypes/candidate-portal-design-v18.html
  *   (BRAND_MARKETING, STAGES, STAGE_CONTENT, STAGE_ICONS, STOP_STEPS)
@@ -599,21 +599,21 @@ async function seedStops(brandId: string, brandSlug: string) {
   // 7-stop structure only when the brand has never had stops before. On
   // re-runs against an existing brand, skip so admin edits aren't clobbered.
   const { data: existing, error: readErr } = await app
-    .from("stops_config")
+    .from("chapters_config")
     .select("id")
     .eq("brand_id", brandId)
     .limit(1);
-  if (readErr) throw new Error(`stops_config probe failed: ${readErr.message}`);
+  if (readErr) throw new Error(`chapters_config probe failed: ${readErr.message}`);
   if (existing && existing.length > 0) {
     console.log(
-      `[seed] stops_config: ${brandSlug} already has stops, skipping structure seed`,
+      `[seed] chapters_config: ${brandSlug} already has stops, skipping structure seed`,
     );
     return;
   }
 
   const rows = STAGES.map((stage, i) => ({
     brand_id: brandId,
-    stop_key: stage.key,
+    chapter_key: stage.key,
     position: i,
     label: stage.label,
     name: stage.name,
@@ -621,9 +621,9 @@ async function seedStops(brandId: string, brandSlug: string) {
     content: STAGE_CONTENT[stage.key] ?? {},
   }));
 
-  const { error } = await app.from("stops_config").insert(rows);
-  if (error) throw new Error(`stops_config insert failed: ${error.message}`);
-  console.log(`[seed] stops_config: ${rows.length} rows for brand ${brandId}`);
+  const { error } = await app.from("chapters_config").insert(rows);
+  if (error) throw new Error(`chapters_config insert failed: ${error.message}`);
+  console.log(`[seed] chapters_config: ${rows.length} rows for brand ${brandId}`);
 }
 
 async function seedSteps(brandId: string, code: BrandCode) {
@@ -644,7 +644,7 @@ async function seedSteps(brandId: string, code: BrandCode) {
 
   type Row = {
     brand_id: string;
-    stop_key: string;
+    chapter_key: string;
     position: number;
     step_key: string;
     label: string;
@@ -654,15 +654,15 @@ async function seedSteps(brandId: string, code: BrandCode) {
     content_cards: SeedContentCard[];
   };
   const rows: Row[] = [];
-  for (const [stopKey, steps] of Object.entries(STOP_STEPS)) {
+  for (const [chapterKey, steps] of Object.entries(STOP_STEPS)) {
     steps.forEach((step, i) => {
-      const body = STATIC_BODIES[code]?.[stopKey]?.[step.key];
+      const body = STATIC_BODIES[code]?.[chapterKey]?.[step.key];
       const config: Record<string, unknown> = {};
       if (body) config.body = body;
-      if (stopKey === "explore" && step.key === "tour") {
+      if (chapterKey === "explore" && step.key === "tour") {
         config.slides = BRAND_TOUR_SLIDES[code];
       }
-      if (stopKey === "first_chat" && step.key === "hello") {
+      if (chapterKey === "first_chat" && step.key === "hello") {
         config.source = "youtube";
         config.url = "https://www.youtube.com/watch?v=aqz-KE-bpKQ";
         config.title = "A quick hello before we chat";
@@ -670,7 +670,7 @@ async function seedSteps(brandId: string, code: BrandCode) {
           "30 seconds on who we are and what to expect on the call.";
         config.cta_label = "Book my call →";
       }
-      if (stopKey === "first_chat" && step.key === "book") {
+      if (chapterKey === "first_chat" && step.key === "book") {
         config.duration_minutes = 60;
         config.days_ahead = 14;
         config.start_hour = 9;
@@ -686,12 +686,12 @@ async function seedSteps(brandId: string, code: BrandCode) {
       // Only Stop 1 Step 1 (explore/tour) ships with content cards in PR 8.
       // Every other step gets [] so the strip renders nothing.
       const cards: SeedContentCard[] =
-        stopKey === "explore" && step.key === "tour"
+        chapterKey === "explore" && step.key === "tour"
           ? BRAND_TOUR_CONTENT_CARDS[code]
           : [];
       rows.push({
         brand_id: brandId,
-        stop_key: stopKey,
+        chapter_key: chapterKey,
         position: i,
         step_key: step.key,
         label: step.label,
@@ -721,7 +721,7 @@ async function seedStop2Defaults(brandId: string, _code: BrandCode) {
     .from("steps_config")
     .select("id")
     .eq("brand_id", brandId)
-    .eq("stop_key", "first_chat")
+    .eq("chapter_key", "first_chat")
     .limit(1);
   if (readErr) throw new Error(`stop 2 probe failed: ${readErr.message}`);
   if (existing && existing.length > 0) {
@@ -732,7 +732,7 @@ async function seedStop2Defaults(brandId: string, _code: BrandCode) {
   const rows = [
     {
       brand_id: brandId,
-      stop_key: "first_chat",
+      chapter_key: "first_chat",
       position: 0,
       step_key: "hello",
       label: "Quick hello",
@@ -749,7 +749,7 @@ async function seedStop2Defaults(brandId: string, _code: BrandCode) {
     },
     {
       brand_id: brandId,
-      stop_key: "first_chat",
+      chapter_key: "first_chat",
       position: 1,
       step_key: "book",
       label: "Book your call",

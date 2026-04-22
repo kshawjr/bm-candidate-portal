@@ -145,7 +145,7 @@ export default async function PortalTokenPage({
 
   const [
     { data: portalContent },
-    { data: stopsRows },
+    { data: chaptersRows },
     { data: stepsRows },
     { data: applicationRows },
     { data: progressRows },
@@ -156,19 +156,19 @@ export default async function PortalTokenPage({
       .select("content_key, body, data")
       .eq("brand_id", brand.id),
     app
-      .from("stops_config")
-      .select("stop_key, position, label, name, icon")
+      .from("chapters_config")
+      .select("chapter_key, position, label, name, icon")
       .eq("brand_id", brand.id)
       .eq("is_archived", false)
       .order("position"),
     app
       .from("steps_config")
       .select(
-        "id, stop_key, position, step_key, label, description, content_type, config, content_cards",
+        "id, chapter_key, position, step_key, label, description, content_type, config, content_cards",
       )
       .eq("brand_id", brand.id)
       .eq("is_archived", false)
-      .order("stop_key")
+      .order("chapter_key")
       .order("position"),
     app
       .from("application_responses")
@@ -176,7 +176,7 @@ export default async function PortalTokenPage({
       .eq("candidate_in_portal_id", session.id),
     app
       .from("candidate_progress")
-      .select("stop_key, step_key, completed_at")
+      .select("chapter_key, step_key, completed_at")
       .eq("candidate_in_portal_id", session.id),
     app
       .from("bookings")
@@ -184,7 +184,7 @@ export default async function PortalTokenPage({
       .eq("candidate_in_portal_id", session.id),
   ]);
 
-  if (!stopsRows?.length) {
+  if (!chaptersRows?.length) {
     // Brand has no active stops — either freshly seeded with nothing yet, or
     // every stop has been archived in the admin. Render a friendly holding
     // page instead of crashing; admin can set up the structure and the
@@ -223,20 +223,20 @@ export default async function PortalTokenPage({
     `${brand.name} by the numbers`,
   );
 
-  const stops: Stop[] = stopsRows.map((s) => ({
-    stop_key: s.stop_key,
+  const stops: Stop[] = chaptersRows.map((s) => ({
+    chapter_key: s.chapter_key,
     position: s.position,
     label: s.label,
     name: s.name,
     icon: s.icon,
   }));
 
-  const stepsByStop: Record<string, Step[]> = {};
+  const stepsByChapter: Record<string, Step[]> = {};
   for (const row of stepsRows ?? []) {
     const step: Step = {
       id: row.id,
       step_key: row.step_key,
-      stop_key: row.stop_key,
+      chapter_key: row.chapter_key,
       position: row.position,
       label: row.label,
       description: row.description,
@@ -244,10 +244,10 @@ export default async function PortalTokenPage({
       config: (row.config ?? {}) as Record<string, unknown>,
       content_cards: Array.isArray(row.content_cards) ? row.content_cards : [],
     };
-    (stepsByStop[row.stop_key] ??= []).push(step);
+    (stepsByChapter[row.chapter_key] ??= []).push(step);
   }
-  for (const key of Object.keys(stepsByStop)) {
-    stepsByStop[key].sort((a, b) => a.position - b.position);
+  for (const key of Object.keys(stepsByChapter)) {
+    stepsByChapter[key].sort((a, b) => a.position - b.position);
   }
 
   const colors = brand.colors as BrandColorsWithPalette;
@@ -264,9 +264,9 @@ export default async function PortalTokenPage({
     stops.length - 1,
   );
   const storedStepIdx = session.current_step ?? 0;
-  const currentChapterKey_ = stops[currentChapterIdx]?.stop_key;
+  const currentChapterKey_ = stops[currentChapterIdx]?.chapter_key;
   const stepsInCurrentChapter = currentChapterKey_
-    ? (stepsRows ?? []).filter((r) => r.stop_key === currentChapterKey_).length
+    ? (stepsRows ?? []).filter((r) => r.chapter_key === currentChapterKey_).length
     : 0;
   const currentStepIdx = Math.min(
     Math.max(0, storedStepIdx),
@@ -302,16 +302,16 @@ export default async function PortalTokenPage({
   // Count distinct step_keys completed in the CURRENT stop — feeds the
   // "between stops" variant.
   const currentChapter = stops[currentChapterIdx];
-  const currentChapterKey = currentChapter?.stop_key;
+  const currentChapterKey = currentChapter?.chapter_key;
   const currentChapterCompletedKeys = new Set(
     progressList
-      .filter((r) => r.stop_key === currentChapterKey)
+      .filter((r) => r.chapter_key === currentChapterKey)
       .map((r) => r.step_key)
       .filter((k): k is string => typeof k === "string"),
   );
   const currentChapterStepCount =
-    currentChapterKey && stepsByStop[currentChapterKey]
-      ? stepsByStop[currentChapterKey].length
+    currentChapterKey && stepsByChapter[currentChapterKey]
+      ? stepsByChapter[currentChapterKey].length
       : 0;
   const lastActivityAt = session.last_activity_at
     ? new Date(session.last_activity_at)
@@ -373,7 +373,7 @@ export default async function PortalTokenPage({
         heroStats={heroStats}
         heroStripHeading={heroStripHeading}
         stops={stops}
-        stepsByStop={stepsByStop}
+        stepsByChapter={stepsByChapter}
         currentChapterIdx={currentChapterIdx}
         initialStopIdx={initialStopIdx}
         initialStepIdx={initialStepIdx}

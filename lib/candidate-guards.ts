@@ -67,19 +67,19 @@ async function hydrateCandidates(
  * candidates_in_portal.current_chapter by index.
  */
 export async function getCandidatesOnStop(
-  stopKey: string,
+  chapterKey: string,
   brandId: string,
 ): Promise<CandidateOnJourney[]> {
   const app = createAppServiceClient();
 
-  const { data: stopRow, error: stopErr } = await app
-    .from("stops_config")
+  const { data: chapterRow, error: stopErr } = await app
+    .from("chapters_config")
     .select("position")
     .eq("brand_id", brandId)
-    .eq("stop_key", stopKey)
+    .eq("chapter_key", chapterKey)
     .maybeSingle();
   if (stopErr) throw new Error(`stop lookup failed: ${stopErr.message}`);
-  if (!stopRow) return [];
+  if (!chapterRow) return [];
 
   const candidateIds = await candidateIdsForBrand(brandId);
   if (candidateIds.length === 0) return [];
@@ -88,7 +88,7 @@ export async function getCandidatesOnStop(
     .from("candidates_in_portal")
     .select("id, candidate_id, token, current_chapter, current_step")
     .in("candidate_id", candidateIds)
-    .eq("current_chapter", stopRow.position);
+    .eq("current_chapter", chapterRow.position);
   if (sessErr) throw new Error(`sessions lookup failed: ${sessErr.message}`);
 
   return hydrateCandidates(sessions ?? []);
@@ -105,20 +105,20 @@ export async function getCandidatesOnStep(
 
   const { data: stepRow, error: stepErr } = await app
     .from("steps_config")
-    .select("brand_id, stop_key, position")
+    .select("brand_id, chapter_key, position")
     .eq("id", stepId)
     .maybeSingle();
   if (stepErr) throw new Error(`step lookup failed: ${stepErr.message}`);
   if (!stepRow) return [];
 
-  const { data: stopRow, error: stopErr } = await app
-    .from("stops_config")
+  const { data: chapterRow, error: stopErr } = await app
+    .from("chapters_config")
     .select("position")
     .eq("brand_id", stepRow.brand_id)
-    .eq("stop_key", stepRow.stop_key)
+    .eq("chapter_key", stepRow.chapter_key)
     .maybeSingle();
   if (stopErr) throw new Error(`stop lookup failed: ${stopErr.message}`);
-  if (!stopRow) return [];
+  if (!chapterRow) return [];
 
   const candidateIds = await candidateIdsForBrand(stepRow.brand_id);
   if (candidateIds.length === 0) return [];
@@ -127,7 +127,7 @@ export async function getCandidatesOnStep(
     .from("candidates_in_portal")
     .select("id, candidate_id, token, current_chapter, current_step")
     .in("candidate_id", candidateIds)
-    .eq("current_chapter", stopRow.position)
+    .eq("current_chapter", chapterRow.position)
     .eq("current_step", stepRow.position);
   if (sessErr) throw new Error(`sessions lookup failed: ${sessErr.message}`);
 

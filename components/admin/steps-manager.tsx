@@ -75,7 +75,7 @@ const CONTENT_TYPE_LABEL: Record<string, string> = Object.fromEntries(
 interface Props {
   brandId: string;
   brandSlug: string;
-  stopKey: string;
+  chapterKey: string;
   stopLabel: string;
   stopName: string;
   stopNumber: number;
@@ -83,7 +83,7 @@ interface Props {
   onSelectStep: (stepId: string) => void;
   createStep: (
     brandId: string,
-    stopKey: string,
+    chapterKey: string,
     data: StepFormData,
   ) => Promise<string>;
   updateStep: (
@@ -94,7 +94,7 @@ interface Props {
   archiveStep: (stepId: string, archived: boolean) => Promise<void>;
   reorderSteps: (
     brandId: string,
-    stopKey: string,
+    chapterKey: string,
     orderedStepIds: string[],
   ) => Promise<void>;
 }
@@ -107,7 +107,7 @@ type DrawerState =
 export function StepsManager({
   brandId,
   brandSlug: _brandSlug,
-  stopKey,
+  chapterKey,
   stopLabel,
   stopName,
   stopNumber,
@@ -152,7 +152,7 @@ export function StepsManager({
     const [moved] = next.splice(i, 1);
     next.splice(target, 0, moved);
     run(
-      () => reorderSteps(brandId, stopKey, next.map((s) => s.id)),
+      () => reorderSteps(brandId, chapterKey, next.map((s) => s.id)),
       "Steps reordered",
     );
   };
@@ -183,7 +183,7 @@ export function StepsManager({
       setError(null);
       startTransition(async () => {
         try {
-          const newId = await createStep(brandId, stopKey, data);
+          const newId = await createStep(brandId, chapterKey, data);
           setToast("Step added");
           setDrawer(null);
           router.refresh();
