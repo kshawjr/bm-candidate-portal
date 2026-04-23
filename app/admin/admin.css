@@ -1503,3 +1503,8 @@
   font-size: 12px;
   margin-top: 2px;
 }
+.adm-candidates-financials {
+  font-size: 12px;
+  line-height: 1.5;
+  color: #374151;
+}

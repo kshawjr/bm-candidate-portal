@@ -18,6 +18,9 @@ export interface CandidateRow {
   stepNumber: number;
   lastActivityAt: string | null;
   isTest: boolean;
+  liquidCapitalLabel: string | null;
+  netWorthLabel: string | null;
+  creditScoreLabel: string | null;
 }
 
 interface Props {
@@ -73,6 +76,7 @@ export function CandidatesTable({ rows }: Props) {
             <th>Candidate</th>
             <th>Brand</th>
             <th>Position</th>
+            <th>Financials</th>
             <th>Last activity</th>
             <th aria-label="Actions" />
           </tr>
@@ -101,6 +105,23 @@ export function CandidatesTable({ rows }: Props) {
                   <div className="adm-muted adm-candidates-sub">
                     {r.chapterLabel}
                   </div>
+                )}
+              </td>
+              <td>
+                {r.liquidCapitalLabel || r.netWorthLabel || r.creditScoreLabel ? (
+                  <div className="adm-candidates-financials">
+                    {r.liquidCapitalLabel && (
+                      <div>Liq: {r.liquidCapitalLabel}</div>
+                    )}
+                    {r.netWorthLabel && (
+                      <div>NW: {r.netWorthLabel}</div>
+                    )}
+                    {r.creditScoreLabel && (
+                      <div>Credit: {r.creditScoreLabel}</div>
+                    )}
+                  </div>
+                ) : (
+                  <span className="adm-muted">—</span>
                 )}
               </td>
               <td>{formatRelative(r.lastActivityAt)}</td>

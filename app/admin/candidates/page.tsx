@@ -6,6 +6,12 @@ import {
   CandidatesTable,
   type CandidateRow,
 } from "@/components/admin/candidates-table";
+import {
+  LIQUID_CAPITAL_RANGES,
+  NET_WORTH_RANGES,
+  CREDIT_SCORE_RANGES,
+  humanizeOption,
+} from "@/lib/application-options";
 
 export const dynamic = "force-dynamic";
 
@@ -74,6 +80,33 @@ export default async function AdminCandidatesPage() {
     return match ? ((match.label as string) ?? null) : null;
   };
 
+  // Financial answers — filtered to the three keys we surface on this page.
+  // application_responses.field_value is jsonb; the renderer stores plain
+  // string enums for these, so cast and read directly.
+  const sessionIds = sessionList.map((s) => s.id as string);
+  const { data: financials } = sessionIds.length
+    ? await app
+        .from("application_responses")
+        .select("candidate_in_portal_id, field_key, field_value")
+        .in("candidate_in_portal_id", sessionIds)
+        .in("field_key", [
+          "liquid_capital_range",
+          "net_worth_range",
+          "credit_score_range",
+        ])
+    : { data: [] };
+  const financialBySession = new Map<string, Record<string, string>>();
+  for (const row of financials ?? []) {
+    const sid = row.candidate_in_portal_id as string;
+    const key = row.field_key as string;
+    const raw = row.field_value;
+    const val = typeof raw === "string" ? raw : "";
+    if (!val) continue;
+    const bucket = financialBySession.get(sid) ?? {};
+    bucket[key] = val;
+    financialBySession.set(sid, bucket);
+  }
+
   const rows: CandidateRow[] = sessionList.map((s) => {
     const candidate = s.candidate_id
       ? candidateById.get(s.candidate_id as string)
@@ -87,6 +120,7 @@ export default async function AdminCandidatesPage() {
     const chapterIdx = (s.current_chapter as number | null) ?? 0;
     const stepIdx = (s.current_step as number | null) ?? 0;
     const token = s.token as string;
+    const fin = financialBySession.get(s.id as string) ?? {};
     return {
       token,
       candidateId: (s.candidate_id as string) ?? "",
@@ -98,6 +132,15 @@ export default async function AdminCandidatesPage() {
       stepNumber: stepIdx + 1,
       lastActivityAt: (s.last_activity_at as string | null) ?? null,
       isTest: token.startsWith("test-"),
+      liquidCapitalLabel: fin.liquid_capital_range
+        ? humanizeOption(fin.liquid_capital_range, LIQUID_CAPITAL_RANGES)
+        : null,
+      netWorthLabel: fin.net_worth_range
+        ? humanizeOption(fin.net_worth_range, NET_WORTH_RANGES)
+        : null,
+      creditScoreLabel: fin.credit_score_range
+        ? humanizeOption(fin.credit_score_range, CREDIT_SCORE_RANGES)
+        : null,
     };
   });
 

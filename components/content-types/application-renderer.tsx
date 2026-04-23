@@ -18,18 +18,11 @@ import {
   type VerifiedContact,
 } from "@/components/application/verification-screen";
 import { ChapterIntroScreen } from "@/components/application/chapter-intro-screen";
+import { FinancialCheckScreen } from "@/components/application/financial-check-screen";
 import { SignOffScreen } from "@/components/application/sign-off-screen";
 import { SuccessScreen } from "@/components/application/success-screen";
 
 // ---------- Option sets ----------
-
-const MONEY_RANGES: SelectOption[] = [
-  { value: "under_250k", label: "Under $250K" },
-  { value: "250k_500k",  label: "$250K – $500K" },
-  { value: "500k_1m",    label: "$500K – $1M" },
-  { value: "1m_2m",      label: "$1M – $2M" },
-  { value: "2m_plus",    label: "$2M+" },
-];
 
 const OPENING_TIMELINE: SelectOption[] = [
   { value: "asap",         label: "As soon as possible" },
@@ -96,9 +89,23 @@ interface Props {
 // ---------- Screen helpers ----------
 
 // Total number of screens including success; progress uses (idx / (LAST_INTERACTIVE))
-const LAST_INTERACTIVE_IDX = 12; // sign-off
-const SUCCESS_IDX = 13;
-const TOTAL_SCREENS = 14;
+// Screen layout:
+//   0  verification
+//   1  Q1 current_role
+//   2  Q2 location
+//   3  Q3 motivation
+//   4  Chapter 2 intro
+//   5  Quick financial check (liquid_capital + net_worth + credit_score)
+//   6  Q7 bankruptcy
+//   7  Q8 opening_timeline
+//   8  Q9 involvement_level
+//   9  Q10 growth_plan
+//   10 Q11 discovery_source
+//   11 sign-off
+//   12 success
+const LAST_INTERACTIVE_IDX = 11; // sign-off
+const SUCCESS_IDX = 12;
+const TOTAL_SCREENS = 13;
 
 function progressFor(idx: number): number {
   if (idx >= SUCCESS_IDX) return 100;
@@ -202,7 +209,7 @@ export function ApplicationRenderer({
     const v = (answers.current_role as string) ?? "";
     return (
       <QuestionScreen
-        eyebrow="Chapter 1 of 4 · Question 1 of 10"
+        eyebrow="Chapter 1 of 4 · Question 1 of 11"
         question="What do you do now?"
         progressPct={p}
         canAdvance={v.trim().length > 0}
@@ -227,7 +234,7 @@ export function ApplicationRenderer({
     };
     return (
       <QuestionScreen
-        eyebrow="Chapter 1 of 4 · Question 2 of 10"
+        eyebrow="Chapter 1 of 4 · Question 2 of 11"
         question="Where are you?"
         progressPct={p}
         canAdvance={v.state.length > 0 && v.metro.trim().length > 0}
@@ -250,7 +257,7 @@ export function ApplicationRenderer({
     const v = (answers.motivation as string) ?? "";
     return (
       <QuestionScreen
-        eyebrow="Chapter 1 of 4 · Question 3 of 10"
+        eyebrow="Chapter 1 of 4 · Question 3 of 11"
         question="What's drawing you to this?"
         progressPct={p}
         canAdvance={v.trim().length > 0}
@@ -280,53 +287,33 @@ export function ApplicationRenderer({
     );
   }
 
-  // 5: Q4 net worth
+  // 5: Quick financial check (liquid capital + net worth + credit score chips)
   if (idx === 5) {
-    const v = (answers.net_worth_range as string) ?? "";
+    const v = {
+      liquid_capital_range: (answers.liquid_capital_range as string) ?? "",
+      net_worth_range: (answers.net_worth_range as string) ?? "",
+      credit_score_range: (answers.credit_score_range as string) ?? "",
+    };
     return (
-      <QuestionScreen
-        eyebrow="Chapter 2 of 4 · Question 4 of 10"
-        question="What's your current net worth?"
+      <FinancialCheckScreen
+        value={v}
+        onChange={(patch) => setA(patch)}
         progressPct={p}
-        canAdvance={v.length > 0}
         onBack={goBack}
-        onNext={() => advanceWithSave(["net_worth_range"])}
+        onNext={() =>
+          advanceWithSave([
+            "liquid_capital_range",
+            "net_worth_range",
+            "credit_score_range",
+          ])
+        }
         pending={pending}
-      >
-        <SingleSelectField
-          value={v}
-          onChange={(x) => setA({ net_worth_range: x })}
-          options={MONEY_RANGES}
-        />
-      </QuestionScreen>
+      />
     );
   }
 
-  // 6: Q5 liquid capital
+  // 6: Q7 bankruptcy
   if (idx === 6) {
-    const v = (answers.liquid_capital_range as string) ?? "";
-    return (
-      <QuestionScreen
-        eyebrow="Chapter 2 of 4 · Question 5 of 10"
-        question="How much liquid capital could you put toward this?"
-        subCaption="Cash, savings, or other quickly available funds — not including retirement accounts."
-        progressPct={p}
-        canAdvance={v.length > 0}
-        onBack={goBack}
-        onNext={() => advanceWithSave(["liquid_capital_range"])}
-        pending={pending}
-      >
-        <SingleSelectField
-          value={v}
-          onChange={(x) => setA({ liquid_capital_range: x })}
-          options={MONEY_RANGES}
-        />
-      </QuestionScreen>
-    );
-  }
-
-  // 7: Q6 bankruptcy
-  if (idx === 7) {
     const v: YesNoWithFollowupValue = {
       answer:
         answers.has_filed_bankruptcy === true
@@ -338,7 +325,7 @@ export function ApplicationRenderer({
     };
     return (
       <QuestionScreen
-        eyebrow="Chapter 2 of 4 · Question 6 of 10"
+        eyebrow="Chapter 2 of 4 · Question 7 of 11"
         question="Have you ever filed for bankruptcy?"
         progressPct={p}
         canAdvance={v.answer !== null}
@@ -362,12 +349,12 @@ export function ApplicationRenderer({
     );
   }
 
-  // 8: Q7 opening timeline
-  if (idx === 8) {
+  // 7: Q8 opening timeline
+  if (idx === 7) {
     const v = (answers.opening_timeline as string) ?? "";
     return (
       <QuestionScreen
-        eyebrow="Chapter 3 of 4 · Question 7 of 10"
+        eyebrow="Chapter 3 of 4 · Question 8 of 11"
         question="When would you want to open?"
         progressPct={p}
         canAdvance={v.length > 0}
@@ -384,12 +371,12 @@ export function ApplicationRenderer({
     );
   }
 
-  // 9: Q8 involvement level
-  if (idx === 9) {
+  // 8: Q9 involvement level
+  if (idx === 8) {
     const v = (answers.involvement_level as string) ?? "";
     return (
       <QuestionScreen
-        eyebrow="Chapter 3 of 4 · Question 8 of 10"
+        eyebrow="Chapter 3 of 4 · Question 9 of 11"
         question="How hands-on do you want to be?"
         progressPct={p}
         canAdvance={v.length > 0}
@@ -406,12 +393,12 @@ export function ApplicationRenderer({
     );
   }
 
-  // 10: Q9 growth plan
-  if (idx === 10) {
+  // 9: Q10 growth plan
+  if (idx === 9) {
     const v = (answers.growth_plan as string) ?? "";
     return (
       <QuestionScreen
-        eyebrow="Chapter 3 of 4 · Question 9 of 10"
+        eyebrow="Chapter 3 of 4 · Question 10 of 11"
         question="One location, or building a portfolio?"
         progressPct={p}
         canAdvance={v.length > 0}
@@ -428,8 +415,8 @@ export function ApplicationRenderer({
     );
   }
 
-  // 11: Q10 discovery source (with "Other" text)
-  if (idx === 11) {
+  // 10: Q11 discovery source (with "Other" text)
+  if (idx === 10) {
     const v: SelectWithOtherValue = {
       value: (answers.discovery_source as string) ?? "",
       otherText: (answers.discovery_source_other as string) ?? "",
@@ -439,7 +426,7 @@ export function ApplicationRenderer({
       (v.value !== "other" || v.otherText.trim().length > 0);
     return (
       <QuestionScreen
-        eyebrow="Chapter 4 of 4 · Question 10 of 10"
+        eyebrow="Chapter 4 of 4 · Question 11 of 11"
         question="How'd you find us?"
         progressPct={p}
         canAdvance={canAdvance}
@@ -463,8 +450,8 @@ export function ApplicationRenderer({
     );
   }
 
-  // 12: Sign-off
-  if (idx === 12) {
+  // 11: Sign-off
+  if (idx === 11) {
     return (
       <SignOffScreen
         initialName={(answers.verified_name as string) ?? ""}
