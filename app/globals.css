@@ -1129,6 +1129,95 @@ body {
   font-weight: 400;
 }
 
+/* Quick financial check — chip group selectors with progressive reveal */
+.financial-section {
+  display: flex;
+  flex-direction: column;
+}
+.financial-section-header {
+  margin-bottom: 8px;
+}
+.financial-section-eyebrow {
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--brand-accent, var(--brand-primary));
+  margin: 0 0 4px;
+}
+.financial-section-subhead {
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--cin-text-muted);
+  margin: 0;
+}
+.financial-question {
+  opacity: 0;
+  max-height: 0;
+  overflow: hidden;
+  transition: opacity 400ms ease-out, max-height 400ms ease-out, margin-top 400ms ease-out;
+  margin-top: 0;
+}
+.financial-question.visible {
+  opacity: 1;
+  max-height: 300px;
+  margin-top: 24px;
+}
+.financial-question-prompt {
+  font-family: var(--font-body);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--cin-text);
+  margin: 0 0 12px;
+}
+.financial-chip-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.financial-chip {
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 600;
+  padding: 10px 18px;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  color: var(--cin-text);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.financial-chip:hover:not(.selected) {
+  background: color-mix(in srgb, var(--brand-primary) 4%, transparent);
+  border-color: color-mix(in srgb, var(--brand-primary) 40%, var(--border-strong));
+}
+.financial-chip:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand-primary) 25%, transparent);
+}
+.financial-chip.selected {
+  background: color-mix(in srgb, var(--brand-primary) 10%, var(--surface));
+  border-color: var(--brand-primary);
+  color: var(--brand-dark, var(--brand-primary));
+  box-shadow: 0 0 0 1px var(--brand-primary) inset;
+}
+.financial-chip.selected::before {
+  content: "✓ ";
+  font-weight: 700;
+}
+@media (prefers-reduced-motion: reduce) {
+  .financial-question {
+    opacity: 1;
+    max-height: none;
+    margin-top: 24px;
+    transition: none;
+  }
+  .financial-chip {
+    transition: none;
+  }
+}
+
 .app-toggle-row {
   display: flex;
   gap: 10px;
