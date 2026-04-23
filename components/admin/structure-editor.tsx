@@ -3,9 +3,9 @@
 import Link from "next/link";
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import type { StopFormData } from "@/app/admin/structure/actions";
+import type { ChapterFormData } from "@/app/admin/structure/actions";
 
-export interface AdminStopRow {
+export interface AdminChapterRow {
   id: string;
   chapter_key: string;
   position: number;
@@ -22,32 +22,32 @@ interface Props {
   brandId: string;
   brandSlug: string;
   brandName: string;
-  stops: AdminStopRow[];
-  createStop: (brandId: string, data: StopFormData) => Promise<void>;
-  updateStop: (
-    stopId: string,
-    data: Omit<StopFormData, "chapter_key">,
+  chapters: AdminChapterRow[];
+  createChapter: (brandId: string, data: ChapterFormData) => Promise<void>;
+  updateChapter: (
+    chapterId: string,
+    data: Omit<ChapterFormData, "chapter_key">,
   ) => Promise<void>;
-  deleteStop: (stopId: string) => Promise<void>;
-  archiveStop: (stopId: string, archived: boolean) => Promise<void>;
-  reorderStops: (brandId: string, orderedStopIds: string[]) => Promise<void>;
+  deleteChapter: (chapterId: string) => Promise<void>;
+  archiveChapter: (chapterId: string, archived: boolean) => Promise<void>;
+  reorderChapters: (brandId: string, orderedChapterIds: string[]) => Promise<void>;
 }
 
 type DrawerState =
   | null
   | { mode: "create" }
-  | { mode: "edit"; stop: AdminStopRow };
+  | { mode: "edit"; chapter: AdminChapterRow };
 
 export function StructureEditor({
   brandId,
   brandSlug,
   brandName,
-  stops,
-  createStop,
-  updateStop,
-  deleteStop,
-  archiveStop,
-  reorderStops,
+  chapters,
+  createChapter,
+  updateChapter,
+  deleteChapter,
+  archiveChapter,
+  reorderChapters,
 }: Props) {
   const router = useRouter();
   const [drawer, setDrawer] = useState<DrawerState>(null);
@@ -76,40 +76,40 @@ export function StructureEditor({
 
   const handleMove = (i: number, dir: -1 | 1) => {
     const target = i + dir;
-    if (target < 0 || target >= stops.length) return;
-    const next = [...stops];
+    if (target < 0 || target >= chapters.length) return;
+    const next = [...chapters];
     const [moved] = next.splice(i, 1);
     next.splice(target, 0, moved);
-    run(() => reorderStops(brandId, next.map((s) => s.id)), "Stops reordered");
+    run(() => reorderChapters(brandId, next.map((s) => s.id)), "Chapters reordered");
   };
 
-  const handleDelete = (stop: AdminStopRow) => {
-    if (!confirm(`Delete "${stop.label}"? This cannot be undone.`)) return;
-    run(() => deleteStop(stop.id), "Stop deleted");
+  const handleDelete = (chapter: AdminChapterRow) => {
+    if (!confirm(`Delete "${chapter.label}"? This cannot be undone.`)) return;
+    run(() => deleteChapter(chapter.id), "Chapter deleted");
   };
 
-  const handleArchive = (stop: AdminStopRow) => {
-    const next = !stop.is_archived;
+  const handleArchive = (chapter: AdminChapterRow) => {
+    const next = !chapter.is_archived;
     const msg = next
-      ? `Archive "${stop.label}"? It will be hidden from candidates but preserved here.`
-      : `Unarchive "${stop.label}"?`;
+      ? `Archive "${chapter.label}"? It will be hidden from candidates but preserved here.`
+      : `Unarchive "${chapter.label}"?`;
     if (!confirm(msg)) return;
     run(
-      () => archiveStop(stop.id, next),
-      next ? "Stop archived" : "Stop unarchived",
+      () => archiveChapter(chapter.id, next),
+      next ? "Chapter archived" : "Chapter unarchived",
     );
   };
 
   const handleDrawerSave = (
-    data: StopFormData,
-    stopId: string | null,
+    data: ChapterFormData,
+    chapterId: string | null,
   ) => {
-    if (stopId === null) {
-      run(() => createStop(brandId, data), "Stop added");
+    if (chapterId === null) {
+      run(() => createChapter(brandId, data), "Chapter added");
     } else {
       const { chapter_key: _unused, ...rest } = data;
       void _unused;
-      run(() => updateStop(stopId, rest), "Stop updated");
+      run(() => updateChapter(chapterId, rest), "Chapter updated");
     }
     setDrawer(null);
   };
@@ -120,8 +120,8 @@ export function StructureEditor({
         <div>
           <h1 className="admin-h1">Structure</h1>
           <p className="admin-muted">
-            Manage the journey for <strong>{brandName}</strong> — stops here,
-            then open a stop to edit its steps.
+            Manage the journey for <strong>{brandName}</strong> — chapters here,
+            then open a chapter to edit its steps.
           </p>
         </div>
         <button
@@ -130,64 +130,64 @@ export function StructureEditor({
           onClick={() => setDrawer({ mode: "create" })}
           disabled={pending}
         >
-          + Add stop
+          + Add chapter
         </button>
       </header>
 
-      {stops.length === 0 ? (
+      {chapters.length === 0 ? (
         <div className="adm-cardlist-empty">
           <p>
-            No stops yet. Add the first stop to start building the journey.
+            No chapters yet. Add the first chapter to start building the journey.
           </p>
         </div>
       ) : (
-        <ul className="structure-stoplist">
-          {stops.map((stop, i) => (
+        <ul className="structure-chapterlist">
+          {chapters.map((chapter, i) => (
             <li
-              key={stop.id}
-              className={`structure-stoprow${stop.is_archived ? " archived" : ""}`}
+              key={chapter.id}
+              className={`structure-chapterrow${chapter.is_archived ? " archived" : ""}`}
             >
-              <span className="structure-stoprow-handle" aria-hidden="true">
+              <span className="structure-chapterrow-handle" aria-hidden="true">
                 ≡
               </span>
-              <span className="structure-stoprow-num">{i + 1}</span>
-              {stop.icon && (
-                <span className="structure-stoprow-icon">{stop.icon}</span>
+              <span className="structure-chapterrow-num">{i + 1}</span>
+              {chapter.icon && (
+                <span className="structure-chapterrow-icon">{chapter.icon}</span>
               )}
-              <div className="structure-stoprow-meta">
-                <div className="structure-stoprow-title">
-                  <span className="structure-stoprow-label">{stop.label}</span>
-                  <span className="structure-stoprow-name">({stop.name})</span>
-                  {stop.is_archived && (
+              <div className="structure-chapterrow-meta">
+                <div className="structure-chapterrow-title">
+                  <span className="structure-chapterrow-label">{chapter.label}</span>
+                  <span className="structure-chapterrow-name">({chapter.name})</span>
+                  {chapter.is_archived && (
                     <span className="structure-chip">Archived</span>
                   )}
                 </div>
-                <div className="structure-stoprow-sub">
+                <div className="structure-chapterrow-sub">
                   <Link
-                    href={`/admin/content?brand=${brandSlug}&chapter=${stop.chapter_key}`}
-                    className="structure-stoprow-steps"
+                    href={`/admin/content?brand=${brandSlug}&chapter=${chapter.chapter_key}`}
+                    className="structure-chapterrow-steps"
                   >
-                    {stop.step_count === 0
+                    {chapter.step_count === 0
                       ? "0 steps"
-                      : `${stop.step_count} step${stop.step_count === 1 ? "" : "s"}`}
-                    {stop.step_count_total > stop.step_count && (
+                      : `${chapter.step_count} step${chapter.step_count === 1 ? "" : "s"}`}
+                    {chapter.step_count_total > chapter.step_count && (
                       <span className="structure-muted">
                         {" "}
-                        · {stop.step_count_total - stop.step_count} archived
+                        · {chapter.step_count_total - chapter.step_count} archived
                       </span>
                     )}
                     {" →"}
                   </Link>
-                  <span className="structure-muted">· key: {stop.chapter_key}</span>
+                  <span className="structure-muted">· key: {chapter.chapter_key}</span>
                 </div>
               </div>
-              <div className="structure-stoprow-reorder">
+              <div className="structure-chapterrow-reorder">
                 <button
                   type="button"
                   className="adm-icon-btn"
                   onClick={() => handleMove(i, -1)}
                   disabled={i === 0 || pending}
-                  aria-label="Move stop up"
+                  aria-label="Move chapter up"
                   title="Move up"
                 >
                   ↑
@@ -196,18 +196,18 @@ export function StructureEditor({
                   type="button"
                   className="adm-icon-btn"
                   onClick={() => handleMove(i, 1)}
-                  disabled={i === stops.length - 1 || pending}
-                  aria-label="Move stop down"
+                  disabled={i === chapters.length - 1 || pending}
+                  aria-label="Move chapter down"
                   title="Move down"
                 >
                   ↓
                 </button>
               </div>
-              <div className="structure-stoprow-actions">
+              <div className="structure-chapterrow-actions">
                 <button
                   type="button"
                   className="adm-btn-ghost"
-                  onClick={() => setDrawer({ mode: "edit", stop })}
+                  onClick={() => setDrawer({ mode: "edit", chapter })}
                   disabled={pending}
                 >
                   Edit
@@ -215,22 +215,22 @@ export function StructureEditor({
                 <button
                   type="button"
                   className="adm-btn-ghost"
-                  onClick={() => handleArchive(stop)}
+                  onClick={() => handleArchive(chapter)}
                   disabled={pending}
                   title={
-                    stop.is_archived
-                      ? "Unarchive this stop"
+                    chapter.is_archived
+                      ? "Unarchive this chapter"
                       : "Hide from candidates without deleting"
                   }
                 >
-                  {stop.is_archived ? "Unarchive" : "Archive"}
+                  {chapter.is_archived ? "Unarchive" : "Archive"}
                 </button>
                 <button
                   type="button"
                   className="adm-btn-ghost adm-btn-danger"
-                  onClick={() => handleDelete(stop)}
+                  onClick={() => handleDelete(chapter)}
                   disabled={pending}
-                  title="Permanently delete this stop"
+                  title="Permanently delete this chapter"
                 >
                   Delete
                 </button>
@@ -245,8 +245,8 @@ export function StructureEditor({
       )}
 
       {drawer && (
-        <StopDrawer
-          initial={drawer.mode === "edit" ? drawer.stop : null}
+        <ChapterDrawer
+          initial={drawer.mode === "edit" ? drawer.chapter : null}
           onCancel={() => setDrawer(null)}
           onSave={handleDrawerSave}
           saving={pending}
@@ -261,15 +261,15 @@ export function StructureEditor({
 // ---- drawer ----
 
 interface DrawerProps {
-  initial: AdminStopRow | null;
+  initial: AdminChapterRow | null;
   onCancel: () => void;
-  onSave: (data: StopFormData, stopId: string | null) => void;
+  onSave: (data: ChapterFormData, chapterId: string | null) => void;
   saving: boolean;
 }
 
-function StopDrawer({ initial, onCancel, onSave, saving }: DrawerProps) {
+function ChapterDrawer({ initial, onCancel, onSave, saving }: DrawerProps) {
   const isEdit = initial !== null;
-  const [form, setForm] = useState<StopFormData>(() => ({
+  const [form, setForm] = useState<ChapterFormData>(() => ({
     chapter_key: initial?.chapter_key ?? "",
     label: initial?.label ?? "",
     name: initial?.name ?? "",
@@ -288,10 +288,10 @@ function StopDrawer({ initial, onCancel, onSave, saving }: DrawerProps) {
         <header className="adm-drawer-head">
           <div>
             <div className="adm-drawer-eyebrow">
-              {isEdit ? "Edit" : "Add"} stop
+              {isEdit ? "Edit" : "Add"} chapter
             </div>
             <h2 className="adm-drawer-title">
-              {isEdit ? initial!.label : "New stop"}
+              {isEdit ? initial!.label : "New chapter"}
             </h2>
           </div>
           <button
@@ -307,7 +307,7 @@ function StopDrawer({ initial, onCancel, onSave, saving }: DrawerProps) {
         <div className="adm-drawer-body">
           <label className="adm-field">
             <span className="adm-form-label">
-              Stop key{" "}
+              Chapter key{" "}
               <span className="adm-form-required" aria-hidden="true">
                 *
               </span>
@@ -364,7 +364,7 @@ function StopDrawer({ initial, onCancel, onSave, saving }: DrawerProps) {
               placeholder="Discovery call"
             />
             <span className="adm-form-hint">
-              Full stop name — shown in the step strip header.
+              Full chapter name — shown in the step strip header.
             </span>
           </label>
 

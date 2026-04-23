@@ -5,7 +5,7 @@ import { createCoreClient } from "@/lib/core-client";
 import {
   ContentEditor,
   type AdminStep,
-  type AdminStop,
+  type AdminChapter,
 } from "@/components/admin/content-editor";
 import type { ContentCard } from "@/components/content-cards/types";
 import type { Slide } from "@/components/content-types/slides-renderer";
@@ -86,7 +86,7 @@ export default async function ContentEditorPage({ searchParams }: Props) {
       .order("position"),
   ]);
 
-  const stops: AdminStop[] = (chaptersRows ?? []).map((s) => ({
+  const chapters: AdminChapter[] = (chaptersRows ?? []).map((s) => ({
     id: s.id,
     chapter_key: s.chapter_key,
     position: s.position,
@@ -130,7 +130,7 @@ export default async function ContentEditorPage({ searchParams }: Props) {
   const allStepIds = new Set(
     Object.values(stepsByChapter).flatMap((arr) => arr.map((s) => s.id)),
   );
-  const allChapterKeys = new Set(stops.map((s) => s.chapter_key));
+  const allChapterKeys = new Set(chapters.map((s) => s.chapter_key));
   const initialStepId =
     requestedStepId && allStepIds.has(requestedStepId) ? requestedStepId : null;
   const initialChapterKey =
@@ -148,7 +148,7 @@ export default async function ContentEditorPage({ searchParams }: Props) {
       brandSlug={brand.slug}
       brandName={brand.name}
       brandShortName={brandShortName}
-      stops={stops}
+      chapters={chapters}
       stepsByChapter={stepsByChapter}
       initialStepId={initialStepId}
       initialChapterKey={initialChapterKey}

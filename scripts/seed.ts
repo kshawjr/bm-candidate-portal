@@ -6,7 +6,7 @@
  *   - this app:    chapters_config, steps_config, candidates_in_portal rows
  *
  * Source of truth: docs/design-prototypes/candidate-portal-design-v18.html
- *   (BRAND_MARKETING, STAGES, STAGE_CONTENT, STAGE_ICONS, STOP_STEPS)
+ *   (BRAND_MARKETING, STAGES, STAGE_CONTENT, STAGE_ICONS, CHAPTER_STEPS)
  *
  * Run with:  npm run seed
  */
@@ -19,8 +19,8 @@ import { createClient } from "@supabase/supabase-js";
 
 // ---------- v18 seed constants ----------
 
-// label = warm sidebar label (user-facing, shown in the stops list)
-// name  = professional phrasing shown in the step strip header ("STOP 2 · DISCOVERY CALL")
+// label = warm sidebar label (user-facing, shown in the chapters list)
+// name  = professional phrasing shown in the step strip header ("CHAPTER 2 · DISCOVERY CALL")
 const STAGES = [
   { key: "explore",    label: "Get to know us",      name: "Education & qualification", icon: "✨" },
   { key: "first_chat", label: "Say hi",              name: "Discovery call",            icon: "📞" },
@@ -113,7 +113,7 @@ const STAGE_CONTENT: Record<string, Record<string, string>> = {
 
 type ContentType = "slides" | "static" | "application" | "schedule" | "video" | "call_prep" | "document" | "checklist";
 
-const STOP_STEPS: Record<string, Array<{ key: string; label: string; type: ContentType; desc: string }>> = {
+const CHAPTER_STEPS: Record<string, Array<{ key: string; label: string; type: ContentType; desc: string }>> = {
   explore: [
     { key: "tour",     label: "Brand tour",         type: "slides",      desc: "A short walk through who we are" },
     { key: "app",      label: "Light application",  type: "application", desc: "Quick questions so we can get to know you" },
@@ -178,8 +178,8 @@ interface BrandMarketing {
   leaderRole: string;
   leaderEmail: string;
   brandMarkHtml: string;
-  // Stop 1 hero strip — 4 larger stats, visible only when the candidate is
-  // on Stop 1 (Explore).
+  // Chapter 1 hero strip — 4 larger stats, visible only when the candidate is
+  // on Chapter 1 (Explore).
   heroStats: [StatItem, StatItem, StatItem, StatItem];
 }
 
@@ -238,7 +238,7 @@ const BRAND_MARKETING: Record<BrandCode, BrandMarketing> = {
   },
 };
 
-// Content cards rendered below step content. Only Stop 1 Step 1 (brand tour)
+// Content cards rendered below step content. Only Chapter 1 Step 1 (brand tour)
 // gets cards in PR 8; every other step's content_cards column stays [].
 // Card schema: see components/content-cards/types.ts.
 type SeedContentCard = Record<string, unknown>;
@@ -555,7 +555,7 @@ async function seedPortalContent(brandId: string, code: BrandCode) {
     { brand_id: brandId, content_key: "brand_mark_html", content_type: "markdown", body: m.brandMarkHtml },
   ];
 
-  // Flat stat keys for the Stop 1 hero strip (4 stats). The sidebar
+  // Flat stat keys for the Chapter 1 hero strip (4 stats). The sidebar
   // "By the numbers" card was replaced by a context-aware journey card in
   // PR 8 — its sidebar_stat_* keys are no longer seeded. Existing rows on
   // brands that had them will remain (upsert only adds/updates, doesn't
@@ -571,9 +571,9 @@ async function seedPortalContent(brandId: string, code: BrandCode) {
   console.log(`[seed] portal_content: ${rows.length} rows for ${code}`);
 }
 
-async function seedStops(brandId: string, brandSlug: string) {
-  // As of PR 15, admins manage stops via /admin/structure. Seed the default
-  // 7-stop structure only when the brand has never had stops before. On
+async function seedChapters(brandId: string, brandSlug: string) {
+  // As of PR 15, admins manage chapters via /admin/structure. Seed the default
+  // 7-chapter structure only when the brand has never had chapters before. On
   // re-runs against an existing brand, skip so admin edits aren't clobbered.
   const { data: existing, error: readErr } = await app
     .from("chapters_config")
@@ -583,7 +583,7 @@ async function seedStops(brandId: string, brandSlug: string) {
   if (readErr) throw new Error(`chapters_config probe failed: ${readErr.message}`);
   if (existing && existing.length > 0) {
     console.log(
-      `[seed] chapters_config: ${brandSlug} already has stops, skipping structure seed`,
+      `[seed] chapters_config: ${brandSlug} already has chapters, skipping structure seed`,
     );
     return;
   }
@@ -604,7 +604,7 @@ async function seedStops(brandId: string, brandSlug: string) {
 }
 
 async function seedSteps(brandId: string, code: BrandCode) {
-  // Same rationale as seedStops: admin owns step structure once it exists.
+  // Same rationale as seedChapters: admin owns step structure once it exists.
   // Skip the seed when the brand already has any steps defined.
   const { data: existingSteps, error: readErr } = await app
     .from("steps_config")
@@ -631,7 +631,7 @@ async function seedSteps(brandId: string, code: BrandCode) {
     content_cards: SeedContentCard[];
   };
   const rows: Row[] = [];
-  for (const [chapterKey, steps] of Object.entries(STOP_STEPS)) {
+  for (const [chapterKey, steps] of Object.entries(CHAPTER_STEPS)) {
     steps.forEach((step, i) => {
       const body = STATIC_BODIES[code]?.[chapterKey]?.[step.key];
       const config: Record<string, unknown> = {};
@@ -660,7 +660,7 @@ async function seedSteps(brandId: string, code: BrandCode) {
         config.working_days = [1, 2, 3, 4, 5];
         config.min_notice_hours = 24;
       }
-      // Only Stop 1 Step 1 (explore/tour) ships with content cards in PR 8.
+      // Only Chapter 1 Step 1 (explore/tour) ships with content cards in PR 8.
       // Every other step gets [] so the strip renders nothing.
       const cards: SeedContentCard[] =
         chapterKey === "explore" && step.key === "tour"
@@ -686,23 +686,23 @@ async function seedSteps(brandId: string, code: BrandCode) {
 }
 
 /**
- * PR 16 demo: if a brand's Stop 2 (first_chat) has no steps, seed the new
+ * PR 16 demo: if a brand's Chapter 2 (first_chat) has no steps, seed the new
  * video + schedule demo. The full-structure seedSteps already handles
- * brand-new brands (their Stop 2 gets the new defaults because STOP_STEPS
+ * brand-new brands (their Chapter 2 gets the new defaults because CHAPTER_STEPS
  * changed). This helper is for brands that already had the old 3-step
- * Stop 2 from PR 15 — admin can delete those steps, then a re-seed fills
+ * Chapter 2 from PR 15 — admin can delete those steps, then a re-seed fills
  * in the new demo content.
  */
-async function seedStop2Defaults(brandId: string, _code: BrandCode) {
+async function seedChapter2Defaults(brandId: string, _code: BrandCode) {
   const { data: existing, error: readErr } = await app
     .from("steps_config")
     .select("id")
     .eq("brand_id", brandId)
     .eq("chapter_key", "first_chat")
     .limit(1);
-  if (readErr) throw new Error(`stop 2 probe failed: ${readErr.message}`);
+  if (readErr) throw new Error(`chapter 2 probe failed: ${readErr.message}`);
   if (existing && existing.length > 0) {
-    // Stop 2 already has steps — leave them alone. Admin owns structure.
+    // Chapter 2 already has steps — leave them alone. Admin owns structure.
     return;
   }
 
@@ -748,8 +748,8 @@ async function seedStop2Defaults(brandId: string, _code: BrandCode) {
     },
   ];
   const { error } = await app.from("steps_config").insert(rows);
-  if (error) throw new Error(`stop 2 defaults insert failed: ${error.message}`);
-  console.log(`[seed] steps_config: seeded Stop 2 defaults for brand ${brandId}`);
+  if (error) throw new Error(`chapter 2 defaults insert failed: ${error.message}`);
+  console.log(`[seed] steps_config: seeded Chapter 2 defaults for brand ${brandId}`);
 }
 
 /**
@@ -947,7 +947,7 @@ async function seedDevCandidate(
   const row = {
     candidate_id: candidate.id,
     token,
-    // Land new dev tokens on Stop 1 / Step 0 (Brand tour) so the slides
+    // Land new dev tokens on Chapter 1 / Step 0 (Brand tour) so the slides
     // renderer exercises on first load. Existing rows keep their state.
     current_chapter: existing?.current_chapter ?? 0,
     current_step: existing?.current_step ?? 0,
@@ -984,9 +984,9 @@ async function main() {
     console.log(`[seed] -> ${brand.name} (${code})`);
     await seedBrandInfra(brand.id, code);
     await seedPortalContent(brand.id, code);
-    await seedStops(brand.id, brand.slug);
+    await seedChapters(brand.id, brand.slug);
     await seedSteps(brand.id, code);
-    await seedStop2Defaults(brand.id, code);
+    await seedChapter2Defaults(brand.id, code);
     await seedCallPrepForChapter2(brand.id);
     await seedDevCandidate(brand.id, code, repId);
   }

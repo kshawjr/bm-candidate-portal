@@ -4,7 +4,7 @@ import { createAppServiceClient } from "@/lib/supabase-app";
 import { createCoreClient } from "@/lib/core-client";
 import {
   CinematicShell,
-  type Stop,
+  type Chapter,
   type Step,
   type ContentType,
   type BrandColors,
@@ -185,8 +185,8 @@ export default async function PortalTokenPage({
   ]);
 
   if (!chaptersRows?.length) {
-    // Brand has no active stops — either freshly seeded with nothing yet, or
-    // every stop has been archived in the admin. Render a friendly holding
+    // Brand has no active chapters — either freshly seeded with nothing yet, or
+    // every chapter has been archived in the admin. Render a friendly holding
     // page instead of crashing; admin can set up the structure and the
     // candidate can come back.
     return (
@@ -210,7 +210,7 @@ export default async function PortalTokenPage({
     email: pickText(content, "leader_email", ""),
   };
 
-  // Stop 1 hero strip — 4 stats. Empty num drops the row.
+  // Chapter 1 hero strip — 4 stats. Empty num drops the row.
   const heroStats = [1, 2, 3, 4]
     .map((n) => ({
       num: pickText(content, `hero_stat_${n}_num`),
@@ -223,7 +223,7 @@ export default async function PortalTokenPage({
     `${brand.name} by the numbers`,
   );
 
-  const stops: Stop[] = chaptersRows.map((s) => ({
+  const chapters: Chapter[] = chaptersRows.map((s) => ({
     chapter_key: s.chapter_key,
     position: s.position,
     label: s.label,
@@ -254,17 +254,17 @@ export default async function PortalTokenPage({
   const palette = colors.palette ?? {};
   const typography = resolveTypography(brand.font_overrides as FontOverrides | null);
 
-  // The stored current_chapter is an index into the brand's active stops. If an
-  // admin deletes or archives a stop, that index may now point past the end
-  // (or at a different stop entirely). Clamp to the valid range and persist
+  // The stored current_chapter is an index into the brand's active chapters. If an
+  // admin deletes or archives a chapter, that index may now point past the end
+  // (or at a different chapter entirely). Clamp to the valid range and persist
   // the fallback so the candidate always lands somewhere real.
   const storedChapterIdx = session.current_chapter ?? 0;
   const currentChapterIdx = Math.min(
     Math.max(0, storedChapterIdx),
-    stops.length - 1,
+    chapters.length - 1,
   );
   const storedStepIdx = session.current_step ?? 0;
-  const currentChapterKey_ = stops[currentChapterIdx]?.chapter_key;
+  const currentChapterKey_ = chapters[currentChapterIdx]?.chapter_key;
   const stepsInCurrentChapter = currentChapterKey_
     ? (stepsRows ?? []).filter((r) => r.chapter_key === currentChapterKey_).length
     : 0;
@@ -282,7 +282,7 @@ export default async function PortalTokenPage({
       .eq("id", session.id);
   }
 
-  const initialStopIdx = currentChapterIdx;
+  const initialChapterIdx = currentChapterIdx;
   const initialStepIdx = currentStepIdx;
 
   const fontClasses = `${baloo2.variable} ${nunitoSans.variable} ${montserrat.variable}`;
@@ -299,9 +299,9 @@ export default async function PortalTokenPage({
   const recentlyActive = progressList.some(
     (r) => r.completed_at && new Date(r.completed_at).getTime() >= twoDaysAgo,
   );
-  // Count distinct step_keys completed in the CURRENT stop — feeds the
-  // "between stops" variant.
-  const currentChapter = stops[currentChapterIdx];
+  // Count distinct step_keys completed in the CURRENT chapter — feeds the
+  // "between chapters" variant.
+  const currentChapter = chapters[currentChapterIdx];
   const currentChapterKey = currentChapter?.chapter_key;
   const currentChapterCompletedKeys = new Set(
     progressList
@@ -318,7 +318,7 @@ export default async function PortalTokenPage({
     : null;
   const journeyState = resolveJourneyCardState({
     currentChapterIdx,
-    stops,
+    chapters,
     lastActivityAt,
     recentlyActive,
     currentChapterStepsCompleted: currentChapterCompletedKeys.size,
@@ -373,10 +373,10 @@ export default async function PortalTokenPage({
         journeyState={journeyState}
         heroStats={heroStats}
         heroStripHeading={heroStripHeading}
-        stops={stops}
+        chapters={chapters}
         stepsByChapter={stepsByChapter}
         currentChapterIdx={currentChapterIdx}
-        initialStopIdx={initialStopIdx}
+        initialChapterIdx={initialChapterIdx}
         initialStepIdx={initialStepIdx}
         onTourComplete={onTourComplete}
         onStepAdvance={onStepAdvance}

@@ -62,23 +62,23 @@ async function hydrateCandidates(
 }
 
 /**
- * Candidates currently sitting on a given stop. Positional: we resolve the
- * stop to its position within the brand's ordered stops and match
+ * Candidates currently sitting on a given chapter. Positional: we resolve the
+ * chapter to its position within the brand's ordered chapters and match
  * candidates_in_portal.current_chapter by index.
  */
-export async function getCandidatesOnStop(
+export async function getCandidatesOnChapter(
   chapterKey: string,
   brandId: string,
 ): Promise<CandidateOnJourney[]> {
   const app = createAppServiceClient();
 
-  const { data: chapterRow, error: stopErr } = await app
+  const { data: chapterRow, error: chapterErr } = await app
     .from("chapters_config")
     .select("position")
     .eq("brand_id", brandId)
     .eq("chapter_key", chapterKey)
     .maybeSingle();
-  if (stopErr) throw new Error(`stop lookup failed: ${stopErr.message}`);
+  if (chapterErr) throw new Error(`chapter lookup failed: ${chapterErr.message}`);
   if (!chapterRow) return [];
 
   const candidateIds = await candidateIdsForBrand(brandId);
@@ -96,7 +96,7 @@ export async function getCandidatesOnStop(
 
 /**
  * Candidates currently sitting on a specific step. Positional match on both
- * stop index and step index within that stop.
+ * chapter index and step index within that chapter.
  */
 export async function getCandidatesOnStep(
   stepId: string,
@@ -111,13 +111,13 @@ export async function getCandidatesOnStep(
   if (stepErr) throw new Error(`step lookup failed: ${stepErr.message}`);
   if (!stepRow) return [];
 
-  const { data: chapterRow, error: stopErr } = await app
+  const { data: chapterRow, error: chapterErr } = await app
     .from("chapters_config")
     .select("position")
     .eq("brand_id", stepRow.brand_id)
     .eq("chapter_key", stepRow.chapter_key)
     .maybeSingle();
-  if (stopErr) throw new Error(`stop lookup failed: ${stopErr.message}`);
+  if (chapterErr) throw new Error(`chapter lookup failed: ${chapterErr.message}`);
   if (!chapterRow) return [];
 
   const candidateIds = await candidateIdsForBrand(stepRow.brand_id);

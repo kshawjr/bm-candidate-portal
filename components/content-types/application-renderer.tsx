@@ -90,7 +90,7 @@ interface Props {
   isAlreadySubmitted: boolean;
   onSaveAnswer: (fieldKey: string, fieldValue: unknown) => Promise<void>;
   onSubmit: (finalAnswers: Answers) => Promise<void>;
-  onContinueToNextStop: () => void;
+  onContinueToNextChapter: () => void;
 }
 
 // ---------- Screen helpers ----------
@@ -114,7 +114,7 @@ export function ApplicationRenderer({
   isAlreadySubmitted,
   onSaveAnswer,
   onSubmit,
-  onContinueToNextStop,
+  onContinueToNextChapter,
 }: Props) {
   // Start candidates who already submitted directly on the success screen
   // so they see confirmation rather than the form again.
@@ -481,7 +481,7 @@ export function ApplicationRenderer({
     <SuccessScreen
       firstName={candidate.first_name}
       leaderName={leaderName}
-      onContinue={onContinueToNextStop}
+      onContinue={onContinueToNextChapter}
     />
   );
 }

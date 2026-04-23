@@ -5,7 +5,7 @@ import { createAppServiceClient } from "@/lib/supabase-app";
 import { getAdminUser } from "@/lib/supabase-auth";
 import {
   getCandidatesOnStep,
-  getCandidatesOnStop,
+  getCandidatesOnChapter,
   type CandidateOnJourney,
 } from "@/lib/candidate-guards";
 
@@ -19,7 +19,7 @@ export type ContentType =
   | "document"
   | "checklist";
 
-export interface StopFormData {
+export interface ChapterFormData {
   chapter_key: string;
   label: string;
   name: string;
@@ -104,9 +104,9 @@ function defaultConfigForType(type: ContentType): Record<string, unknown> {
 // STOPS
 // ======================================================================
 
-export async function createStopAction(
+export async function createChapterAction(
   brandId: string,
-  data: StopFormData,
+  data: ChapterFormData,
 ): Promise<void> {
   await requireAdmin();
   validateKey(data.chapter_key, "chapter_key");
@@ -121,7 +121,7 @@ export async function createStopAction(
     .eq("brand_id", brandId)
     .order("position", { ascending: false })
     .limit(1);
-  if (readErr) throw new Error(`stops lookup failed: ${readErr.message}`);
+  if (readErr) throw new Error(`chapters lookup failed: ${readErr.message}`);
   const nextPosition =
     existing && existing.length > 0 ? (existing[0].position as number) + 1 : 0;
 
@@ -141,9 +141,9 @@ export async function createStopAction(
   bumpCaches();
 }
 
-export async function updateStopAction(
-  stopId: string,
-  data: Omit<StopFormData, "chapter_key">,
+export async function updateChapterAction(
+  chapterId: string,
+  data: Omit<ChapterFormData, "chapter_key">,
 ): Promise<void> {
   await requireAdmin();
   if (!data.label.trim()) throw new Error("Label is required");
@@ -158,49 +158,49 @@ export async function updateStopAction(
       icon: data.icon?.trim() || null,
       description: data.description?.trim() || null,
     })
-    .eq("id", stopId);
+    .eq("id", chapterId);
   if (error) throw new Error(`chapters_config update failed: ${error.message}`);
 
   bumpCaches();
 }
 
-export async function deleteStopAction(stopId: string): Promise<void> {
+export async function deleteChapterAction(chapterId: string): Promise<void> {
   await requireAdmin();
   const app = createAppServiceClient();
 
-  const { data: stop, error: stopErr } = await app
+  const { data: chapter, error: chapterErr } = await app
     .from("chapters_config")
     .select("id, brand_id, chapter_key")
-    .eq("id", stopId)
+    .eq("id", chapterId)
     .maybeSingle();
-  if (stopErr) throw new Error(`stop lookup failed: ${stopErr.message}`);
-  if (!stop) throw new Error("Stop not found");
+  if (chapterErr) throw new Error(`chapter lookup failed: ${chapterErr.message}`);
+  if (!chapter) throw new Error("Chapter not found");
 
   const { count: stepCount, error: stepsErr } = await app
     .from("steps_config")
     .select("id", { count: "exact", head: true })
-    .eq("brand_id", stop.brand_id)
-    .eq("chapter_key", stop.chapter_key);
+    .eq("brand_id", chapter.brand_id)
+    .eq("chapter_key", chapter.chapter_key);
   if (stepsErr) throw new Error(`steps count failed: ${stepsErr.message}`);
   if ((stepCount ?? 0) > 0) {
-    throw new Error("Delete the steps inside this stop first.");
+    throw new Error("Delete the steps inside this chapter first.");
   }
 
-  const candidates = await getCandidatesOnStop(stop.chapter_key, stop.brand_id);
+  const candidates = await getCandidatesOnChapter(chapter.chapter_key, chapter.brand_id);
   if (candidates.length > 0) {
     throw new Error(
-      `${candidates.length} candidate${candidates.length === 1 ? "" : "s"} currently at this stop. Move them first or archive the stop instead.`,
+      `${candidates.length} candidate${candidates.length === 1 ? "" : "s"} currently at this chapter. Move them first or archive the chapter instead.`,
     );
   }
 
-  const { error } = await app.from("chapters_config").delete().eq("id", stopId);
+  const { error } = await app.from("chapters_config").delete().eq("id", chapterId);
   if (error) throw new Error(`chapters_config delete failed: ${error.message}`);
 
   bumpCaches();
 }
 
-export async function archiveStopAction(
-  stopId: string,
+export async function archiveChapterAction(
+  chapterId: string,
   archived: boolean,
 ): Promise<void> {
   await requireAdmin();
@@ -208,15 +208,15 @@ export async function archiveStopAction(
   const { error } = await app
     .from("chapters_config")
     .update({ is_archived: archived })
-    .eq("id", stopId);
+    .eq("id", chapterId);
   if (error)
     throw new Error(`chapters_config archive toggle failed: ${error.message}`);
   bumpCaches();
 }
 
-export async function reorderStopsAction(
+export async function reorderChaptersAction(
   brandId: string,
-  orderedStopIds: string[],
+  orderedChapterIds: string[],
 ): Promise<void> {
   await requireAdmin();
   const app = createAppServiceClient();
@@ -224,20 +224,20 @@ export async function reorderStopsAction(
   // Two-phase write so the (brand_id, chapter_key) unique constraint on
   // position doesn't trip mid-flight if positions ever become unique. Not
   // currently constrained, but cheap insurance.
-  const offset = orderedStopIds.length + 1000;
-  for (let i = 0; i < orderedStopIds.length; i++) {
+  const offset = orderedChapterIds.length + 1000;
+  for (let i = 0; i < orderedChapterIds.length; i++) {
     const { error } = await app
       .from("chapters_config")
       .update({ position: offset + i })
-      .eq("id", orderedStopIds[i])
+      .eq("id", orderedChapterIds[i])
       .eq("brand_id", brandId);
     if (error) throw new Error(`reorder phase 1 failed: ${error.message}`);
   }
-  for (let i = 0; i < orderedStopIds.length; i++) {
+  for (let i = 0; i < orderedChapterIds.length; i++) {
     const { error } = await app
       .from("chapters_config")
       .update({ position: i })
-      .eq("id", orderedStopIds[i])
+      .eq("id", orderedChapterIds[i])
       .eq("brand_id", brandId);
     if (error) throw new Error(`reorder phase 2 failed: ${error.message}`);
   }
@@ -403,12 +403,12 @@ export async function reorderStepsAction(
 // Introspection (used by UI to show warnings)
 // ======================================================================
 
-export async function getCandidatesOnStopAction(
+export async function getCandidatesOnChapterAction(
   chapterKey: string,
   brandId: string,
 ): Promise<CandidateOnJourney[]> {
   await requireAdmin();
-  return getCandidatesOnStop(chapterKey, brandId);
+  return getCandidatesOnChapter(chapterKey, brandId);
 }
 
 export async function getCandidatesOnStepAction(

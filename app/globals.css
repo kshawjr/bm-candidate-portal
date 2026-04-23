@@ -156,12 +156,12 @@ body {
   color: var(--cin-text-faint);
 }
 
-.cine-stops {
+.cine-chapters {
   padding: 8px 0;
   flex: 1;
   overflow-y: auto;
 }
-.cine-stop {
+.cine-chapter {
   display: flex;
   align-items: center;
   gap: 12px;
@@ -178,19 +178,19 @@ body {
   position: relative;
   transition: all 0.15s;
 }
-.cine-stop[disabled] {
+.cine-chapter[disabled] {
   cursor: not-allowed;
   color: var(--cin-text-faint);
 }
-.cine-stop:hover:not([disabled]):not(.active) {
+.cine-chapter:hover:not([disabled]):not(.active) {
   background: color-mix(in srgb, var(--brand-primary) 5%, transparent);
   color: var(--cin-text);
 }
-.cine-stop.active {
+.cine-chapter.active {
   background: var(--cin-surface);
   color: var(--cin-text);
 }
-.cine-stop.active::before {
+.cine-chapter.active::before {
   content: "";
   position: absolute;
   left: 0;
@@ -199,7 +199,7 @@ body {
   width: 3px;
   background: var(--brand-primary);
 }
-.cine-stop-icon {
+.cine-chapter-icon {
   width: 20px;
   height: 20px;
   flex-shrink: 0;
@@ -209,22 +209,22 @@ body {
   font-size: 15px;
   opacity: 0.85;
 }
-.cine-stop[disabled] .cine-stop-icon {
+.cine-chapter[disabled] .cine-chapter-icon {
   opacity: 0.4;
   filter: grayscale(0.6);
 }
-.cine-stop-label {
+.cine-chapter-label {
   flex: 1;
   font-family: var(--font-heading);
   font-weight: 500;
   text-transform: var(--heading-transform);
 }
-.cine-stop-status {
+.cine-chapter-status {
   flex-shrink: 0;
   opacity: 0.6;
   color: var(--cin-text-faint);
 }
-.cine-stop.done .cine-stop-status {
+.cine-chapter.done .cine-chapter-status {
   color: var(--brand-primary);
   opacity: 1;
 }
@@ -421,7 +421,7 @@ body {
   margin: 0;
 }
 
-/* ---- Stop 1 hero strip ---- */
+/* ---- Chapter 1 hero strip ---- */
 .cine-hero-strip {
   background: color-mix(in srgb, var(--brand-primary) 6%, var(--surface));
   border-bottom: 1px solid
@@ -1627,7 +1627,7 @@ body {
   padding: 32px 16px 64px;
 }
 
-/* ---- empty portal (no active stops yet) ---- */
+/* ---- empty portal (no active chapters yet) ---- */
 .portal-empty {
   min-height: 100vh;
   display: flex;
