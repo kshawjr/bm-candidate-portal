@@ -22,6 +22,7 @@ import {
 import { isGCalConfigured } from "@/lib/google-calendar";
 import { resolveJourneyCardState } from "@/components/sidebar/journey-card";
 import type { ExistingBooking } from "@/components/content-types/schedule-renderer";
+import { DevResetButton } from "@/components/portal/dev-reset-button";
 
 export const dynamic = "force-dynamic";
 
@@ -400,6 +401,7 @@ export default async function PortalTokenPage({
         brandShortName={brandShortName}
         isGCalConfigured={scheduleConfigured}
       />
+      <DevResetButton token={params.token} />
     </main>
   );
 }
