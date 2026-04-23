@@ -28,27 +28,6 @@ export function ShortTextField({
   );
 }
 
-export function LongTextField({
-  value,
-  onChange,
-  placeholder,
-  hint,
-}: FieldProps<string> & { placeholder?: string; hint?: string }) {
-  return (
-    <div>
-      <textarea
-        value={value ?? ""}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        className="app-field-textarea"
-        rows={5}
-        autoFocus
-      />
-      {hint && <p className="app-field-hint">{hint}</p>}
-    </div>
-  );
-}
-
 export interface SelectOption {
   value: string;
   label: string;
@@ -149,105 +128,6 @@ export function ChipGroupField({
           </button>
         );
       })}
-    </div>
-  );
-}
-
-export interface SelectWithOtherValue {
-  value: string;
-  otherText: string;
-}
-
-export function SingleSelectWithOtherField({
-  value,
-  onChange,
-  options,
-  otherValue = "other",
-  otherPlaceholder = "Tell us how…",
-}: FieldProps<SelectWithOtherValue> & {
-  options: SelectOption[];
-  otherValue?: string;
-  otherPlaceholder?: string;
-}) {
-  const selected = value?.value ?? "";
-  const otherText = value?.otherText ?? "";
-  return (
-    <div className="app-select-list">
-      {options.map((opt) => {
-        const active = selected === opt.value;
-        return (
-          <button
-            key={opt.value}
-            type="button"
-            className={`app-select-option${active ? " active" : ""}`}
-            onClick={() =>
-              onChange({ value: opt.value, otherText: opt.value === otherValue ? otherText : "" })
-            }
-          >
-            <span className="app-select-label">{opt.label}</span>
-          </button>
-        );
-      })}
-      {selected === otherValue && (
-        <input
-          type="text"
-          value={otherText}
-          onChange={(e) => onChange({ value: otherValue, otherText: e.target.value })}
-          placeholder={otherPlaceholder}
-          className="app-field-input app-followup"
-          autoFocus
-        />
-      )}
-    </div>
-  );
-}
-
-const US_STATES = [
-  "AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA",
-  "HI","ID","IL","IN","IA","KS","KY","LA","ME","MD",
-  "MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ",
-  "NM","NY","NC","ND","OH","OK","OR","PA","RI","SC",
-  "SD","TN","TX","UT","VT","VA","WA","WV","WI","WY","DC",
-];
-
-export interface StateMetroValue {
-  state: string;
-  metro: string;
-}
-
-export function StateMetroField({
-  value,
-  onChange,
-}: FieldProps<StateMetroValue>) {
-  const state = value?.state ?? "";
-  const metro = value?.metro ?? "";
-  return (
-    <div className="app-field-row">
-      <label className="app-field-col">
-        <span className="app-field-sublabel">State</span>
-        <select
-          value={state}
-          onChange={(e) => onChange({ state: e.target.value, metro })}
-          className="app-field-select"
-        >
-          <option value="">Select…</option>
-          {US_STATES.map((s) => (
-            <option key={s} value={s}>
-              {s}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label className="app-field-col">
-        <span className="app-field-sublabel">Metro area</span>
-        <input
-          type="text"
-          value={metro}
-          onChange={(e) => onChange({ state, metro: e.target.value })}
-          placeholder="e.g. Austin, Seattle…"
-          className="app-field-input"
-        />
-      </label>
     </div>
   );
 }

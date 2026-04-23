@@ -26,6 +26,30 @@ export const CREDIT_SCORE_RANGES: ApplicationOption[] = [
   { value: "750_plus",  label: "750+" },
 ];
 
+export const AGE_RANGES: ApplicationOption[] = [
+  { value: "25_34",   label: "25–34" },
+  { value: "35_44",   label: "35–44" },
+  { value: "45_54",   label: "45–54" },
+  { value: "55_64",   label: "55–64" },
+  { value: "65_plus", label: "65+" },
+];
+
+export const MOTIVATIONS: ApplicationOption[] = [
+  { value: "build_business",       label: "Build my own business" },
+  { value: "escape_corporate",     label: "Escape the corporate grind" },
+  { value: "family_future",        label: "Build something for my family's future" },
+  { value: "love_industry",        label: "Love the industry/product specifically" },
+  { value: "financial_freedom",    label: "Financial freedom" },
+  { value: "be_my_own_boss",       label: "Be my own boss" },
+  { value: "other",                label: "Other" },
+];
+
+export const SELF_DESCRIPTORS: ApplicationOption[] = [
+  { value: "builder", label: "Builder" },
+  { value: "leader",  label: "Leader" },
+  { value: "hustler", label: "Hustler" },
+];
+
 // Humanize a stored value against a current option list. Falls back to a
 // "(legacy)" suffix for historical values from older bucket schemes so admin
 // rows render gracefully instead of showing the raw enum.

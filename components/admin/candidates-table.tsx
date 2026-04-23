@@ -21,6 +21,13 @@ export interface CandidateRow {
   liquidCapitalLabel: string | null;
   netWorthLabel: string | null;
   creditScoreLabel: string | null;
+  ageRangeLabel: string | null;
+  motivationLabel: string | null;
+  selfDescriptorLabel: string | null;
+  zipCode: string | null;
+  derivedPlace: string | null;
+  targetConfirmed: boolean | null;
+  targetOther: string | null;
 }
 
 interface Props {
@@ -76,66 +83,120 @@ export function CandidatesTable({ rows }: Props) {
             <th>Candidate</th>
             <th>Brand</th>
             <th>Position</th>
+            <th>Location</th>
+            <th>About</th>
             <th>Financials</th>
             <th>Last activity</th>
             <th aria-label="Actions" />
           </tr>
         </thead>
         <tbody>
-          {rows.map((r) => (
-            <tr key={r.token} className={r.isTest ? "is-test" : undefined}>
-              <td>
-                <code className="adm-candidates-token">{r.token}</code>
-                {r.isTest && (
-                  <span className="structure-chip" style={{ marginLeft: 8 }}>
-                    Test
-                  </span>
-                )}
-              </td>
-              <td>
-                <div>{r.name || "(no name)"}</div>
-                {r.email && (
-                  <div className="adm-muted adm-candidates-sub">{r.email}</div>
-                )}
-              </td>
-              <td>{r.brandName}</td>
-              <td>
-                Chapter {r.chapterNumber} · Step {r.stepNumber}
-                {r.chapterLabel && (
-                  <div className="adm-muted adm-candidates-sub">
-                    {r.chapterLabel}
-                  </div>
-                )}
-              </td>
-              <td>
-                {r.liquidCapitalLabel || r.netWorthLabel || r.creditScoreLabel ? (
-                  <div className="adm-candidates-financials">
-                    {r.liquidCapitalLabel && (
-                      <div>Liq: {r.liquidCapitalLabel}</div>
-                    )}
-                    {r.netWorthLabel && (
-                      <div>NW: {r.netWorthLabel}</div>
-                    )}
-                    {r.creditScoreLabel && (
-                      <div>Credit: {r.creditScoreLabel}</div>
-                    )}
-                  </div>
-                ) : (
-                  <span className="adm-muted">—</span>
-                )}
-              </td>
-              <td>{formatRelative(r.lastActivityAt)}</td>
-              <td style={{ textAlign: "right" }}>
-                <button
-                  type="button"
-                  className="adm-btn-ghost adm-btn-danger"
-                  onClick={() => setResetToken(r.token)}
-                >
-                  Reset
-                </button>
-              </td>
-            </tr>
-          ))}
+          {rows.map((r) => {
+            const locationParts: string[] = [];
+            if (r.derivedPlace) {
+              locationParts.push(
+                r.zipCode ? `${r.derivedPlace} (${r.zipCode})` : r.derivedPlace,
+              );
+            } else if (r.zipCode) {
+              locationParts.push(r.zipCode);
+            }
+            const targetLine =
+              r.targetConfirmed === true
+                ? "Same area"
+                : r.targetConfirmed === false
+                  ? r.targetOther
+                    ? `Target: ${r.targetOther}`
+                    : "Different area"
+                  : null;
+
+            const aboutBits: string[] = [];
+            if (r.ageRangeLabel) aboutBits.push(`Age: ${r.ageRangeLabel}`);
+            if (r.motivationLabel) aboutBits.push(`Why: ${r.motivationLabel}`);
+            if (r.selfDescriptorLabel)
+              aboutBits.push(`Self: ${r.selfDescriptorLabel}`);
+
+            return (
+              <tr key={r.token} className={r.isTest ? "is-test" : undefined}>
+                <td>
+                  <code className="adm-candidates-token">{r.token}</code>
+                  {r.isTest && (
+                    <span className="structure-chip" style={{ marginLeft: 8 }}>
+                      Test
+                    </span>
+                  )}
+                </td>
+                <td>
+                  <div>{r.name || "(no name)"}</div>
+                  {r.email && (
+                    <div className="adm-muted adm-candidates-sub">{r.email}</div>
+                  )}
+                </td>
+                <td>{r.brandName}</td>
+                <td>
+                  Chapter {r.chapterNumber} · Step {r.stepNumber}
+                  {r.chapterLabel && (
+                    <div className="adm-muted adm-candidates-sub">
+                      {r.chapterLabel}
+                    </div>
+                  )}
+                </td>
+                <td>
+                  {locationParts.length > 0 || targetLine ? (
+                    <div className="adm-candidates-financials">
+                      {locationParts.map((line, i) => (
+                        <div key={i}>{line}</div>
+                      ))}
+                      {targetLine && (
+                        <div className="adm-muted adm-candidates-sub">
+                          {targetLine}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <span className="adm-muted">—</span>
+                  )}
+                </td>
+                <td>
+                  {aboutBits.length > 0 ? (
+                    <div className="adm-candidates-financials">
+                      {aboutBits.map((line, i) => (
+                        <div key={i}>{line}</div>
+                      ))}
+                    </div>
+                  ) : (
+                    <span className="adm-muted">—</span>
+                  )}
+                </td>
+                <td>
+                  {r.liquidCapitalLabel || r.netWorthLabel || r.creditScoreLabel ? (
+                    <div className="adm-candidates-financials">
+                      {r.liquidCapitalLabel && (
+                        <div>Liq: {r.liquidCapitalLabel}</div>
+                      )}
+                      {r.netWorthLabel && (
+                        <div>NW: {r.netWorthLabel}</div>
+                      )}
+                      {r.creditScoreLabel && (
+                        <div>Credit: {r.creditScoreLabel}</div>
+                      )}
+                    </div>
+                  ) : (
+                    <span className="adm-muted">—</span>
+                  )}
+                </td>
+                <td>{formatRelative(r.lastActivityAt)}</td>
+                <td style={{ textAlign: "right" }}>
+                  <button
+                    type="button"
+                    className="adm-btn-ghost adm-btn-danger"
+                    onClick={() => setResetToken(r.token)}
+                  >
+                    Reset
+                  </button>
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
 

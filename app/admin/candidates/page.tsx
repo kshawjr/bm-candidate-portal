@@ -10,10 +10,30 @@ import {
   LIQUID_CAPITAL_RANGES,
   NET_WORTH_RANGES,
   CREDIT_SCORE_RANGES,
+  AGE_RANGES,
+  MOTIVATIONS,
+  SELF_DESCRIPTORS,
   humanizeOption,
 } from "@/lib/application-options";
 
 export const dynamic = "force-dynamic";
+
+// Admin-surfaced application answers. Keep in sync with the renderer's
+// field_key names.
+const SURFACED_FIELD_KEYS = [
+  "liquid_capital_range",
+  "net_worth_range",
+  "credit_score_range",
+  "age_range",
+  "motivation",
+  "motivation_other_text",
+  "self_descriptor",
+  "zip_code",
+  "derived_city",
+  "derived_state",
+  "target_location_confirmed",
+  "target_location_other",
+] as const;
 
 export default async function AdminCandidatesPage() {
   const user = await getAdminUser();
@@ -80,32 +100,28 @@ export default async function AdminCandidatesPage() {
     return match ? ((match.label as string) ?? null) : null;
   };
 
-  // Financial answers — filtered to the three keys we surface on this page.
-  // application_responses.field_value is jsonb; the renderer stores plain
-  // string enums for these, so cast and read directly.
+  // Application answers we surface on the admin page. jsonb values are
+  // stored as plain strings/booleans by the renderer, so cast and read
+  // directly.
   const sessionIds = sessionList.map((s) => s.id as string);
-  const { data: financials } = sessionIds.length
+  const { data: answerRows } = sessionIds.length
     ? await app
         .from("application_responses")
         .select("candidate_in_portal_id, field_key, field_value")
         .in("candidate_in_portal_id", sessionIds)
-        .in("field_key", [
-          "liquid_capital_range",
-          "net_worth_range",
-          "credit_score_range",
-        ])
+        .in("field_key", SURFACED_FIELD_KEYS as unknown as string[])
     : { data: [] };
-  const financialBySession = new Map<string, Record<string, string>>();
-  for (const row of financials ?? []) {
+  const answersBySession = new Map<string, Record<string, unknown>>();
+  for (const row of answerRows ?? []) {
     const sid = row.candidate_in_portal_id as string;
     const key = row.field_key as string;
-    const raw = row.field_value;
-    const val = typeof raw === "string" ? raw : "";
-    if (!val) continue;
-    const bucket = financialBySession.get(sid) ?? {};
-    bucket[key] = val;
-    financialBySession.set(sid, bucket);
+    const bucket = answersBySession.get(sid) ?? {};
+    bucket[key] = row.field_value;
+    answersBySession.set(sid, bucket);
   }
+
+  const pickString = (v: unknown): string =>
+    typeof v === "string" ? v : "";
 
   const rows: CandidateRow[] = sessionList.map((s) => {
     const candidate = s.candidate_id
@@ -120,7 +136,36 @@ export default async function AdminCandidatesPage() {
     const chapterIdx = (s.current_chapter as number | null) ?? 0;
     const stepIdx = (s.current_step as number | null) ?? 0;
     const token = s.token as string;
-    const fin = financialBySession.get(s.id as string) ?? {};
+    const a = answersBySession.get(s.id as string) ?? {};
+
+    const liquidRaw = pickString(a.liquid_capital_range);
+    const netWorthRaw = pickString(a.net_worth_range);
+    const creditRaw = pickString(a.credit_score_range);
+    const ageRaw = pickString(a.age_range);
+    const motivationRaw = pickString(a.motivation);
+    const motivationOther = pickString(a.motivation_other_text).trim();
+    const descriptorRaw = pickString(a.self_descriptor);
+
+    const zipCode = pickString(a.zip_code);
+    const derivedCity = pickString(a.derived_city);
+    const derivedState = pickString(a.derived_state);
+    const derivedPlace =
+      derivedCity && derivedState ? `${derivedCity}, ${derivedState}` : "";
+    const targetConfirmed =
+      typeof a.target_location_confirmed === "boolean"
+        ? (a.target_location_confirmed as boolean)
+        : null;
+    const targetOther = pickString(a.target_location_other).trim();
+
+    let motivationLabel: string | null = null;
+    if (motivationRaw) {
+      const base = humanizeOption(motivationRaw, MOTIVATIONS);
+      motivationLabel =
+        motivationRaw === "other" && motivationOther
+          ? `Other — ${motivationOther}`
+          : base;
+    }
+
     return {
       token,
       candidateId: (s.candidate_id as string) ?? "",
@@ -132,15 +177,24 @@ export default async function AdminCandidatesPage() {
       stepNumber: stepIdx + 1,
       lastActivityAt: (s.last_activity_at as string | null) ?? null,
       isTest: token.startsWith("test-"),
-      liquidCapitalLabel: fin.liquid_capital_range
-        ? humanizeOption(fin.liquid_capital_range, LIQUID_CAPITAL_RANGES)
+      liquidCapitalLabel: liquidRaw
+        ? humanizeOption(liquidRaw, LIQUID_CAPITAL_RANGES)
         : null,
-      netWorthLabel: fin.net_worth_range
-        ? humanizeOption(fin.net_worth_range, NET_WORTH_RANGES)
+      netWorthLabel: netWorthRaw
+        ? humanizeOption(netWorthRaw, NET_WORTH_RANGES)
         : null,
-      creditScoreLabel: fin.credit_score_range
-        ? humanizeOption(fin.credit_score_range, CREDIT_SCORE_RANGES)
+      creditScoreLabel: creditRaw
+        ? humanizeOption(creditRaw, CREDIT_SCORE_RANGES)
         : null,
+      ageRangeLabel: ageRaw ? humanizeOption(ageRaw, AGE_RANGES) : null,
+      motivationLabel,
+      selfDescriptorLabel: descriptorRaw
+        ? humanizeOption(descriptorRaw, SELF_DESCRIPTORS)
+        : null,
+      zipCode: zipCode || null,
+      derivedPlace: derivedPlace || null,
+      targetConfirmed,
+      targetOther: targetOther || null,
     };
   });
 
