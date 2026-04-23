@@ -89,7 +89,7 @@ function defaultConfigForType(type: ContentType): Record<string, unknown> {
       start_hour: 9,
       end_hour: 17,
       timezone: "America/New_York",
-      buffer_minutes: 15,
+      buffer_minutes: 0,
       body: "",
       event_label: "Discovery Call",
       working_days: [1, 2, 3, 4, 5],

@@ -653,7 +653,7 @@ async function seedSteps(brandId: string, code: BrandCode) {
         config.start_hour = 9;
         config.end_hour = 17;
         config.timezone = "America/New_York";
-        config.buffer_minutes = 15;
+        config.buffer_minutes = 0;
         config.body =
           "A real conversation with your franchise growth leader. No pressure — just a chat about what you're looking for.";
         config.event_label = "Discovery Call";
@@ -738,7 +738,7 @@ async function seedChapter2Defaults(brandId: string, _code: BrandCode) {
         start_hour: 9,
         end_hour: 17,
         timezone: "America/New_York",
-        buffer_minutes: 15,
+        buffer_minutes: 0,
         body: "A real conversation with your franchise growth leader. No pressure — just a chat about what you're looking for.",
         event_label: "Discovery Call",
         working_days: [1, 2, 3, 4, 5],
