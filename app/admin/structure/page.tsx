@@ -3,13 +3,13 @@ import { getAdminUser } from "@/lib/supabase-auth";
 import { createAppServiceClient } from "@/lib/supabase-app";
 import { createCoreClient } from "@/lib/core-client";
 import { StructureEditor } from "@/components/admin/structure-editor";
-import type { AdminStopRow } from "@/components/admin/structure-editor";
+import type { AdminChapterRow } from "@/components/admin/structure-editor";
 import {
-  archiveStopAction,
-  createStopAction,
-  deleteStopAction,
-  reorderStopsAction,
-  updateStopAction,
+  archiveChapterAction,
+  createChapterAction,
+  deleteChapterAction,
+  reorderChaptersAction,
+  updateChapterAction,
 } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -66,7 +66,7 @@ export default async function StructurePage({ searchParams }: Props) {
     if (!row.is_archived) bucket.active += 1;
   }
 
-  const stops: AdminStopRow[] = (chapterRows ?? []).map((s) => ({
+  const chapters: AdminChapterRow[] = (chapterRows ?? []).map((s) => ({
     id: s.id,
     chapter_key: s.chapter_key,
     position: s.position,
@@ -84,12 +84,12 @@ export default async function StructurePage({ searchParams }: Props) {
       brandId={brand.id}
       brandSlug={brand.slug}
       brandName={brand.name}
-      stops={stops}
-      createStop={createStopAction}
-      updateStop={updateStopAction}
-      deleteStop={deleteStopAction}
-      archiveStop={archiveStopAction}
-      reorderStops={reorderStopsAction}
+      chapters={chapters}
+      createChapter={createChapterAction}
+      updateChapter={updateChapterAction}
+      deleteChapter={deleteChapterAction}
+      archiveChapter={archiveChapterAction}
+      reorderChapters={reorderChaptersAction}
     />
   );
 }

@@ -14,7 +14,7 @@ import {
 
 /**
  * Generic "advance the candidate past the step they just finished" — bumps
- * current_step only, no stop-wide flags. Used by video and schedule steps.
+ * current_step only, no chapter-wide flags. Used by video and schedule steps.
  */
 export async function advanceStepAction(
   token: string,
@@ -35,7 +35,7 @@ export async function advanceStepAction(
 /**
  * Mark the brand tour complete for the candidate on this token, and advance
  * current_step to the supplied index. The caller (client shell) computes
- * nextStepIdx based on how many steps exist in the current stop, so this
+ * nextStepIdx based on how many steps exist in the current chapter, so this
  * action doesn't need to re-derive it.
  */
 export async function completeTourAction(
@@ -113,7 +113,7 @@ export async function saveApplicationAnswerAction(
 
 /**
  * Submit the application. Writes any final answers in a single batch, flips
- * is_app_submitted, advances to Stop 2 (Say hi) at step 0, and logs a
+ * is_app_submitted, advances to Chapter 2 (Say hi) at step 0, and logs a
  * candidate_progress audit row.
  */
 export async function submitApplicationAction(
@@ -137,7 +137,7 @@ export async function submitApplicationAction(
     if (upErr) throw new Error(`submit batch upsert failed: ${upErr.message}`);
   }
 
-  // Flip submitted + advance to Stop 2 · Step 0 (Say hi).
+  // Flip submitted + advance to Chapter 2 · Step 0 (Say hi).
   const { error: pErr } = await app
     .from("candidates_in_portal")
     .update({
@@ -168,7 +168,7 @@ interface StepContext {
   stepId: string;
   chapterKey: string;
   stepPosition: number;
-  stopPosition: number;
+  chapterPosition: number;
   config: ScheduleConfig;
   portalId: string;
   candidate: {
@@ -213,14 +213,14 @@ async function loadStepContext(
     throw new Error("step is not a schedule step");
   }
 
-  const { data: stop, error: stopErr } = await app
+  const { data: chapter, error: chapterErr } = await app
     .from("chapters_config")
     .select("position")
     .eq("brand_id", step.brand_id)
     .eq("chapter_key", step.chapter_key)
     .maybeSingle();
-  if (stopErr) throw new Error(`stop lookup failed: ${stopErr.message}`);
-  if (!stop) throw new Error("stop not found");
+  if (chapterErr) throw new Error(`chapter lookup failed: ${chapterErr.message}`);
+  if (!chapter) throw new Error("chapter not found");
 
   const core = createCoreClient();
   const [{ data: candidate }, { data: brand }] = await Promise.all([
@@ -322,7 +322,7 @@ async function loadStepContext(
     stepId: step.id as string,
     chapterKey: step.chapter_key as string,
     stepPosition: step.position as number,
-    stopPosition: stop.position as number,
+    chapterPosition: chapter.position as number,
     config,
     portalId: session.id as string,
     candidate: {
@@ -456,7 +456,7 @@ export async function bookSlotAction(
   if (insErr) throw new Error(`booking insert failed: ${insErr.message}`);
 
   // Progress: log completion of this step and advance the candidate to
-  // whichever step comes next within the same stop.
+  // whichever step comes next within the same chapter.
   await app.from("candidate_progress").insert({
     candidate_in_portal_id: ctx.portalId,
     chapter_key: ctx.chapterKey,

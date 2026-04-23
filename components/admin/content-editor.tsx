@@ -23,7 +23,7 @@ type UploadFn = (
   formData: FormData,
 ) => Promise<{ url: string } | { error: string }>;
 
-export interface AdminStop {
+export interface AdminChapter {
   id: string;
   chapter_key: string;
   position: number;
@@ -51,7 +51,7 @@ interface Props {
   brandSlug: string;
   brandName: string;
   brandShortName: string;
-  stops: AdminStop[];
+  chapters: AdminChapter[];
   stepsByChapter: Record<string, AdminStep[]>;
   initialStepId: string | null;
   initialChapterKey: string | null;
@@ -96,10 +96,10 @@ const CARD_TYPES: Array<{ type: ContentCard["type"]; label: string }> = [
 ];
 
 function flattenSteps(
-  stops: AdminStop[],
+  chapters: AdminChapter[],
   stepsByChapter: Record<string, AdminStep[]>,
 ): AdminStep[] {
-  return stops.flatMap((s) => stepsByChapter[s.chapter_key] ?? []);
+  return chapters.flatMap((s) => stepsByChapter[s.chapter_key] ?? []);
 }
 
 export function ContentEditor({
@@ -107,7 +107,7 @@ export function ContentEditor({
   brandSlug,
   brandName,
   brandShortName,
-  stops,
+  chapters,
   stepsByChapter,
   initialStepId,
   initialChapterKey,
@@ -131,11 +131,11 @@ export function ContentEditor({
   const searchParams = useSearchParams();
 
   const allSteps = useMemo(
-    () => flattenSteps(stops, stepsByChapter),
-    [stops, stepsByChapter],
+    () => flattenSteps(chapters, stepsByChapter),
+    [chapters, stepsByChapter],
   );
 
-  // Resolve initial selection: step wins over stop; otherwise fall back to
+  // Resolve initial selection: step wins over chapter; otherwise fall back to
   // nothing and let the user pick.
   const initialStep =
     initialStepId ? allSteps.find((s) => s.id === initialStepId) : null;
@@ -149,7 +149,7 @@ export function ContentEditor({
     initialStep ? initialStep.chapter_key : initialChapterKey,
   );
 
-  const [expandedStops, setExpandedStops] = useState<Set<string>>(() => {
+  const [expandedChapters, setExpandedChapters] = useState<Set<string>>(() => {
     const initial = new Set<string>();
     if (initialResolvedChapterKey) initial.add(initialResolvedChapterKey);
     return initial;
@@ -175,13 +175,13 @@ export function ContentEditor({
     selectedStepId != null
       ? allSteps.find((s) => s.id === selectedStepId) ?? null
       : null;
-  const selectedStop = selectedStep
-    ? stops.find((s) => s.chapter_key === selectedStep.chapter_key) ?? null
+  const selectedChapter = selectedStep
+    ? chapters.find((s) => s.chapter_key === selectedStep.chapter_key) ?? null
     : selectedChapterKey
-      ? stops.find((s) => s.chapter_key === selectedChapterKey) ?? null
+      ? chapters.find((s) => s.chapter_key === selectedChapterKey) ?? null
       : null;
 
-  const stopNumber = selectedStop ? selectedStop.position + 1 : null;
+  const chapterNumber = selectedChapter ? selectedChapter.position + 1 : null;
   const stepNumber = selectedStep ? selectedStep.position + 1 : null;
 
   const updateUrl = (chapterKey: string | null, stepId: string | null) => {
@@ -200,12 +200,12 @@ export function ContentEditor({
     router.replace(`?${params.toString()}`);
   };
 
-  const selectStop = (chapterKey: string) => {
+  const selectChapter = (chapterKey: string) => {
     setSelectedChapterKey(chapterKey);
     setSelectedStepId(null);
     setEditorState(null);
     setAddMenuOpen(false);
-    setExpandedStops((prev) => {
+    setExpandedChapters((prev) => {
       const next = new Set(prev);
       next.add(chapterKey);
       return next;
@@ -213,8 +213,8 @@ export function ContentEditor({
     updateUrl(chapterKey, null);
   };
 
-  const toggleStopExpansion = (chapterKey: string) => {
-    setExpandedStops((prev) => {
+  const toggleChapterExpansion = (chapterKey: string) => {
+    setExpandedChapters((prev) => {
       const next = new Set(prev);
       if (next.has(chapterKey)) next.delete(chapterKey);
       else next.add(chapterKey);
@@ -227,7 +227,7 @@ export function ContentEditor({
     setSelectedChapterKey(null);
     setEditorState(null);
     setAddMenuOpen(false);
-    setExpandedStops((prev) => {
+    setExpandedChapters((prev) => {
       const next = new Set(prev);
       next.add(chapterKey);
       return next;
@@ -262,8 +262,8 @@ export function ContentEditor({
     ? `/portal/${candidateTokenForPreview}`
     : null;
 
-  const stepsForSelectedStop: AdminStepRow[] = selectedStop
-    ? (stepsByChapter[selectedStop.chapter_key] ?? []).map((s) => ({
+  const stepsForSelectedChapter: AdminStepRow[] = selectedChapter
+    ? (stepsByChapter[selectedChapter.chapter_key] ?? []).map((s) => ({
         id: s.id,
         step_key: s.step_key,
         position: s.position,
@@ -281,36 +281,36 @@ export function ContentEditor({
           <div className="adm-rail-eyebrow">Editing</div>
           <div className="adm-rail-brand">{brandName}</div>
         </div>
-        <nav className="adm-rail-stops">
-          {stops.map((stop) => {
-            const expanded = expandedStops.has(stop.chapter_key);
-            const steps = stepsByChapter[stop.chapter_key] ?? [];
-            const stopActive =
-              selectedChapterKey === stop.chapter_key && !selectedStepId;
+        <nav className="adm-rail-chapters">
+          {chapters.map((chapter) => {
+            const expanded = expandedChapters.has(chapter.chapter_key);
+            const steps = stepsByChapter[chapter.chapter_key] ?? [];
+            const chapterActive =
+              selectedChapterKey === chapter.chapter_key && !selectedStepId;
             return (
               <div
-                key={stop.chapter_key}
-                className={`adm-rail-stop${stop.is_archived ? " archived" : ""}`}
+                key={chapter.chapter_key}
+                className={`adm-rail-chapter${chapter.is_archived ? " archived" : ""}`}
               >
-                <div className="adm-rail-stop-head-row">
+                <div className="adm-rail-chapter-head-row">
                   <button
                     type="button"
-                    className="adm-rail-stop-caret-btn"
-                    onClick={() => toggleStopExpansion(stop.chapter_key)}
-                    aria-label={expanded ? "Collapse stop" : "Expand stop"}
+                    className="adm-rail-chapter-caret-btn"
+                    onClick={() => toggleChapterExpansion(chapter.chapter_key)}
+                    aria-label={expanded ? "Collapse chapter" : "Expand chapter"}
                   >
                     {expanded ? "▾" : "▸"}
                   </button>
                   <button
                     type="button"
-                    className={`adm-rail-stop-head${stopActive ? " active" : ""}`}
-                    onClick={() => selectStop(stop.chapter_key)}
+                    className={`adm-rail-chapter-head${chapterActive ? " active" : ""}`}
+                    onClick={() => selectChapter(chapter.chapter_key)}
                   >
-                    <span className="adm-rail-stop-num">
-                      {stop.position + 1}
+                    <span className="adm-rail-chapter-num">
+                      {chapter.position + 1}
                     </span>
-                    <span className="adm-rail-stop-label">{stop.label}</span>
-                    {stop.is_archived && (
+                    <span className="adm-rail-chapter-label">{chapter.label}</span>
+                    {chapter.is_archived && (
                       <span className="structure-chip">Archived</span>
                     )}
                   </button>
@@ -328,7 +328,7 @@ export function ContentEditor({
                           <button
                             type="button"
                             className={`adm-rail-step${active ? " active" : ""}${step.is_archived ? " archived" : ""}`}
-                            onClick={() => selectStep(step.id, stop.chapter_key)}
+                            onClick={() => selectStep(step.id, chapter.chapter_key)}
                           >
                             <span className="adm-rail-step-label">
                               {step.label}
@@ -351,16 +351,16 @@ export function ContentEditor({
       </aside>
 
       <section className="adm-editor-pane">
-        {!selectedStep && !selectedStop ? (
+        {!selectedStep && !selectedChapter ? (
           <div className="adm-empty">
-            <p>Select a stop or step on the left to start editing.</p>
+            <p>Select a chapter or step on the left to start editing.</p>
           </div>
         ) : selectedStep ? (
           <>
             <header className="adm-editor-head">
               <div>
                 <div className="adm-editor-eyebrow">
-                  Stop {stopNumber} · Step {stepNumber}
+                  Chapter {chapterNumber} · Step {stepNumber}
                 </div>
                 <h1 className="adm-editor-title">{selectedStep.label}</h1>
                 <p className="adm-editor-desc">{selectedStep.description}</p>
@@ -519,18 +519,18 @@ export function ContentEditor({
               </div>
             )}
           </>
-        ) : selectedStop ? (
+        ) : selectedChapter ? (
           <StepsManager
-            key={selectedStop.chapter_key}
+            key={selectedChapter.chapter_key}
             brandId={brandId}
             brandSlug={brandSlug}
-            chapterKey={selectedStop.chapter_key}
-            stopLabel={selectedStop.label}
-            stopName={selectedStop.name}
-            stopNumber={stopNumber ?? 1}
-            steps={stepsForSelectedStop}
+            chapterKey={selectedChapter.chapter_key}
+            chapterLabel={selectedChapter.label}
+            chapterName={selectedChapter.name}
+            chapterNumber={chapterNumber ?? 1}
+            steps={stepsForSelectedChapter}
             onSelectStep={(stepId) =>
-              selectStep(stepId, selectedStop.chapter_key)
+              selectStep(stepId, selectedChapter.chapter_key)
             }
             createStep={createStep}
             updateStep={updateStep}

@@ -378,24 +378,24 @@
   font-weight: 600;
   color: #111827;
 }
-.adm-rail-stops {
+.adm-rail-chapters {
   display: flex;
   flex-direction: column;
   padding: 0 8px;
 }
-.adm-rail-stop {
+.adm-rail-chapter {
   display: flex;
   flex-direction: column;
 }
-.adm-rail-stop.archived > .adm-rail-stop-head-row {
+.adm-rail-chapter.archived > .adm-rail-chapter-head-row {
   opacity: 0.55;
 }
-.adm-rail-stop-head-row {
+.adm-rail-chapter-head-row {
   display: flex;
   align-items: stretch;
   gap: 2px;
 }
-.adm-rail-stop-caret-btn {
+.adm-rail-chapter-caret-btn {
   flex-shrink: 0;
   width: 20px;
   background: transparent;
@@ -407,11 +407,11 @@
   font-family: inherit;
   transition: background 0.1s, color 0.1s;
 }
-.adm-rail-stop-caret-btn:hover {
+.adm-rail-chapter-caret-btn:hover {
   background: #f3f4f6;
   color: #4b5563;
 }
-.adm-rail-stop-head {
+.adm-rail-chapter-head {
   flex: 1;
   display: flex;
   align-items: center;
@@ -427,24 +427,24 @@
   font-family: inherit;
   transition: background 0.1s, color 0.1s;
 }
-.adm-rail-stop-head:hover:not(.active) {
+.adm-rail-chapter-head:hover:not(.active) {
   background: #f3f4f6;
 }
-.adm-rail-stop-head.active {
+.adm-rail-chapter-head.active {
   background: #e0e7ff;
   color: #3b82f6;
   font-weight: 600;
 }
-.adm-rail-stop-head.active .adm-rail-stop-num {
+.adm-rail-chapter-head.active .adm-rail-chapter-num {
   background: #3b82f6;
   color: #ffffff;
 }
-.adm-rail-stop-caret {
+.adm-rail-chapter-caret {
   width: 12px;
   font-size: 9px;
   color: #9ca3af;
 }
-.adm-rail-stop-num {
+.adm-rail-chapter-num {
   width: 18px;
   height: 18px;
   border-radius: 50%;
@@ -456,7 +456,7 @@
   align-items: center;
   justify-content: center;
 }
-.adm-rail-stop-label {
+.adm-rail-chapter-label {
   flex: 1;
   font-weight: 500;
 }
@@ -1065,7 +1065,7 @@
   margin: 0;
 }
 
-/* ---- structure page (stops list) ---- */
+/* ---- structure page (chapters list) ---- */
 .structure-page {
   max-width: 960px;
 }
@@ -1076,7 +1076,7 @@
   gap: 16px;
   margin-bottom: 22px;
 }
-.structure-stoplist {
+.structure-chapterlist {
   list-style: none;
   padding: 0;
   margin: 0 0 18px;
@@ -1084,7 +1084,7 @@
   flex-direction: column;
   gap: 8px;
 }
-.structure-stoprow {
+.structure-chapterrow {
   display: grid;
   grid-template-columns: 18px 28px auto 1fr auto auto;
   align-items: center;
@@ -1094,17 +1094,17 @@
   border: 1px solid #e5e7eb;
   border-radius: 8px;
 }
-.structure-stoprow.archived {
+.structure-chapterrow.archived {
   opacity: 0.65;
   background: #f9fafb;
 }
-.structure-stoprow-handle {
+.structure-chapterrow-handle {
   color: #d1d5db;
   font-size: 15px;
   cursor: grab;
   user-select: none;
 }
-.structure-stoprow-num {
+.structure-chapterrow-num {
   width: 24px;
   height: 24px;
   border-radius: 50%;
@@ -1116,28 +1116,28 @@
   align-items: center;
   justify-content: center;
 }
-.structure-stoprow-icon {
+.structure-chapterrow-icon {
   font-size: 16px;
 }
-.structure-stoprow-meta {
+.structure-chapterrow-meta {
   min-width: 0;
 }
-.structure-stoprow-title {
+.structure-chapterrow-title {
   display: flex;
   align-items: baseline;
   flex-wrap: wrap;
   gap: 6px;
 }
-.structure-stoprow-label {
+.structure-chapterrow-label {
   font-size: 14px;
   font-weight: 600;
   color: #111827;
 }
-.structure-stoprow-name {
+.structure-chapterrow-name {
   font-size: 13px;
   color: #6b7280;
 }
-.structure-stoprow-sub {
+.structure-chapterrow-sub {
   font-size: 12px;
   color: #6b7280;
   margin-top: 2px;
@@ -1145,12 +1145,12 @@
   gap: 8px;
   flex-wrap: wrap;
 }
-.structure-stoprow-steps {
+.structure-chapterrow-steps {
   color: #3b82f6;
   text-decoration: none;
   font-weight: 500;
 }
-.structure-stoprow-steps:hover {
+.structure-chapterrow-steps:hover {
   text-decoration: underline;
 }
 .structure-muted {
@@ -1166,19 +1166,19 @@
   padding: 2px 7px;
   border-radius: 4px;
 }
-.structure-stoprow-reorder {
+.structure-chapterrow-reorder {
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
-.structure-stoprow-actions {
+.structure-chapterrow-actions {
   display: flex;
   gap: 4px;
   flex-wrap: wrap;
   justify-content: flex-end;
 }
 
-/* ---- steps manager (reuses stop row styles inside the content pane) ---- */
+/* ---- steps manager (reuses chapter row styles inside the content pane) ---- */
 .structure-steplist {
   list-style: none;
   padding: 0;

@@ -42,7 +42,7 @@ export default async function AdminDashboard({ searchParams }: Props) {
         </div>
         <h2 className="admin-placeholder-title">Edit content cards</h2>
         <p className="admin-muted">
-          Browse each stop + step for the selected brand and update the cards
+          Browse each chapter + step for the selected brand and update the cards
           that show up in the candidate portal.
         </p>
         <Link href={editorHref} className="admin-open-editor">
