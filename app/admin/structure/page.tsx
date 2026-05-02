@@ -3,7 +3,10 @@ import { getAdminUser } from "@/lib/supabase-auth";
 import { createAppServiceClient } from "@/lib/supabase-app";
 import { createCoreClient } from "@/lib/core-client";
 import { StructureEditor } from "@/components/admin/structure-editor";
-import type { AdminChapterRow } from "@/components/admin/structure-editor";
+import type {
+  AdminChapterRow,
+  ChapterIntroInitial,
+} from "@/components/admin/structure-editor";
 import {
   archiveChapterAction,
   createChapterAction,
@@ -11,6 +14,11 @@ import {
   reorderChaptersAction,
   updateChapterAction,
 } from "./actions";
+import {
+  saveChapterIntroAction,
+  deleteChapterIntroAction,
+  uploadChapterIntroHeroAction,
+} from "../welcome-popup/actions";
 
 export const dynamic = "force-dynamic";
 
@@ -45,25 +53,59 @@ export default async function StructurePage({ searchParams }: Props) {
     brands.find((b) => b.slug === requestedSlug) ?? brands[0]!;
 
   const app = createAppServiceClient();
-  const [{ data: chapterRows }, { data: stepRows }] = await Promise.all([
-    app
-      .from("chapters_config")
-      .select(
-        "id, chapter_key, position, label, name, icon, description, is_archived",
-      )
-      .eq("brand_id", brand.id)
-      .order("position"),
-    app
-      .from("steps_config")
-      .select("id, chapter_key, is_archived")
-      .eq("brand_id", brand.id),
-  ]);
+  const [{ data: chapterRows }, { data: stepRows }, { data: introRows }] =
+    await Promise.all([
+      app
+        .from("chapters_config")
+        .select(
+          "id, chapter_key, position, label, name, icon, description, is_archived",
+        )
+        .eq("brand_id", brand.id)
+        .order("position"),
+      app
+        .from("steps_config")
+        .select("id, chapter_key, is_archived")
+        .eq("brand_id", brand.id),
+      app
+        .from("chapter_intro_popups")
+        .select(
+          "chapter_key, heading, body_md, hero_image_url, bullets, cta_dismiss_label, is_active",
+        )
+        .eq("brand_id", brand.id),
+    ]);
 
   const stepCounts: Record<string, { total: number; active: number }> = {};
   for (const row of stepRows ?? []) {
     const bucket = (stepCounts[row.chapter_key] ??= { total: 0, active: 0 });
     bucket.total += 1;
     if (!row.is_archived) bucket.active += 1;
+  }
+
+  const introByKey: Record<string, ChapterIntroInitial> = {};
+  for (const row of introRows ?? []) {
+    const rawBullets: unknown = row.bullets;
+    const bullets = Array.isArray(rawBullets)
+      ? (rawBullets as unknown[])
+          .map((b) => {
+            if (!b || typeof b !== "object") return null;
+            const obj = b as { icon?: unknown; text?: unknown };
+            const text = typeof obj.text === "string" ? obj.text : "";
+            if (!text) return null;
+            return {
+              icon: typeof obj.icon === "string" ? obj.icon : "",
+              text,
+            };
+          })
+          .filter((b): b is { icon: string; text: string } => b !== null)
+      : [];
+    introByKey[row.chapter_key as string] = {
+      heading: (row.heading as string) ?? "",
+      bodyMd: (row.body_md as string) ?? "",
+      heroImageUrl: (row.hero_image_url as string | null) ?? null,
+      bullets,
+      ctaDismissLabel: (row.cta_dismiss_label as string | null) ?? "Let's go",
+      isActive: Boolean(row.is_active),
+    };
   }
 
   const chapters: AdminChapterRow[] = (chapterRows ?? []).map((s) => ({
@@ -77,6 +119,7 @@ export default async function StructurePage({ searchParams }: Props) {
     is_archived: !!s.is_archived,
     step_count: stepCounts[s.chapter_key]?.active ?? 0,
     step_count_total: stepCounts[s.chapter_key]?.total ?? 0,
+    intro_popup: introByKey[s.chapter_key] ?? null,
   }));
 
   return (
@@ -90,6 +133,9 @@ export default async function StructurePage({ searchParams }: Props) {
       deleteChapter={deleteChapterAction}
       archiveChapter={archiveChapterAction}
       reorderChapters={reorderChaptersAction}
+      saveChapterIntro={saveChapterIntroAction}
+      deleteChapterIntro={deleteChapterIntroAction}
+      uploadChapterIntroHero={uploadChapterIntroHeroAction}
     />
   );
 }
