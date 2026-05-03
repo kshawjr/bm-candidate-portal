@@ -45,6 +45,58 @@ export interface JourneyChapter {
   name: string;
 }
 
+// ------------------------------------------------------------------
+// ChapterProgress — secondary progress bar showing the candidate's
+// position within their CURRENT chapter (not the chapter they're
+// browsing). Sits below the main "Your journey" overall progress in
+// the sidebar.
+// ------------------------------------------------------------------
+
+export interface ChapterProgressInput {
+  chapterLabel: string;
+  chapterNumber: number;
+  /** Steps completed within this chapter. Clamped server-side. */
+  completed: number;
+  /** Active (non-archived) step count for this chapter. */
+  total: number;
+}
+
+export function ChapterProgress({
+  chapterLabel,
+  chapterNumber,
+  completed,
+  total,
+}: ChapterProgressInput) {
+  // Defensive clamp — server already does this, but a render-time
+  // guard means a bad seed never produces NaN%.
+  const safeTotal = Math.max(0, total);
+  const safeDone =
+    safeTotal === 0 ? 0 : Math.min(Math.max(0, completed), safeTotal);
+  const pct = safeTotal === 0 ? 0 : Math.round((safeDone / safeTotal) * 100);
+
+  return (
+    <div className="cine-progress cine-progress-chapter">
+      <div className="cine-progress-head">
+        <div className="cine-progress-label">
+          Chapter {chapterNumber} · {chapterLabel}
+        </div>
+        <div className="cine-progress-pct">{pct}%</div>
+      </div>
+      <div className="cine-progress-bar">
+        <div
+          className="cine-progress-fill"
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      <div className="cine-progress-meta">
+        <span>
+          {safeDone} of {safeTotal} step{safeTotal === 1 ? "" : "s"} complete
+        </span>
+      </div>
+    </div>
+  );
+}
+
 export interface ResolveInput {
   currentChapterIdx: number;
   chapters: JourneyChapter[];

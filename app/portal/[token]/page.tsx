@@ -30,7 +30,12 @@ import type {
   ChapterIntroPopupConfig,
 } from "@/components/portal/chapter-intro-popup";
 import type { ChapterIntroBannerConfig } from "@/components/portal/chapter-intro-banner";
-import { dismissWelcomePopup, dismissChapterIntro } from "./popup-actions";
+import type { StepTransitionPopupConfig } from "@/components/portal/step-transition-popup";
+import {
+  dismissWelcomePopup,
+  dismissChapterIntro,
+  dismissStepTransition,
+} from "./popup-actions";
 import type { VideoProvider } from "@/lib/video-source";
 
 export const dynamic = "force-dynamic";
@@ -106,7 +111,7 @@ export default async function PortalTokenPage({
   const { data: session } = await app
     .from("candidates_in_portal")
     .select(
-      "id, candidate_id, current_chapter, current_step, is_app_submitted, last_activity_at, has_seen_welcome, dismissed_chapter_intros",
+      "id, candidate_id, current_chapter, current_step, is_app_submitted, last_activity_at, has_seen_welcome, dismissed_chapter_intros, dismissed_step_transitions",
     )
     .eq("token", params.token)
     .maybeSingle();
@@ -162,6 +167,7 @@ export default async function PortalTokenPage({
     { data: bookingsRows },
     { data: welcomePopupRow },
     { data: chapterIntroRows },
+    { data: stepTransitionRows },
   ] = await Promise.all([
     core
       .from("portal_content")
@@ -207,6 +213,11 @@ export default async function PortalTokenPage({
       .select(
         "chapter_key, heading, body_md, hero_image_url, bullets, cta_dismiss_label, is_active, show_as_banner",
       )
+      .eq("brand_id", brand.id)
+      .eq("is_active", true),
+    app
+      .from("step_transition_popups")
+      .select("step_id, heading, body_md, cta_label, is_active")
       .eq("brand_id", brand.id)
       .eq("is_active", true),
   ]);
@@ -455,8 +466,40 @@ export default async function PortalTokenPage({
     };
   }
 
+  // Step transition popups — keyed by step_id. The shell looks up the
+  // newly-selected step's id and fires the toast on step change (not on
+  // initial render).
+  const transitionsByStepId: Record<string, StepTransitionPopupConfig> = {};
+  for (const row of stepTransitionRows ?? []) {
+    const stepId = row.step_id as string;
+    if (!stepId) continue;
+    transitionsByStepId[stepId] = {
+      stepId,
+      heading: (row.heading as string) ?? "",
+      bodyMd: (row.body_md as string | null) ?? null,
+      ctaLabel: (row.cta_label as string | null) ?? "Continue",
+    };
+  }
+  const dismissedStepTransitions: string[] = Array.isArray(
+    session.dismissed_step_transitions,
+  )
+    ? (session.dismissed_step_transitions as unknown[]).filter(
+        (v): v is string => typeof v === "string",
+      )
+    : [];
+
   const onDismissWelcome = dismissWelcomePopup.bind(null, params.token);
   const onDismissChapterIntro = dismissChapterIntro.bind(null, params.token);
+  const onDismissStepTransition = dismissStepTransition.bind(
+    null,
+    params.token,
+  );
+
+  // Chapter progress drives the sidebar's "Chapter N · X%" bar. Use
+  // current_step (already clamped above) as the completed count — this
+  // matches the visual step strip and behaves correctly across all our
+  // current advance flows (tour, schedule book, application submit).
+  const currentChapterCompletedSteps = currentStepIdx;
 
   const onTourComplete = completeTourAction.bind(null, params.token);
   const onStepAdvance = advanceStepAction.bind(null, params.token);
@@ -533,6 +576,10 @@ export default async function PortalTokenPage({
         brandShortName={brandShortName}
         isGCalConfigured={scheduleConfigured}
         bannersByChapterKey={bannersByChapterKey}
+        transitionsByStepId={transitionsByStepId}
+        initialDismissedStepTransitions={dismissedStepTransitions}
+        onDismissStepTransition={onDismissStepTransition}
+        currentChapterCompletedSteps={currentChapterCompletedSteps}
       />
       <DevResetButton token={params.token} />
       <OnboardingPopups

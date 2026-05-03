@@ -2,7 +2,13 @@
 
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { useState, useTransition, type CSSProperties } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  useTransition,
+  type CSSProperties,
+} from "react";
 import { SlidesRenderer, type Slide } from "@/components/content-types/slides-renderer";
 import {
   ApplicationRenderer,
@@ -26,12 +32,17 @@ import type { ContentCard } from "@/components/content-cards/types";
 import type { ScheduleConfig, Slot } from "@/lib/schedule-shared";
 import {
   JourneyCard,
+  ChapterProgress,
   type JourneyCardState,
 } from "@/components/sidebar/journey-card";
 import {
   ChapterIntroBanner,
   type ChapterIntroBannerConfig,
 } from "@/components/portal/chapter-intro-banner";
+import {
+  StepTransitionPopup,
+  type StepTransitionPopupConfig,
+} from "@/components/portal/step-transition-popup";
 
 // Default logo height for all brands. Per-brand overrides below.
 const DEFAULT_LOGO_HEIGHT = 60;
@@ -150,6 +161,23 @@ export interface ShellProps {
    * (collapsed / read-more) lives in the banner component itself.
    */
   bannersByChapterKey: Record<string, ChapterIntroBannerConfig>;
+  /**
+   * Per-step transition popup config, keyed by step_id. Only steps that
+   * have an active step_transition_popup row appear here. Each is shown
+   * at most once per candidate — gated by initialDismissedStepTransitions
+   * plus local dismissals.
+   */
+  transitionsByStepId: Record<string, StepTransitionPopupConfig>;
+  initialDismissedStepTransitions: string[];
+  onDismissStepTransition: (
+    stepId: string,
+  ) => Promise<{ success: boolean }>;
+  /**
+   * Steps completed within the candidate's CURRENT chapter — derived from
+   * server-side current_step (clamped). Drives the chapter progress bar in
+   * the sidebar.
+   */
+  currentChapterCompletedSteps: number;
 }
 
 export function CinematicShell({
@@ -186,6 +214,10 @@ export function CinematicShell({
   brandShortName,
   isGCalConfigured,
   bannersByChapterKey,
+  transitionsByStepId,
+  initialDismissedStepTransitions,
+  onDismissStepTransition,
+  currentChapterCompletedSteps,
 }: ShellProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -195,6 +227,48 @@ export function CinematicShell({
   const selectedChapter = chapters[selectedChapterIdx];
   const steps = stepsByChapter[selectedChapter.chapter_key] ?? [];
   const selectedStep = steps[Math.min(selectedStepIdx, steps.length - 1)] ?? null;
+
+  // --- Step transition popup ---
+  // Track dismissed step ids locally, seeded from the server. Add to this
+  // set on dismiss so we don't re-fire the same toast within a session even
+  // before the page revalidates.
+  const [dismissedStepIds, setDismissedStepIds] = useState<Set<string>>(
+    () => new Set(initialDismissedStepTransitions),
+  );
+  const [activeTransition, setActiveTransition] =
+    useState<StepTransitionPopupConfig | null>(null);
+  const isFirstStepRender = useRef(true);
+  // Track which step we last landed on, so navigating back to the same step
+  // (within a chapter) doesn't refire. Seeded with the initial step id so
+  // a fresh page load never fires.
+  const lastStepIdRef = useRef<string | null>(selectedStep?.id ?? null);
+
+  useEffect(() => {
+    if (!selectedStep) return;
+    if (isFirstStepRender.current) {
+      isFirstStepRender.current = false;
+      lastStepIdRef.current = selectedStep.id;
+      return;
+    }
+    if (lastStepIdRef.current === selectedStep.id) return;
+    lastStepIdRef.current = selectedStep.id;
+
+    const config = transitionsByStepId[selectedStep.id];
+    if (!config) return;
+    if (dismissedStepIds.has(selectedStep.id)) return;
+    setActiveTransition(config);
+  }, [selectedStep, transitionsByStepId, dismissedStepIds]);
+
+  const handleTransitionDismiss = async (stepId: string) => {
+    // Optimistic local state — once dismissed, never re-fire this session.
+    setDismissedStepIds((prev) => {
+      if (prev.has(stepId)) return prev;
+      const next = new Set(prev);
+      next.add(stepId);
+      return next;
+    });
+    return onDismissStepTransition(stepId);
+  };
 
   const completedCount = currentChapterIdx;
   const progressPct = Math.round((completedCount / chapters.length) * 100);
@@ -303,6 +377,20 @@ export function CinematicShell({
             </span>
           </div>
         </div>
+
+        {chapters[currentChapterIdx] &&
+          (stepsByChapter[chapters[currentChapterIdx].chapter_key]?.length ?? 0) >
+            0 && (
+            <ChapterProgress
+              chapterLabel={chapters[currentChapterIdx].label}
+              chapterNumber={currentChapterIdx + 1}
+              completed={currentChapterCompletedSteps}
+              total={
+                stepsByChapter[chapters[currentChapterIdx].chapter_key]
+                  ?.length ?? 0
+              }
+            />
+          )}
 
         <div className="cine-chapters">
           {chapters.map((chapter, i) => {
@@ -468,6 +556,18 @@ export function CinematicShell({
           )}
         </div>
       </section>
+
+      {activeTransition && (
+        <StepTransitionPopup
+          // Re-key per step so the auto-dismiss timer always restarts when
+          // a different step's transition fires back-to-back (rare, but
+          // possible if the candidate clicks through quickly).
+          key={activeTransition.stepId}
+          config={activeTransition}
+          onDismiss={handleTransitionDismiss}
+          onDismissed={() => setActiveTransition(null)}
+        />
+      )}
     </div>
   );
 }

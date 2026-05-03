@@ -155,6 +155,33 @@ body {
   font-size: 11px;
   color: var(--cin-text-faint);
 }
+/* Secondary chapter progress card — sits below "Your journey" overall
+   progress. Visually quieter (smaller padding, tighter bar) so the
+   overall progress stays the headline metric. */
+.cine-progress-chapter {
+  padding: 14px 22px 16px;
+}
+.cine-progress-chapter .cine-progress-label {
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--cin-text-muted);
+  /* Single-line truncation so a long chapter label can't break the layout. */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 70%;
+}
+.cine-progress-chapter .cine-progress-pct {
+  font-size: 12px;
+}
+.cine-progress-chapter .cine-progress-bar {
+  height: 4px;
+}
+.cine-progress-chapter .cine-progress-meta {
+  font-size: 10px;
+}
 
 .cine-chapters {
   padding: 8px 0;
@@ -2761,7 +2788,10 @@ body {
   justify-content: center;
   align-items: center;
   padding: 24px;
-  z-index: 200;
+  /* High enough to clear any in-page stacking context the cinematic shell
+     creates (banners, hero strips, etc). Bumped from 200 → 1000 so the
+     chapter intro popup can never render behind the persistent banner. */
+  z-index: 1000;
   font-family: var(--font-body, system-ui), system-ui, sans-serif;
   animation: pp-popup-fadein 220ms ease-out;
   overflow-y: auto;
@@ -2960,7 +2990,11 @@ body {
 }
 .cine-intro-banner {
   position: relative;
-  margin: 0 0 20px;
+  /* Visible breathing room from the chapter step strip above and the step
+     content below — banner reads as a distinct UI element, not a strip
+     wedged between neighbors. Mobile uses tighter spacing (see media query
+     at bottom of this section). */
+  margin: 24px 0 24px;
   padding: 0;
   background: linear-gradient(
     180deg,
@@ -2978,6 +3012,11 @@ body {
   padding: 10px 16px;
   background: color-mix(in srgb, var(--brand-soft, #eef2ff) 35%, #ffffff);
   border-left-width: 4px;
+}
+@media (max-width: 720px) {
+  .cine-intro-banner {
+    margin: 16px 0 16px;
+  }
 }
 .cine-intro-banner-hero {
   position: relative;
@@ -3126,6 +3165,143 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .cine-intro-banner {
     animation: none;
+  }
+}
+
+/* =========================================================================
+   Step transition toast (step-trans-toast-*)
+   Fires when a candidate moves between steps inside a chapter. Bottom-right
+   anchored, slides in, auto-dismisses after a few seconds. Kept compact on
+   purpose — this is a "you've arrived at the next thing" nudge, not an
+   onboarding moment.
+   ========================================================================= */
+@keyframes step-trans-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+@keyframes step-trans-toast-timer {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
+}
+.step-trans-toast {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 900;
+  font-family: var(--font-body, system-ui), system-ui, sans-serif;
+  animation: step-trans-toast-in 240ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.step-trans-toast.is-closing {
+  animation: step-trans-toast-in 180ms ease-in reverse;
+  pointer-events: none;
+}
+.step-trans-toast-card {
+  position: relative;
+  width: min(360px, calc(100vw - 48px));
+  background: #ffffff;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--brand-primary, #2563eb) 14%, #e5e7eb);
+  border-left: 4px solid var(--brand-primary, #2563eb);
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.15);
+  padding: 14px 16px 14px 18px;
+  overflow: hidden;
+}
+.step-trans-toast-close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: transparent;
+  border: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  font-size: 16px;
+  line-height: 1;
+  color: #6b7280;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.step-trans-toast-close:hover:not(:disabled) {
+  background: rgba(15, 23, 42, 0.06);
+  color: #111827;
+}
+.step-trans-toast-heading {
+  font-family: var(--font-heading, var(--font-body, system-ui));
+  font-weight: var(--heading-weight, 600);
+  font-size: 15px;
+  line-height: 1.3;
+  margin: 0 24px 0 0;
+  color: #111827;
+}
+.step-trans-toast-body {
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: #374151;
+  margin-top: 6px;
+}
+.step-trans-toast-body p {
+  margin: 0 0 6px;
+}
+.step-trans-toast-body p:last-child {
+  margin-bottom: 0;
+}
+.step-trans-toast-foot {
+  margin-top: 10px;
+  display: flex;
+  justify-content: flex-end;
+}
+.step-trans-toast-cta {
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 6px 14px;
+  background: var(--brand-primary, #2563eb);
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: filter 0.15s;
+}
+.step-trans-toast-cta:hover:not(:disabled) {
+  filter: brightness(1.06);
+}
+.step-trans-toast-cta:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.step-trans-toast-timer {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 2px;
+  width: 100%;
+  background: var(--brand-primary, #2563eb);
+  transform-origin: left;
+  animation-name: step-trans-toast-timer;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+  opacity: 0.55;
+}
+@media (prefers-reduced-motion: reduce) {
+  .step-trans-toast,
+  .step-trans-toast.is-closing {
+    animation: none;
+  }
+  .step-trans-toast-timer {
+    animation: none;
+    opacity: 0;
   }
 }
 
