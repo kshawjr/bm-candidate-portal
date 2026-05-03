@@ -7,7 +7,7 @@ production hostnames:
 |---|---|
 | `houndstowndiscovery.bmave.com` | Hounds Town candidate portal |
 | `cruisintikisdiscovery.bmave.com` | Cruisin' Tikis candidate portal |
-| `flightdeck.bmave.com` | Admin (cross-brand) |
+| `cpflightdeck.bmave.com` | Admin (cross-brand) |
 
 The Next.js middleware (`middleware.ts`) inspects the incoming `Host`
 header on every request, attaches `x-hostname` / `x-brand-type` /
@@ -23,7 +23,7 @@ Vercel:
 ```
 houndstowndiscovery.bmave.com    CNAME  cname.vercel-dns.com
 cruisintikisdiscovery.bmave.com  CNAME  cname.vercel-dns.com
-flightdeck.bmave.com             CNAME  cname.vercel-dns.com
+cpflightdeck.bmave.com             CNAME  cname.vercel-dns.com
 ```
 
 TTL: anything reasonable (3600s is fine).
@@ -40,7 +40,7 @@ The admin sign-in flow uses Google OAuth. After the multi-domain
 deployment, add the admin host's callback URL to the authorized URIs in
 the Google Cloud Console for the OAuth client:
 
-- `https://flightdeck.bmave.com/auth/callback`
+- `https://cpflightdeck.bmave.com/auth/callback`
 
 The brand portal subdomains do **not** need callback URIs — candidates
 authenticate via tokenized URL, not Google sign-in.
@@ -67,15 +67,15 @@ When a third brand ships:
    `hounds-town-usa.com`.
 2. `https://cruisintikisdiscovery.bmave.com` → redirects to
    `cruisintikis.com`.
-3. `https://flightdeck.bmave.com/admin` → admin loads, Google sign-in
+3. `https://cpflightdeck.bmave.com/admin` → admin loads, Google sign-in
    works.
 4. `https://houndstowndiscovery.bmave.com/portal/<HT-token>` → renders.
 5. `https://houndstowndiscovery.bmave.com/portal/<CT-token>` →
    redirects to `https://cruisintikisdiscovery.bmave.com/portal/<CT-token>`.
-6. `https://flightdeck.bmave.com/portal/<any-token>` → renders (admin
+6. `https://cpflightdeck.bmave.com/portal/<any-token>` → renders (admin
    can preview any brand).
 7. `https://houndstowndiscovery.bmave.com/admin` → redirects to
-   `https://flightdeck.bmave.com/admin`.
+   `https://cpflightdeck.bmave.com/admin`.
 
 ## Local development
 

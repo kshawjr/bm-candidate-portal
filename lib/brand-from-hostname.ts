@@ -3,7 +3,7 @@
 // Production domains:
 //   houndstowndiscovery.bmave.com  → Hounds Town candidate portal
 //   cruisintikisdiscovery.bmave.com → Cruisin' Tikis candidate portal
-//   flightdeck.bmave.com           → admin (cross-brand management)
+//   cpflightdeck.bmave.com           → admin (cross-brand management)
 //
 // Anything not in the table is treated as either:
 //   - admin (localhost / Vercel preview URLs — useful for QA + dev)
@@ -27,7 +27,7 @@ const PORTAL_HOSTS: Record<string, { brandSlug: string; brandId: string }> = {
   },
 };
 
-const ADMIN_HOSTS = new Set<string>(["flightdeck.bmave.com"]);
+const ADMIN_HOSTS = new Set<string>(["cpflightdeck.bmave.com"]);
 
 /**
  * Best-effort treat localhost + Vercel previews as admin so dev and QA
@@ -71,7 +71,7 @@ export function isAdminHost(hostname: string): boolean {
  * that matches their brand. Used by /portal/[token] to redirect when a
  * candidate visits the wrong brand subdomain.
  *
- * Falls back to flightdeck.bmave.com for unknown brands so admins can
+ * Falls back to cpflightdeck.bmave.com for unknown brands so admins can
  * still preview the candidate.
  */
 export function getCorrectPortalUrl(
@@ -83,7 +83,7 @@ export function getCorrectPortalUrl(
       return `https://${host}/portal/${token}`;
     }
   }
-  return `https://flightdeck.bmave.com/portal/${token}`;
+  return `https://cpflightdeck.bmave.com/portal/${token}`;
 }
 
 /**

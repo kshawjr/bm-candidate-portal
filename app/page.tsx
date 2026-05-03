@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
  *
  *   houndstowndiscovery.bmave.com  → hounds-town-usa.com
  *   cruisintikisdiscovery.bmave.com → cruisintikis.com
- *   flightdeck.bmave.com            → /admin
+ *   cpflightdeck.bmave.com          → /admin
  *   localhost / vercel.app preview  → /admin (dev convenience)
  *   anything else                   → bmave.com
  *
