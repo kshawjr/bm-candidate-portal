@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createAppServiceClient } from "@/lib/supabase-app";
 import { createCoreClient } from "@/lib/core-client";
+import { logEvent } from "@/lib/log-event";
 
 /**
  * Append a chapter_key to the candidate's dismissed_chapter_videos array.
@@ -201,6 +202,41 @@ export async function completeChapterAndAdvance(
   if (updErr) {
     return { success: false };
   }
+
+  // Fire tracking events. Always fire the engagement signal; promote to
+  // milestone events for the well-known transitions ('explore' → done is
+  // the educational milestone; entering 'verify' is the verification
+  // milestone). nextChapterIdx > finishedIdx ensures we only fire
+  // verify_started on actual forward motion, not on a redundant dismiss
+  // call after the candidate is already past verify.
+  await logEvent({
+    candidateId: row.candidate_id as string,
+    brandId,
+    category: "engagement",
+    eventType: "chapter_completed",
+    eventKey: chapterKey,
+    metadata: { next_chapter_idx: nextChapterIdx },
+  });
+  if (chapterKey === "explore") {
+    await logEvent({
+      candidateId: row.candidate_id as string,
+      brandId,
+      category: "milestone",
+      eventType: "education_completed",
+      eventKey: chapterKey,
+    });
+  }
+  const enteringChapterKey = chapters[nextChapterIdx]?.chapter_key;
+  if (enteringChapterKey === "verify" && nextChapterIdx > finishedIdx) {
+    await logEvent({
+      candidateId: row.candidate_id as string,
+      brandId,
+      category: "milestone",
+      eventType: "verify_started",
+      eventKey: enteringChapterKey,
+    });
+  }
+
   revalidatePath(`/portal/${token}`);
   return { success: true };
 }

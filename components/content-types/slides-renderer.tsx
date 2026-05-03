@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 export interface Slide {
   id: string;
@@ -21,6 +21,10 @@ interface Props {
   /** PR 39: lets the handoff card use the friendlier "Tell us about
    *  yourself" framing when the next step is the Chapter 1 application. */
   nextStepIsApplication?: boolean;
+  /** PR 54: per-slide tracking. Fires once whenever the candidate lands
+   *  on a real image slide (not the virtual handoff card at the end).
+   *  Wired by CinematicShell to logEventByTokenAction. */
+  onSlideViewed?: (slideId: string, slideIndex: number) => void;
 }
 
 const HANDOFF_LOADING_MS = 700;
@@ -31,8 +35,20 @@ export function SlidesRenderer({
   disabled = false,
   nextStepLabel = null,
   nextStepIsApplication = false,
+  onSlideViewed,
 }: Props) {
   const [idx, setIdx] = useState(0);
+
+  // Fire slide_viewed once per index change. Skips the handoff index
+  // (idx === slides.length) since that's a sentinel screen, not a real
+  // slide. Includes the initial mount (slide 0) so the entry is tracked.
+  useEffect(() => {
+    if (!onSlideViewed) return;
+    if (idx >= slides.length) return;
+    const slide = slides[idx];
+    if (!slide) return;
+    onSlideViewed(slide.id, idx);
+  }, [idx, slides, onSlideViewed]);
   // PR 39: brief "Setting things up..." overlay between the handoff click
   // and the actual onComplete fire — bridges the visual gap before the
   // application form mounts.

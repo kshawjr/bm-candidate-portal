@@ -117,3 +117,33 @@ After deploying the lead-creation webhook receiver (PR 51):
 5. **Welcome email template.** Update the existing Zoho welcome email
    to include `${Portal_URL}` so candidates get a direct link in the
    email even if they navigate away from the loading page.
+
+## Candidate progress tracking (PR 54)
+
+The portal writes a row to `candidate_events` for every meaningful
+candidate interaction (page-level dedup deferred to PR 55). A subset
+of these events — `MILESTONE_EVENTS` in `lib/candidate-events.ts` —
+sync to the candidate's Zoho Lead so sales sees stage-level progress
+in CRM.
+
+1. **Run the migration.** Apply
+   `supabase/migrations/20260503_candidate_events.sql` against the
+   `bm-candidate-portal` Supabase project.
+
+2. **Custom fields on the Zoho Leads module** — create two more
+   fields alongside `Portal_Token` / `Portal_URL`:
+   - `Portal_Status` (single-line text — values written by the app
+     come from `ZOHO_STATUS_BY_MILESTONE` in
+     `lib/candidate-events.ts`: "Portal Accessed", "Education
+     Complete", "Application Started", "Application Submitted",
+     "Discovery Scheduled", "Discovery Completed", "Verifying",
+     "Verified", "Offer Sent", "Awarded")
+   - `Last_Active_Date` (date — ISO-8601 timestamps; Zoho stores as
+     date+time)
+
+3. **Sync mechanics.** Milestone sync runs out-of-band via Vercel's
+   `waitUntil` so it doesn't block server actions or page renders.
+   Failed syncs are persisted on the row (`zoho_sync_status =
+   'failed'` + `zoho_sync_error`) for a future retry worker.
+   Candidates without a `zoho_lead_id` (test seeds, manual rows) are
+   marked `'skipped'` rather than retried.
