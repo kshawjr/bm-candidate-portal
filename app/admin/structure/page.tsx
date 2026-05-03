@@ -6,6 +6,7 @@ import { StructureEditor } from "@/components/admin/structure-editor";
 import type {
   AdminChapterRow,
   ChapterIntroInitial,
+  ChapterVideoInitial,
 } from "@/components/admin/structure-editor";
 import {
   archiveChapterAction,
@@ -18,7 +19,11 @@ import {
   saveChapterIntroAction,
   deleteChapterIntroAction,
   uploadChapterIntroHeroAction,
-} from "../welcome-popup/actions";
+  saveChapterVideoAction,
+  deleteChapterVideoAction,
+  uploadChapterVideoAction,
+} from "./popup-actions";
+import type { VideoProvider } from "@/lib/video-source";
 
 export const dynamic = "force-dynamic";
 
@@ -53,26 +58,36 @@ export default async function StructurePage({ searchParams }: Props) {
     brands.find((b) => b.slug === requestedSlug) ?? brands[0]!;
 
   const app = createAppServiceClient();
-  const [{ data: chapterRows }, { data: stepRows }, { data: introRows }] =
-    await Promise.all([
-      app
-        .from("chapters_config")
-        .select(
-          "id, chapter_key, position, label, name, icon, description, is_archived",
-        )
-        .eq("brand_id", brand.id)
-        .order("position"),
-      app
-        .from("steps_config")
-        .select("id, chapter_key, is_archived")
-        .eq("brand_id", brand.id),
-      app
-        .from("chapter_intro_popups")
-        .select(
-          "chapter_key, heading, body_md, hero_image_url, bullets, cta_dismiss_label, is_active, show_as_banner",
-        )
-        .eq("brand_id", brand.id),
-    ]);
+  const [
+    { data: chapterRows },
+    { data: stepRows },
+    { data: introRows },
+    { data: videoRows },
+  ] = await Promise.all([
+    app
+      .from("chapters_config")
+      .select(
+        "id, chapter_key, position, label, name, icon, description, is_archived",
+      )
+      .eq("brand_id", brand.id)
+      .order("position"),
+    app
+      .from("steps_config")
+      .select("id, chapter_key, is_archived")
+      .eq("brand_id", brand.id),
+    app
+      .from("chapter_intro_popups")
+      .select(
+        "chapter_key, heading, body_md, hero_image_url, bullets, cta_dismiss_label, is_active, show_as_banner",
+      )
+      .eq("brand_id", brand.id),
+    app
+      .from("chapter_videos")
+      .select(
+        "chapter_key, title, video_url, video_provider, description, cta_dismiss_label, is_active, updated_at",
+      )
+      .eq("brand_id", brand.id),
+  ]);
 
   const stepCounts: Record<string, { total: number; active: number }> = {};
   for (const row of stepRows ?? []) {
@@ -113,6 +128,19 @@ export default async function StructurePage({ searchParams }: Props) {
     };
   }
 
+  const videoByKey: Record<string, ChapterVideoInitial> = {};
+  for (const row of videoRows ?? []) {
+    videoByKey[row.chapter_key as string] = {
+      title: (row.title as string | null) ?? null,
+      videoUrl: (row.video_url as string) ?? "",
+      videoProvider: row.video_provider as VideoProvider,
+      description: (row.description as string | null) ?? null,
+      ctaDismissLabel: (row.cta_dismiss_label as string | null) ?? "Got it",
+      isActive: Boolean(row.is_active),
+      updatedAt: (row.updated_at as string | null) ?? null,
+    };
+  }
+
   const chapters: AdminChapterRow[] = (chapterRows ?? []).map((s) => ({
     id: s.id,
     chapter_key: s.chapter_key,
@@ -125,6 +153,7 @@ export default async function StructurePage({ searchParams }: Props) {
     step_count: stepCounts[s.chapter_key]?.active ?? 0,
     step_count_total: stepCounts[s.chapter_key]?.total ?? 0,
     intro_popup: introByKey[s.chapter_key] ?? null,
+    video: videoByKey[s.chapter_key] ?? null,
   }));
 
   return (
@@ -141,6 +170,9 @@ export default async function StructurePage({ searchParams }: Props) {
       saveChapterIntro={saveChapterIntroAction}
       deleteChapterIntro={deleteChapterIntroAction}
       uploadChapterIntroHero={uploadChapterIntroHeroAction}
+      saveChapterVideo={saveChapterVideoAction}
+      deleteChapterVideo={deleteChapterVideoAction}
+      uploadChapterVideo={uploadChapterVideoAction}
     />
   );
 }

@@ -27,7 +27,11 @@ async function requireAdmin() {
   return user;
 }
 
-export interface WelcomePopupFormData {
+// ======================================================================
+// Chapter videos
+// ======================================================================
+
+export interface ChapterVideoFormData {
   title: string | null;
   videoUrl: string;
   videoProvider: VideoProvider;
@@ -37,16 +41,20 @@ export interface WelcomePopupFormData {
 }
 
 /**
- * Upsert the welcome popup for a brand. There is at most one row per brand
- * (unique constraint on brand_id), so this performs an upsert with on-conflict
- * on brand_id. Validates the URL parses to the declared provider.
+ * Upsert the transition video for a (brand, chapter). Validates the URL
+ * parses to one of the supported providers; trusts the parsed provider over
+ * the form's dropdown if they disagree.
  */
-export async function saveWelcomePopupAction(
+export async function saveChapterVideoAction(
   brandId: string,
-  data: WelcomePopupFormData,
+  chapterKey: string,
+  data: ChapterVideoFormData,
 ): Promise<{ success: boolean; error?: string }> {
   await requireAdmin();
 
+  if (!chapterKey) {
+    return { success: false, error: "chapter_key required" };
+  }
   const url = data.videoUrl.trim();
   if (!url) return { success: false, error: "Video URL is required" };
   const parsed = parseVideoSource(url);
@@ -57,64 +65,56 @@ export async function saveWelcomePopupAction(
         "Couldn't parse that video URL. Use a YouTube, Vimeo, or direct .mp4 URL.",
     };
   }
-  // Defensive: if the admin manually overrode the provider dropdown to
-  // disagree with the URL, trust the parsed result.
-  const provider = parsed.provider;
 
   const app = createAppServiceClient();
-  const { error } = await app.from("welcome_popups").upsert(
+  const { error } = await app.from("chapter_videos").upsert(
     {
       brand_id: brandId,
+      chapter_key: chapterKey,
       title: data.title?.trim() || null,
       video_url: url,
-      video_provider: provider,
+      video_provider: parsed.provider,
       description: data.description?.trim() || null,
-      cta_dismiss_label:
-        data.ctaDismissLabel.trim() || "Got it",
+      cta_dismiss_label: data.ctaDismissLabel.trim() || "Got it",
       is_active: data.isActive,
     },
-    { onConflict: "brand_id" },
+    { onConflict: "brand_id,chapter_key" },
   );
   if (error) {
     return {
       success: false,
-      error: `welcome_popups upsert failed: ${error.message}`,
+      error: `chapter_videos upsert failed: ${error.message}`,
     };
   }
 
-  revalidatePath("/admin/welcome-popup");
+  revalidatePath("/admin/structure");
   revalidatePath("/portal/[token]", "page");
   return { success: true };
 }
 
-/**
- * Delete the welcome popup for a brand. Used by the admin "remove" button so
- * the candidate stops seeing this popup entirely. Soft-disable via is_active
- * is preferred for "pause" — this is for full removal.
- */
-export async function deleteWelcomePopupAction(
+export async function deleteChapterVideoAction(
   brandId: string,
+  chapterKey: string,
 ): Promise<{ success: boolean; error?: string }> {
   await requireAdmin();
   const app = createAppServiceClient();
   const { error } = await app
-    .from("welcome_popups")
+    .from("chapter_videos")
     .delete()
-    .eq("brand_id", brandId);
-  if (error) {
-    return { success: false, error: error.message };
-  }
-  revalidatePath("/admin/welcome-popup");
+    .eq("brand_id", brandId)
+    .eq("chapter_key", chapterKey);
+  if (error) return { success: false, error: error.message };
+  revalidatePath("/admin/structure");
   revalidatePath("/portal/[token]", "page");
   return { success: true };
 }
 
 /**
- * Upload an mp4 video for a brand's welcome popup. Stores in
- * brand-assets/{brandSlug}/welcome-videos/{ts}-{name}. Returns the public URL
- * which the form should write into the videoUrl field as provider=mp4.
+ * Upload an mp4/mov/webm file for a chapter's transition video. Stored in
+ * brand-assets/{brandSlug}/chapter-videos/{ts}-{name}. Returns the public
+ * URL — the form writes that into videoUrl and saves with provider=mp4.
  */
-export async function uploadWelcomeVideoAction(
+export async function uploadChapterVideoAction(
   brandSlug: string,
   formData: FormData,
 ): Promise<{ url: string } | { error: string }> {
@@ -133,7 +133,7 @@ export async function uploadWelcomeVideoAction(
   }
 
   const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-").slice(0, 80);
-  const path = `${brandSlug}/welcome-videos/${Date.now()}-${safeName}`;
+  const path = `${brandSlug}/chapter-videos/${Date.now()}-${safeName}`;
 
   const core = createCoreClient();
   const { error: upErr } = await core.storage
@@ -150,51 +150,10 @@ export async function uploadWelcomeVideoAction(
   return { url: pub.publicUrl };
 }
 
-/**
- * Upload a hero image for a chapter intro popup. Mirrors the brand-asset
- * uploaders in app/admin/content/actions.ts but lives here so the structure
- * editor's chapter-intro UI can call it directly. Stored under
- * brand-assets/{brandSlug}/chapter-intros/.
- */
-export async function uploadChapterIntroHeroAction(
-  brandSlug: string,
-  formData: FormData,
-): Promise<{ url: string } | { error: string }> {
-  await requireAdmin();
-
-  const file = formData.get("file");
-  if (!(file instanceof File)) return { error: "No file provided" };
-  if (!ALLOWED_IMAGE_TYPES.has(file.type)) {
-    return { error: "Image must be JPG, PNG, or WebP" };
-  }
-  if (file.size > MAX_IMAGE_BYTES) {
-    return { error: "Image must be under 5 MB" };
-  }
-  if (!brandSlug || !/^[a-z0-9-]+$/.test(brandSlug)) {
-    return { error: "Invalid brand slug" };
-  }
-
-  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-").slice(0, 80);
-  const path = `${brandSlug}/chapter-intros/${Date.now()}-${safeName}`;
-
-  const core = createCoreClient();
-  const { error: upErr } = await core.storage
-    .from(STORAGE_BUCKET)
-    .upload(path, file, {
-      contentType: file.type,
-      cacheControl: "31536000",
-      upsert: false,
-    });
-  if (upErr) return { error: upErr.message };
-
-  const { data: pub } = core.storage.from(STORAGE_BUCKET).getPublicUrl(path);
-  if (!pub?.publicUrl) return { error: "Failed to resolve public URL" };
-  return { url: pub.publicUrl };
-}
-
-// =====================================================================
-// Chapter intro popups
-// =====================================================================
+// ======================================================================
+// Chapter intro popups (moved here from /admin/welcome-popup as part of
+// PR 34's consolidation of chapter onboarding admin into /admin/structure)
+// ======================================================================
 
 export interface ChapterIntroFormData {
   heading: string;
@@ -272,4 +231,40 @@ export async function deleteChapterIntroAction(
   revalidatePath("/admin/structure");
   revalidatePath("/portal/[token]", "page");
   return { success: true };
+}
+
+export async function uploadChapterIntroHeroAction(
+  brandSlug: string,
+  formData: FormData,
+): Promise<{ url: string } | { error: string }> {
+  await requireAdmin();
+
+  const file = formData.get("file");
+  if (!(file instanceof File)) return { error: "No file provided" };
+  if (!ALLOWED_IMAGE_TYPES.has(file.type)) {
+    return { error: "Image must be JPG, PNG, or WebP" };
+  }
+  if (file.size > MAX_IMAGE_BYTES) {
+    return { error: "Image must be under 5 MB" };
+  }
+  if (!brandSlug || !/^[a-z0-9-]+$/.test(brandSlug)) {
+    return { error: "Invalid brand slug" };
+  }
+
+  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-").slice(0, 80);
+  const path = `${brandSlug}/chapter-intros/${Date.now()}-${safeName}`;
+
+  const core = createCoreClient();
+  const { error: upErr } = await core.storage
+    .from(STORAGE_BUCKET)
+    .upload(path, file, {
+      contentType: file.type,
+      cacheControl: "31536000",
+      upsert: false,
+    });
+  if (upErr) return { error: upErr.message };
+
+  const { data: pub } = core.storage.from(STORAGE_BUCKET).getPublicUrl(path);
+  if (!pub?.publicUrl) return { error: "Failed to resolve public URL" };
+  return { url: pub.publicUrl };
 }

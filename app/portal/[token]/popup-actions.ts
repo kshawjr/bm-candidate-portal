@@ -4,22 +4,53 @@ import { revalidatePath } from "next/cache";
 import { createAppServiceClient } from "@/lib/supabase-app";
 
 /**
- * Mark the welcome popup as seen for the candidate behind this token.
- * Called once, from the welcome popup's dismiss button. Sets the boolean
- * flag and bumps last_activity_at so the journey card stays fresh.
+ * Append a chapter_key to the candidate's dismissed_chapter_videos array.
+ * Called once per chapter, from the chapter video popup's dismiss button.
+ * Same read-modify-write pattern as the chapter intro / step transition
+ * dismissals — dedupes if somehow called twice for the same chapter.
+ *
+ * Replaces the old dismissWelcomePopup (PR 31) which set a single boolean;
+ * the per-chapter array supports the generalized chapter video model.
  */
-export async function dismissWelcomePopup(
+export async function dismissChapterVideo(
   token: string,
+  chapterKey: string,
 ): Promise<{ success: boolean }> {
+  if (!chapterKey || typeof chapterKey !== "string") {
+    return { success: false };
+  }
+
   const app = createAppServiceClient();
-  const { error } = await app
+  const { data: row, error: readErr } = await app
+    .from("candidates_in_portal")
+    .select("id, dismissed_chapter_videos")
+    .eq("token", token)
+    .maybeSingle();
+  if (readErr || !row) {
+    return { success: false };
+  }
+
+  const existing: unknown = row.dismissed_chapter_videos;
+  const list: string[] = Array.isArray(existing)
+    ? (existing as unknown[]).filter((v): v is string => typeof v === "string")
+    : [];
+
+  if (list.includes(chapterKey)) {
+    await app
+      .from("candidates_in_portal")
+      .update({ last_activity_at: new Date().toISOString() })
+      .eq("id", row.id);
+    return { success: true };
+  }
+
+  const { error: updErr } = await app
     .from("candidates_in_portal")
     .update({
-      has_seen_welcome: true,
+      dismissed_chapter_videos: [...list, chapterKey],
       last_activity_at: new Date().toISOString(),
     })
-    .eq("token", token);
-  if (error) {
+    .eq("id", row.id);
+  if (updErr) {
     return { success: false };
   }
   revalidatePath(`/portal/${token}`);

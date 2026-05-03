@@ -3,7 +3,8 @@
 import { useEffect, useState, useTransition } from "react";
 import { parseVideoSource, type VideoProvider } from "@/lib/video-source";
 
-export interface WelcomePopupConfig {
+export interface ChapterVideoConfig {
+  chapterKey: string;
   title: string | null;
   videoUrl: string;
   videoProvider: VideoProvider;
@@ -12,25 +13,27 @@ export interface WelcomePopupConfig {
 }
 
 interface Props {
-  config: WelcomePopupConfig;
-  /** Called once when the user clicks the dismiss CTA. */
-  onDismiss: () => Promise<{ success: boolean }>;
+  config: ChapterVideoConfig;
+  /** Called once when the user clicks the dismiss CTA. Receives the chapter
+   *  key so the action knows which entry to append to the dismissals array. */
+  onDismiss: (chapterKey: string) => Promise<{ success: boolean }>;
   /** Called after a successful dismiss so the parent can advance the
    *  sequence (e.g. open the chapter intro popup next). */
   onDismissed?: () => void;
 }
 
 /**
- * One-time welcome popup. Cannot be dismissed by clicking outside or pressing
- * Escape — the candidate has to make a deliberate click on the CTA. This is
- * the candidate's first impression of the brand and the only moment the
- * welcome video is in their face, so we don't want a stray keypress to skip it.
+ * Per-chapter transition video. Plays the first time a candidate enters a
+ * chapter that has a configured video. Cannot be dismissed by clicking
+ * outside or pressing Escape — the candidate has to make a deliberate click
+ * on the CTA. Same gravitas as the original welcome popup, just generalized
+ * so each chapter can have its own.
  */
-export function WelcomePopup({ config, onDismiss, onDismissed }: Props) {
+export function ChapterVideoPopup({ config, onDismiss, onDismissed }: Props) {
   const [closing, setClosing] = useState(false);
   const [pending, startTransition] = useTransition();
 
-  // Lock the page scroll while the popup is open. Restored on unmount even if
+  // Lock page scroll while the popup is open. Restored on unmount even if
   // dismiss fails halfway.
   useEffect(() => {
     const prev = document.body.style.overflow;
@@ -44,10 +47,10 @@ export function WelcomePopup({ config, onDismiss, onDismissed }: Props) {
     if (pending || closing) return;
     setClosing(true);
     startTransition(async () => {
-      const result = await onDismiss();
+      const result = await onDismiss(config.chapterKey);
       if (result.success) {
         // Let the fade-out finish (200ms) before notifying the parent so the
-        // chapter intro doesn't appear in the same frame the welcome closes.
+        // chapter intro doesn't appear in the same frame the video closes.
         window.setTimeout(() => {
           onDismissed?.();
         }, 200);
@@ -67,11 +70,11 @@ export function WelcomePopup({ config, onDismiss, onDismissed }: Props) {
       className={`pp-popup-backdrop${closing ? " is-closing" : ""}`}
       role="dialog"
       aria-modal="true"
-      aria-labelledby={config.title ? "welcome-popup-title" : undefined}
+      aria-labelledby={config.title ? "chapter-video-title" : undefined}
     >
       <div className="pp-popup pp-popup-welcome">
         {config.title && (
-          <h2 id="welcome-popup-title" className="pp-popup-title">
+          <h2 id="chapter-video-title" className="pp-popup-title">
             {config.title}
           </h2>
         )}
@@ -90,7 +93,7 @@ export function WelcomePopup({ config, onDismiss, onDismissed }: Props) {
             <iframe
               className="pp-popup-video-iframe"
               src={parsed.embedUrl}
-              title={config.title ?? "Welcome video"}
+              title={config.title ?? "Chapter video"}
               frameBorder={0}
               allow="accelerometer; autoplay; encrypted-media; picture-in-picture"
               allowFullScreen

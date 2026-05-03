@@ -2,30 +2,34 @@
 
 import { useState } from "react";
 import {
-  WelcomePopup,
-  type WelcomePopupConfig,
-} from "@/components/portal/welcome-popup";
+  ChapterVideoPopup,
+  type ChapterVideoConfig,
+} from "@/components/portal/chapter-video-popup";
 import {
   ChapterIntroPopup,
   type ChapterIntroPopupConfig,
 } from "@/components/portal/chapter-intro-popup";
 
 interface Props {
-  /** Welcome popup to show. Null when nothing is configured for the brand
-   *  or the candidate has already dismissed it. */
-  welcome: WelcomePopupConfig | null;
+  /** Per-chapter transition video. Null when nothing is configured for the
+   *  current chapter, the row is inactive, or the candidate has already
+   *  dismissed it. */
+  chapterVideo: ChapterVideoConfig | null;
   /** Chapter intro popup to show. Null when nothing is configured for the
    *  current chapter or the candidate has already dismissed it. */
   chapterIntro: ChapterIntroPopupConfig | null;
-  onDismissWelcome: () => Promise<{ success: boolean }>;
+  onDismissChapterVideo: (
+    chapterKey: string,
+  ) => Promise<{ success: boolean }>;
   onDismissChapterIntro: (chapterKey: string) => Promise<{ success: boolean }>;
 }
 
 /**
- * Sequencing rules:
- *   1. Welcome shows first if pending.
- *   2. Chapter intro waits until welcome dismisses.
- *   3. Both can be null — in which case nothing renders.
+ * Per-chapter onboarding sequencer:
+ *   1. Chapter video shows first if pending.
+ *   2. Chapter intro popup waits for video to dismiss.
+ *   3. Both can be null — in which case nothing renders and the chapter
+ *      content (plus banner, if configured) shows immediately.
  *
  * Once a popup dismisses successfully it never re-mounts in this client
  * session — the server has flipped the corresponding flag, but until the
@@ -33,28 +37,28 @@ interface Props {
  * popup doesn't flash back in for a frame.
  */
 export function OnboardingPopups({
-  welcome,
+  chapterVideo,
   chapterIntro,
-  onDismissWelcome,
+  onDismissChapterVideo,
   onDismissChapterIntro,
 }: Props) {
-  const [welcomeDismissed, setWelcomeDismissed] = useState(false);
+  const [videoDismissed, setVideoDismissed] = useState(false);
   const [chapterDismissed, setChapterDismissed] = useState(false);
 
-  const showWelcome = welcome !== null && !welcomeDismissed;
+  const showVideo = chapterVideo !== null && !videoDismissed;
   const showChapter =
     chapterIntro !== null &&
     !chapterDismissed &&
-    // Wait for welcome — if there's a pending welcome popup, the chapter
-    // intro stays back until it's gone.
-    (welcome === null || welcomeDismissed);
+    // Wait for the video — if a video is pending for this chapter, the
+    // intro popup stays back until it's gone.
+    (chapterVideo === null || videoDismissed);
 
-  if (showWelcome && welcome) {
+  if (showVideo && chapterVideo) {
     return (
-      <WelcomePopup
-        config={welcome}
-        onDismiss={onDismissWelcome}
-        onDismissed={() => setWelcomeDismissed(true)}
+      <ChapterVideoPopup
+        config={chapterVideo}
+        onDismiss={onDismissChapterVideo}
+        onDismissed={() => setVideoDismissed(true)}
       />
     );
   }

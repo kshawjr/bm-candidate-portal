@@ -912,14 +912,16 @@ async function backfillScheduleConfigDefaults() {
 }
 
 /**
- * PR 31: per-brand welcome popup. Idempotent — uses upsert on brand_id since
- * welcome_popups has a unique (brand_id) constraint. Re-runs replace whatever
- * is there with the seed defaults; admins can edit via /admin/welcome-popup
- * after the initial seed.
+ * PR 34: per-chapter transition videos. Replaces the brand-level welcome
+ * popup seed (PR 31). Seeds Chapter 1 for each brand so the explore chapter
+ * starts with a video; other chapters stay unconfigured so admins see the
+ * "no video configured" state in /admin/structure and can add per-chapter.
+ *
+ * Idempotent via upsert on (brand_id, chapter_key).
  */
-async function seedWelcomePopup(brandId: string, code: BrandCode) {
+async function seedChapterVideos(brandId: string, code: BrandCode) {
   // Same demo YouTube videos used by Chapter 2's "hello" video step. Real
-  // welcome videos will be uploaded per brand by Blue Maven.
+  // chapter videos will be uploaded per brand by Blue Maven.
   const TITLES: Record<BrandCode, string> = {
     ht: "Welcome to Hounds Town",
     ct: "Welcome to Cruisin' Tikis",
@@ -929,9 +931,10 @@ async function seedWelcomePopup(brandId: string, code: BrandCode) {
     ct: "Two minutes on the brand, the boats, and what life as a Cruisin' Tikis owner actually looks like.",
   };
 
-  const { error } = await app.from("welcome_popups").upsert(
+  const { error } = await app.from("chapter_videos").upsert(
     {
       brand_id: brandId,
+      chapter_key: "explore",
       title: TITLES[code],
       video_url: "https://www.youtube.com/watch?v=aqz-KE-bpKQ",
       video_provider: "youtube",
@@ -939,17 +942,17 @@ async function seedWelcomePopup(brandId: string, code: BrandCode) {
       cta_dismiss_label: "Got it",
       is_active: true,
     },
-    { onConflict: "brand_id" },
+    { onConflict: "brand_id,chapter_key" },
   );
   if (error) {
-    if (/welcome_popups/.test(error.message)) {
+    if (/chapter_videos/.test(error.message)) {
       throw new Error(
-        `welcome_popups upsert failed (did you run 20260423_welcome_and_chapter_intro_popups.sql?): ${error.message}`,
+        `chapter_videos upsert failed (did you run 20260424_chapter_videos.sql?): ${error.message}`,
       );
     }
-    throw new Error(`welcome_popups upsert failed: ${error.message}`);
+    throw new Error(`chapter_videos upsert failed: ${error.message}`);
   }
-  console.log(`[seed] welcome_popups -> ${code}`);
+  console.log(`[seed] chapter_videos -> ${code} / explore`);
 }
 
 /**
@@ -1157,7 +1160,7 @@ async function main() {
     await seedSteps(brand.id, code);
     await seedChapter2Defaults(brand.id, code);
     await seedCallPrepForChapter2(brand.id);
-    await seedWelcomePopup(brand.id, code);
+    await seedChapterVideos(brand.id, code);
     await seedChapterIntros(brand.id, code);
     await seedDevCandidate(brand.id, code, repId);
   }
