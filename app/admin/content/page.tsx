@@ -1,5 +1,3 @@
-import { redirect } from "next/navigation";
-import { getAdminUser } from "@/lib/supabase-auth";
 import { createAppServiceClient } from "@/lib/supabase-app";
 import { createCoreClient } from "@/lib/core-client";
 import {
@@ -46,8 +44,10 @@ const PREVIEW_TOKEN: Record<string, string> = {
 };
 
 export default async function ContentEditorPage({ searchParams }: Props) {
-  const user = await getAdminUser();
-  if (!user) redirect("/admin/sign-in");
+  // PR 50: matching middleware-level admin auth bypass (PR 47) + sub-page
+  // unblock. Page-level getAdminUser/redirect previously bounced unauthed
+  // users to /admin/sign-in, which broke now that the middleware gate is
+  // off. Restore the gate when re-enabling per TODO_AUTH.md.
 
   const core = createCoreClient();
   const { data: brandsRaw } = await core
