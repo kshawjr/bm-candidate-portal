@@ -31,10 +31,12 @@ import type {
 } from "@/components/portal/chapter-intro-popup";
 import type { ChapterIntroBannerConfig } from "@/components/portal/chapter-intro-banner";
 import type { StepTransitionPopupConfig } from "@/components/portal/step-transition-popup";
+import type { ChapterCompletePopupConfig } from "@/components/portal/chapter-complete-popup";
 import {
   dismissChapterVideo,
   dismissChapterIntro,
   dismissStepTransition,
+  completeChapterAndAdvance,
 } from "./popup-actions";
 import type { VideoProvider } from "@/lib/video-source";
 
@@ -111,7 +113,7 @@ export default async function PortalTokenPage({
   const { data: session } = await app
     .from("candidates_in_portal")
     .select(
-      "id, candidate_id, current_chapter, current_step, is_app_submitted, last_activity_at, dismissed_chapter_videos, dismissed_chapter_intros, dismissed_step_transitions",
+      "id, candidate_id, current_chapter, current_step, is_app_submitted, last_activity_at, dismissed_chapter_videos, dismissed_chapter_intros, dismissed_step_transitions, dismissed_chapter_completes",
     )
     .eq("token", params.token)
     .maybeSingle();
@@ -168,6 +170,7 @@ export default async function PortalTokenPage({
     { data: chapterVideoRows },
     { data: chapterIntroRows },
     { data: stepTransitionRows },
+    { data: chapterCompleteRows },
   ] = await Promise.all([
     core
       .from("portal_content")
@@ -217,6 +220,11 @@ export default async function PortalTokenPage({
     app
       .from("step_transition_popups")
       .select("step_id, heading, body_md, cta_label, is_active")
+      .eq("brand_id", brand.id)
+      .eq("is_active", true),
+    app
+      .from("chapter_complete_popups")
+      .select("chapter_key, heading, body_md, cta_label, is_active")
       .eq("brand_id", brand.id)
       .eq("is_active", true),
   ]);
@@ -305,9 +313,15 @@ export default async function PortalTokenPage({
   const stepsInCurrentChapter = currentChapterKey_
     ? (stepsRows ?? []).filter((r) => r.chapter_key === currentChapterKey_).length
     : 0;
+  // Clamp to [0, stepsInCurrentChapter] inclusive — i.e. allow ONE past the
+  // last step. That sentinel value (current_step === stepsInCurrentChapter)
+  // means "candidate has finished every step in this chapter but hasn't
+  // dismissed the chapter complete popup yet". The shell's renderer uses a
+  // separate Math.min when picking which step's content to display, so an
+  // index past the end gracefully falls back to the last step.
   const currentStepIdx = Math.min(
     Math.max(0, storedStepIdx),
-    Math.max(0, stepsInCurrentChapter - 1),
+    stepsInCurrentChapter,
   );
   if (storedChapterIdx !== currentChapterIdx || storedStepIdx !== currentStepIdx) {
     await app
@@ -475,6 +489,40 @@ export default async function PortalTokenPage({
     }
   }
 
+  // Chapter complete popup — fires when the candidate has finished the last
+  // step of their CURRENT chapter (current_step >= step count) but
+  // current_chapter hasn't yet advanced past it. Dismissing it triggers
+  // the advance via completeChapterAndAdvance. Wins priority over the next
+  // chapter's video/intro since it belongs to the chapter just finished.
+  const dismissedChapterCompletes: string[] = Array.isArray(
+    session.dismissed_chapter_completes,
+  )
+    ? (session.dismissed_chapter_completes as unknown[]).filter(
+        (v): v is string => typeof v === "string",
+      )
+    : [];
+  const isChapterFinished =
+    stepsInCurrentChapter > 0 &&
+    currentStepIdx >= stepsInCurrentChapter;
+  let chapterCompletePopup: ChapterCompletePopupConfig | null = null;
+  if (
+    isChapterFinished &&
+    currentChapterKeyForOnboarding &&
+    !dismissedChapterCompletes.includes(currentChapterKeyForOnboarding)
+  ) {
+    const completeRow = (chapterCompleteRows ?? []).find(
+      (r) => r.chapter_key === currentChapterKeyForOnboarding,
+    );
+    if (completeRow) {
+      chapterCompletePopup = {
+        chapterKey: currentChapterKeyForOnboarding,
+        heading: (completeRow.heading as string) ?? "Chapter complete",
+        bodyMd: (completeRow.body_md as string | null) ?? null,
+        ctaLabel: (completeRow.cta_label as string | null) ?? "Keep going",
+      };
+    }
+  }
+
   // Banners: every chapter whose intro row is active AND show_as_banner=true.
   // The shell looks up the right one for the currently selected chapter.
   const bannersByChapterKey: Record<string, ChapterIntroBannerConfig> = {};
@@ -514,6 +562,10 @@ export default async function PortalTokenPage({
   const onDismissChapterVideo = dismissChapterVideo.bind(null, params.token);
   const onDismissChapterIntro = dismissChapterIntro.bind(null, params.token);
   const onDismissStepTransition = dismissStepTransition.bind(
+    null,
+    params.token,
+  );
+  const onDismissChapterComplete = completeChapterAndAdvance.bind(
     null,
     params.token,
   );
@@ -612,8 +664,10 @@ export default async function PortalTokenPage({
         // it, the next chapter's video + intro would be blocked by the
         // previous chapter's dismissals still sitting in component state.
         key={currentChapterKeyForOnboarding ?? "no-chapter"}
+        chapterComplete={chapterCompletePopup}
         chapterVideo={chapterVideo}
         chapterIntro={chapterIntroPopup}
+        onDismissChapterComplete={onDismissChapterComplete}
         onDismissChapterVideo={onDismissChapterVideo}
         onDismissChapterIntro={onDismissChapterIntro}
       />

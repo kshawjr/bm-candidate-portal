@@ -1083,6 +1083,39 @@ async function seedChapterIntros(brandId: string, code: BrandCode) {
   );
 }
 
+/**
+ * PR 36: chapter complete popups. Seeds Chapter 1's celebration for each
+ * brand so the demo flow shows the new "🎉 Chapter 1 complete!" moment
+ * after application submit. Other chapters stay unseeded so admins see the
+ * empty state in /admin/structure and can add per-chapter copy.
+ *
+ * Idempotent via upsert(brand_id, chapter_key).
+ */
+async function seedChapterCompletes(brandId: string, code: BrandCode) {
+  void code;
+  const { error } = await app.from("chapter_complete_popups").upsert(
+    {
+      brand_id: brandId,
+      chapter_key: "explore",
+      heading: "Chapter 1 complete!",
+      body_md:
+        "Great job. Next up: a real conversation with your franchise growth leader.",
+      cta_label: "Keep going",
+      is_active: true,
+    },
+    { onConflict: "brand_id,chapter_key" },
+  );
+  if (error) {
+    if (/chapter_complete_popups/.test(error.message)) {
+      throw new Error(
+        `chapter_complete_popups upsert failed (did you run 20260424_chapter_complete_popups.sql?): ${error.message}`,
+      );
+    }
+    throw new Error(`chapter_complete_popups upsert failed: ${error.message}`);
+  }
+  console.log(`[seed] chapter_complete_popups -> ${brandId} / explore`);
+}
+
 async function seedDevCandidate(
   brandId: string,
   code: BrandCode,
@@ -1162,6 +1195,7 @@ async function main() {
     await seedCallPrepForChapter2(brand.id);
     await seedChapterVideos(brand.id, code);
     await seedChapterIntros(brand.id, code);
+    await seedChapterCompletes(brand.id, code);
     await seedDevCandidate(brand.id, code, repId);
   }
 

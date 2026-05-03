@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createAppServiceClient } from "@/lib/supabase-app";
+import { createCoreClient } from "@/lib/core-client";
 
 /**
  * Append a chapter_key to the candidate's dismissed_chapter_videos array.
@@ -104,6 +105,96 @@ export async function dismissChapterIntro(
     .from("candidates_in_portal")
     .update({
       dismissed_chapter_intros: next,
+      last_activity_at: new Date().toISOString(),
+    })
+    .eq("id", row.id);
+  if (updErr) {
+    return { success: false };
+  }
+  revalidatePath(`/portal/${token}`);
+  return { success: true };
+}
+
+/**
+ * Dismiss a chapter complete popup AND advance the candidate to the next
+ * chapter. The two are bundled in one server action because the popup IS
+ * the gate for advancement — finishing the last step of a chapter sets
+ * current_step past the end, the popup fires, and dismissing it bumps
+ * current_chapter forward.
+ *
+ * For the final chapter we still record the dismissal but don't advance
+ * past the last index (the candidate stays on the final chapter forever).
+ */
+export async function completeChapterAndAdvance(
+  token: string,
+  chapterKey: string,
+): Promise<{ success: boolean }> {
+  if (!chapterKey || typeof chapterKey !== "string") {
+    return { success: false };
+  }
+
+  const app = createAppServiceClient();
+  const { data: row, error: readErr } = await app
+    .from("candidates_in_portal")
+    .select(
+      "id, candidate_id, current_chapter, dismissed_chapter_completes",
+    )
+    .eq("token", token)
+    .maybeSingle();
+  if (readErr || !row) {
+    return { success: false };
+  }
+
+  // Resolve the brand so we can count active chapters and clamp the next
+  // current_chapter — a per-portal reach into bmave-core, but we already do
+  // this on the page so the round-trip cost is amortized by Supabase
+  // connection pooling.
+  const core = createCoreClient();
+  const { data: candidate } = await core
+    .from("candidates")
+    .select("brand_id")
+    .eq("id", row.candidate_id)
+    .maybeSingle();
+  const brandId = (candidate as { brand_id?: string } | null)?.brand_id;
+  if (!brandId) {
+    return { success: false };
+  }
+
+  const { data: chapterRows } = await app
+    .from("chapters_config")
+    .select("chapter_key, position")
+    .eq("brand_id", brandId)
+    .eq("is_archived", false)
+    .order("position");
+  const chapters = chapterRows ?? [];
+  const lastIdx = chapters.length - 1;
+
+  // Find the index of the chapter the candidate just finished (by key) so
+  // the bump is robust to admin reordering between page render and click.
+  const finishedIdx = chapters.findIndex(
+    (c) => c.chapter_key === chapterKey,
+  );
+  // Bump current_chapter to finishedIdx + 1, clamped to the last index.
+  // If the chapterKey is gone (admin deleted it mid-flight), advance from
+  // current_chapter as a fallback so we still make forward progress.
+  const baseIdx =
+    finishedIdx >= 0 ? finishedIdx : (row.current_chapter as number) ?? 0;
+  const nextChapterIdx = Math.min(baseIdx + 1, lastIdx);
+
+  const existing: unknown = row.dismissed_chapter_completes;
+  const list: string[] = Array.isArray(existing)
+    ? (existing as unknown[]).filter((v): v is string => typeof v === "string")
+    : [];
+  const dismissals = list.includes(chapterKey)
+    ? list
+    : [...list, chapterKey];
+
+  const { error: updErr } = await app
+    .from("candidates_in_portal")
+    .update({
+      dismissed_chapter_completes: dismissals,
+      current_chapter: nextChapterIdx,
+      current_step: 0,
       last_activity_at: new Date().toISOString(),
     })
     .eq("id", row.id);
