@@ -45,6 +45,7 @@ import {
 } from "@/components/portal/step-transition-popup";
 import { JourneyTimeline } from "@/components/portal/journey-timeline";
 import { YoureCurrentScreen } from "@/components/portal/youre-current-screen";
+import type { ClientLogEventArgs } from "@/app/portal/[token]/event-actions";
 
 // Default logo height for all brands. Per-brand overrides below.
 const DEFAULT_LOGO_HEIGHT = 60;
@@ -195,6 +196,13 @@ export interface ShellProps {
    * the sidebar.
    */
   currentChapterCompletedSteps: number;
+  /**
+   * PR 54: token-bound tracking handler. Resolves candidate + brand
+   * server-side from the portal token, so client components fire events
+   * without ever holding either id. Best-effort: failures are swallowed
+   * server-side and never surfaced.
+   */
+  onLogEvent: (args: ClientLogEventArgs) => Promise<void>;
 }
 
 export function CinematicShell({
@@ -238,6 +246,7 @@ export function CinematicShell({
   initialDismissedStepTransitions,
   onDismissStepTransition,
   currentChapterCompletedSteps,
+  onLogEvent,
 }: ShellProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -289,6 +298,44 @@ export function CinematicShell({
     });
     return onDismissStepTransition(stepId);
   };
+
+  // PR 54: tracking. Fire `step_viewed` whenever the candidate lands on a
+  // new step, and additionally fire `application_started` (milestone) the
+  // first time they land on the application step within this shell mount.
+  // Dedup is per-shell-mount: a full page reload may re-fire
+  // application_started, but the milestone Zoho update is idempotent
+  // (Portal_Status set to "Application Started" twice = same end state).
+  const lastTrackedStepIdRef = useRef<string | null>(null);
+  const startedApplicationStepIdsRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!selectedStep) return;
+    if (lastTrackedStepIdRef.current === selectedStep.id) return;
+    lastTrackedStepIdRef.current = selectedStep.id;
+
+    void onLogEvent({
+      category: "engagement",
+      eventType: "step_viewed",
+      eventKey: selectedStep.step_key,
+      metadata: {
+        chapter_key: selectedStep.chapter_key,
+        step_id: selectedStep.id,
+        content_type: selectedStep.content_type,
+      },
+    });
+
+    if (
+      selectedStep.content_type === "application" &&
+      !startedApplicationStepIdsRef.current.has(selectedStep.id)
+    ) {
+      startedApplicationStepIdsRef.current.add(selectedStep.id);
+      void onLogEvent({
+        category: "milestone",
+        eventType: "application_started",
+        eventKey: selectedStep.step_key,
+        metadata: { chapter_key: selectedStep.chapter_key },
+      });
+    }
+  }, [selectedStep, onLogEvent]);
 
   // Sync the user's view to the server's current chapter when it advances.
   // PR 36: completing a chapter via the chapter complete popup bumps
@@ -587,6 +634,7 @@ export function CinematicShell({
                 }
                 onTourComplete={handleTourComplete}
                 onStepAdvance={handleStepAdvance}
+                onLogEvent={onLogEvent}
                 tourPending={pending}
                 candidate={candidate}
                 leaderName={leader.name}
@@ -677,6 +725,7 @@ function StepRenderer({
   currentChapterKey,
   onTourComplete,
   onStepAdvance,
+  onLogEvent,
   tourPending,
   candidate,
   leaderName,
@@ -707,6 +756,7 @@ function StepRenderer({
   currentChapterKey: string | null;
   onTourComplete: () => void;
   onStepAdvance: () => void;
+  onLogEvent: (args: ClientLogEventArgs) => Promise<void>;
   tourPending: boolean;
   candidate: ApplicationCandidate;
   leaderName: string;
@@ -763,6 +813,18 @@ function StepRenderer({
           disabled={tourPending}
           nextStepLabel={nextStep?.label ?? null}
           nextStepIsApplication={nextStep?.content_type === "application"}
+          onSlideViewed={(slideId, slideIndex) => {
+            void onLogEvent({
+              category: "engagement",
+              eventType: "slide_viewed",
+              eventKey: slideId,
+              metadata: {
+                slide_index: slideIndex,
+                chapter_key: step.chapter_key,
+                step_id: step.id,
+              },
+            });
+          }}
         />
         {/* PR 43: 8-stage discovery roadmap shown beneath Chapter 1's
             brand tour. Brand-themed (paws / waves), highlights the

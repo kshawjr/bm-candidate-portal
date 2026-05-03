@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createAppServiceClient } from "@/lib/supabase-app";
 import { createCoreClient } from "@/lib/core-client";
+import { logEvent } from "@/lib/log-event";
 import {
   bookSlot,
   cancelSlot,
@@ -11,6 +12,35 @@ import {
   type ScheduleConfig,
   type Slot,
 } from "@/lib/google-calendar";
+
+/**
+ * Resolve the (candidate_id, brand_id) pair from a portal token. Used by
+ * tracking call sites that only have the token but need both ids to call
+ * `logEvent`. Returns null on miss so callers can swallow tracking
+ * failures rather than blowing up the user-facing action.
+ */
+async function resolveCandidateAndBrand(
+  token: string,
+): Promise<{ candidateId: string; brandId: string } | null> {
+  const app = createAppServiceClient();
+  const { data: session } = await app
+    .from("candidates_in_portal")
+    .select("candidate_id")
+    .eq("token", token)
+    .maybeSingle();
+  if (!session?.candidate_id) return null;
+  const core = createCoreClient();
+  const { data: candidate } = await core
+    .from("candidates")
+    .select("brand_id")
+    .eq("id", session.candidate_id as string)
+    .maybeSingle();
+  if (!candidate?.brand_id) return null;
+  return {
+    candidateId: session.candidate_id as string,
+    brandId: candidate.brand_id as string,
+  };
+}
 
 /**
  * Generic "advance the candidate past the step they just finished" — bumps
@@ -161,6 +191,26 @@ export async function submitApplicationAction(
     step_key: "app",
   });
   if (prErr) throw new Error(`candidate_progress insert failed: ${prErr.message}`);
+
+  const ctx = await resolveCandidateAndBrand(token);
+  if (ctx) {
+    await logEvent({
+      candidateId: ctx.candidateId,
+      brandId: ctx.brandId,
+      category: "milestone",
+      eventType: "application_submitted",
+      eventKey: "app",
+      metadata: { completion_percent: 100, section_count: 7 },
+    });
+    await logEvent({
+      candidateId: ctx.candidateId,
+      brandId: ctx.brandId,
+      category: "engagement",
+      eventType: "step_completed",
+      eventKey: "app",
+      metadata: { chapter_key: "explore" },
+    });
+  }
 
   revalidatePath(`/portal/${token}`);
 }
@@ -467,6 +517,27 @@ export async function bookSlotAction(
     step_key: null,
   });
 
+  await logEvent({
+    candidateId: ctx.candidate.id,
+    brandId: ctx.brand.id,
+    category: "milestone",
+    eventType: "discovery_scheduled",
+    eventKey: ctx.chapterKey,
+    metadata: {
+      booked_for: result.startTime,
+      duration_minutes: ctx.config.duration_minutes,
+      step_id: ctx.stepId,
+    },
+  });
+  await logEvent({
+    candidateId: ctx.candidate.id,
+    brandId: ctx.brand.id,
+    category: "engagement",
+    eventType: "step_completed",
+    eventKey: ctx.stepId,
+    metadata: { chapter_key: ctx.chapterKey },
+  });
+
   // PR 44: when this booking finishes the LAST active step of the
   // chapter (e.g., Chapter 2's lone schedule step), auto-advance
   // current_chapter past it. The booking confirmation screen IS the
@@ -612,6 +683,18 @@ export async function cancelBookingAction(
     .delete()
     .eq("id", booking.id);
   if (delErr) throw new Error(`booking delete failed: ${delErr.message}`);
+
+  const trackingCtx = await resolveCandidateAndBrand(token);
+  if (trackingCtx) {
+    await logEvent({
+      candidateId: trackingCtx.candidateId,
+      brandId: trackingCtx.brandId,
+      category: "action",
+      eventType: "booking_cancelled",
+      eventKey: booking.step_id as string,
+      metadata: { booking_id: booking.id as string },
+    });
+  }
 
   revalidatePath(`/portal/${token}`);
 }

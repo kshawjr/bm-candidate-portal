@@ -22,6 +22,8 @@ import {
   advanceStepAction,
 } from "./actions";
 import { isGCalConfigured } from "@/lib/google-calendar";
+import { logEvent } from "@/lib/log-event";
+import { logEventByTokenAction } from "./event-actions";
 import { resolveJourneyCardState } from "@/components/sidebar/journey-card";
 import type { ExistingBooking } from "@/components/content-types/schedule-renderer";
 import { DevResetButton } from "@/components/portal/dev-reset-button";
@@ -164,6 +166,33 @@ export default async function PortalTokenPage({
     .eq("id", candidate.brand_id)
     .maybeSingle();
   if (!brand) notFound();
+
+  // Fire portal_first_visit milestone exactly once per candidate. Dedup
+  // off the events table itself rather than `last_activity_at` so a
+  // candidate who triggered the milestone but whose `last_activity_at`
+  // somehow got cleared (manual ops, reset flow) doesn't re-fire it and
+  // regress Portal_Status in Zoho. Best-effort: a select failure just
+  // skips the tracking without breaking the page render.
+  {
+    const { data: existingFirstVisit } = await app
+      .from("candidate_events")
+      .select("id")
+      .eq("candidate_id", session.candidate_id)
+      .eq("event_type", "portal_first_visit")
+      .limit(1)
+      .maybeSingle();
+    if (!existingFirstVisit) {
+      await logEvent({
+        candidateId: session.candidate_id as string,
+        brandId: candidate.brand_id as string,
+        category: "milestone",
+        eventType: "portal_first_visit",
+        metadata: {
+          user_agent: headersList.get("user-agent") ?? "",
+        },
+      });
+    }
+  }
 
   const brandShortName =
     (((brand as { short_name?: string | null }).short_name) ?? "").trim() ||
@@ -705,6 +734,7 @@ export default async function PortalTokenPage({
     null,
     params.token,
   );
+  const onLogEvent = logEventByTokenAction.bind(null, params.token);
 
   const bookingsByStepId: Record<string, ExistingBooking> = {};
   for (const b of bookingsRows ?? []) {
@@ -774,6 +804,7 @@ export default async function PortalTokenPage({
         initialDismissedStepTransitions={dismissedStepTransitions}
         onDismissStepTransition={onDismissStepTransition}
         currentChapterCompletedSteps={currentChapterCompletedSteps}
+        onLogEvent={onLogEvent}
       />
       <DevResetButton token={params.token} />
       <OnboardingPopups
