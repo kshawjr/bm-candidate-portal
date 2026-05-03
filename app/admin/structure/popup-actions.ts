@@ -163,6 +163,7 @@ export interface ChapterIntroFormData {
   ctaDismissLabel: string;
   isActive: boolean;
   showAsBanner: boolean;
+  partnerCalloutText: string | null;
 }
 
 export async function saveChapterIntroAction(
@@ -201,6 +202,7 @@ export async function saveChapterIntroAction(
       cta_dismiss_label: data.ctaDismissLabel.trim() || "Let's go",
       is_active: data.isActive,
       show_as_banner: data.showAsBanner,
+      partner_callout_text: data.partnerCalloutText?.trim() || null,
     },
     { onConflict: "brand_id,chapter_key" },
   );

@@ -213,7 +213,7 @@ export default async function PortalTokenPage({
     app
       .from("chapter_intro_popups")
       .select(
-        "chapter_key, heading, body_md, hero_image_url, bullets, cta_dismiss_label, is_active, show_as_banner",
+        "chapter_key, heading, body_md, hero_image_url, bullets, cta_dismiss_label, is_active, show_as_banner, partner_callout_text",
       )
       .eq("brand_id", brand.id)
       .eq("is_active", true),
@@ -424,6 +424,7 @@ export default async function PortalTokenPage({
     bullets: ChapterIntroBullet[];
     ctaDismissLabel: string;
     showAsBanner: boolean;
+    partnerCalloutText: string | null;
   }
   const parsedIntroByKey: Record<string, ParsedIntroRow> = {};
   for (const introRow of chapterIntroRows ?? []) {
@@ -457,6 +458,9 @@ export default async function PortalTokenPage({
       showAsBanner:
         (introRow as { show_as_banner?: boolean | null }).show_as_banner !==
         false,
+      partnerCalloutText:
+        (introRow as { partner_callout_text?: string | null })
+          .partner_callout_text ?? null,
     };
   }
 
@@ -485,6 +489,7 @@ export default async function PortalTokenPage({
         heroImageUrl: parsed.heroImageUrl,
         bullets: parsed.bullets,
         ctaDismissLabel: parsed.ctaDismissLabel,
+        partnerCalloutText: parsed.partnerCalloutText,
       };
     }
   }
@@ -534,6 +539,7 @@ export default async function PortalTokenPage({
       bodyMd: parsed.bodyMd,
       heroImageUrl: parsed.heroImageUrl,
       bullets: parsed.bullets,
+      partnerCalloutText: parsed.partnerCalloutText,
     };
   }
 

@@ -111,15 +111,17 @@ const STAGE_CONTENT: Record<string, Record<string, string>> = {
   },
 };
 
-type ContentType = "slides" | "static" | "application" | "schedule" | "video" | "call_prep" | "document" | "checklist";
+type ContentType = "slides" | "static" | "application" | "schedule" | "video" | "document" | "checklist";
 
 const CHAPTER_STEPS: Record<string, Array<{ key: string; label: string; type: ContentType; desc: string }>> = {
   explore: [
     { key: "tour",     label: "Brand tour",         type: "slides",      desc: "A short walk through who we are" },
     { key: "app",      label: "Light application",  type: "application", desc: "Quick questions so we can get to know you" },
   ],
+  // PR 38: Chapter 2 collapses to a single step (the schedule grid). The
+  // pre-call prep content moved into Chapter 2's intro popup + banner;
+  // the brand-level transition video covers the gear-shift moment.
   first_chat: [
-    { key: "hello",    label: "Quick hello",        type: "video",       desc: "A 30-second intro before we jump on a call" },
     { key: "book",     label: "Book your call",     type: "schedule",    desc: "Pick a time that works — Google Meet, 30 minutes" },
   ],
   deep_dive: [
@@ -705,170 +707,6 @@ async function seedSteps(brandId: string, code: BrandCode) {
   console.log(`[seed] steps_config: ${rows.length} rows for ${code}`);
 }
 
-/**
- * PR 16 demo: if a brand's Chapter 2 (first_chat) has no steps, seed the new
- * video + schedule demo. The full-structure seedSteps already handles
- * brand-new brands (their Chapter 2 gets the new defaults because CHAPTER_STEPS
- * changed). This helper is for brands that already had the old 3-step
- * Chapter 2 from PR 15 — admin can delete those steps, then a re-seed fills
- * in the new demo content.
- */
-async function seedChapter2Defaults(brandId: string, _code: BrandCode) {
-  const { data: existing, error: readErr } = await app
-    .from("steps_config")
-    .select("id")
-    .eq("brand_id", brandId)
-    .eq("chapter_key", "first_chat")
-    .limit(1);
-  if (readErr) throw new Error(`chapter 2 probe failed: ${readErr.message}`);
-  if (existing && existing.length > 0) {
-    // Chapter 2 already has steps — leave them alone. Admin owns structure.
-    return;
-  }
-
-  const rows = [
-    {
-      brand_id: brandId,
-      chapter_key: "first_chat",
-      position: 0,
-      step_key: "hello",
-      label: "Quick hello",
-      description: "A 30-second intro before we jump on a call",
-      content_type: "video" as const,
-      config: {
-        source: "youtube",
-        url: "https://www.youtube.com/watch?v=aqz-KE-bpKQ",
-        title: "A quick hello before we chat",
-        body: "30 seconds on who we are and what to expect on the call.",
-        cta_label: "Book my call →",
-      },
-      content_cards: [],
-    },
-    {
-      brand_id: brandId,
-      chapter_key: "first_chat",
-      position: 1,
-      step_key: "book",
-      label: "Book your call",
-      description: "Pick a time that works — Google Meet, 60 minutes",
-      content_type: "schedule" as const,
-      config: {
-        duration_minutes: 60,
-        days_ahead: 14,
-        start_hour: 9,
-        end_hour: 17,
-        timezone: "America/New_York",
-        buffer_minutes: 0,
-        body: "A real conversation with your franchise growth leader. No pressure — just a chat about what you're looking for.",
-        event_label: "Discovery Call",
-        working_days: [1, 2, 3, 4, 5],
-        min_notice_hours: 24,
-      },
-      content_cards: [],
-    },
-  ];
-  const { error } = await app.from("steps_config").insert(rows);
-  if (error) throw new Error(`chapter 2 defaults insert failed: ${error.message}`);
-  console.log(`[seed] steps_config: seeded Chapter 2 defaults for brand ${brandId}`);
-}
-
-/**
- * Ensure Chapter 2 (first_chat) has a call_prep step ahead of the
- * schedule step. Idempotent — skips brands that already have a
- * call_prep step in first_chat.
- *
- * Given the typical starting state (video at pos 0, schedule at pos 1),
- * this:
- *   - inserts the call_prep step at position 0 linked to the schedule,
- *   - moves the schedule step to position 1,
- *   - shifts any non-schedule steps (the video) to positions >= 2,
- *     preserving their relative order.
- */
-async function seedCallPrepForChapter2(brandId: string) {
-  const { data: steps, error: readErr } = await app
-    .from("steps_config")
-    .select("id, position, content_type, step_key")
-    .eq("brand_id", brandId)
-    .eq("chapter_key", "first_chat")
-    .order("position");
-  if (readErr) throw new Error(`call_prep probe failed: ${readErr.message}`);
-  if (!steps || steps.length === 0) return;
-  if (steps.some((s) => s.content_type === "call_prep")) return;
-
-  const schedule = steps.find((s) => s.content_type === "schedule");
-  if (!schedule) {
-    console.log(
-      `[seed] call_prep: brand ${brandId} has no schedule step in first_chat — skipping`,
-    );
-    return;
-  }
-
-  // Phase 1: move every existing step to a temporary high position to
-  // avoid any transient unique collisions.
-  const tempOffset = 1000;
-  for (let i = 0; i < steps.length; i++) {
-    const { error } = await app
-      .from("steps_config")
-      .update({ position: tempOffset + i })
-      .eq("id", steps[i].id);
-    if (error) throw new Error(`call_prep temp reorder failed: ${error.message}`);
-  }
-
-  // Phase 2: schedule → 1, other existing steps → 2..N (in original order),
-  // leaving position 0 free for the new call_prep step.
-  await app
-    .from("steps_config")
-    .update({ position: 1 })
-    .eq("id", schedule.id);
-  const others = steps
-    .filter((s) => s.content_type !== "schedule")
-    .sort((a, b) => a.position - b.position);
-  for (let i = 0; i < others.length; i++) {
-    const { error } = await app
-      .from("steps_config")
-      .update({ position: 2 + i })
-      .eq("id", others[i].id);
-    if (error) throw new Error(`call_prep reorder failed: ${error.message}`);
-  }
-
-  const config: Record<string, unknown> = {
-    linked_schedule_step_id: schedule.id,
-    heading: "Before your {call_type}",
-    subheading: "What to expect, who you'll meet",
-    description:
-      "Here's what to expect so you can come in relaxed. This is a {duration}-minute conversation with {rep_first_name} from the {brand_short_name} team — not a pitch.",
-    hero_image_url: null,
-    what_well_cover: [
-      "Your timeline and what markets you're eyeing",
-      "How {brand_short_name} actually runs day-to-day",
-      "The economics — honestly",
-      "Whatever questions are top of mind for you",
-    ],
-    come_prepared: [
-      "Think about what 'good' looks like for you in a franchise",
-      "Jot down any questions about the brand or operations",
-    ],
-    partner_callout_text:
-      "If you have a spouse, partner, or co-investor — bring them along. These conversations are way better with the whole team. (Especially if that person is the one who'll make you write the check.)",
-    cta_label: "Ready to book",
-  };
-
-  const { error: insErr } = await app.from("steps_config").insert({
-    brand_id: brandId,
-    chapter_key: "first_chat",
-    position: 0,
-    step_key: "prep",
-    label: "Before the call",
-    description: "A quick read so the call feels like a real conversation",
-    content_type: "call_prep",
-    config,
-    content_cards: [],
-  });
-  if (insErr) throw new Error(`call_prep insert failed: ${insErr.message}`);
-  console.log(
-    `[seed] call_prep: inserted "Before the call" at Chapter 2 pos 0 for brand ${brandId}`,
-  );
-}
 
 /**
  * PR 16 polish: ensure every schedule-type step has the config fields
@@ -982,18 +820,68 @@ async function seedChapterVideos(brandId: string, code: BrandCode) {
  */
 async function seedChapterIntros(brandId: string, code: BrandCode) {
   // Per-chapter copy. Mirrors the warm, conversational voice of the journey.
-  // Using brand-agnostic copy keeps the seed identical across brands; admins
-  // can rewrite per-brand via /admin/structure → "Intro popup".
-  void code;
-  const INTROS: Record<
-    string,
-    {
-      heading: string;
-      body_md: string;
-      bullets: Array<{ icon: string; text: string }>;
-      cta: string;
-    }
-  > = {
+  // PR 38: Chapter 2 ('first_chat') now carries the rich pre-call prep
+  // content that used to live on the call_prep page — heading, body with
+  // "What we'll cover" / "Come prepared" sections, bullets, and a partner
+  // callout. Per-brand overrides for first_chat below; everything else
+  // shares one set of generic copy that admins can rewrite per-brand via
+  // /admin/structure → "Intro popup".
+  interface IntroEntry {
+    heading: string;
+    body_md: string;
+    bullets: Array<{ icon: string; text: string }>;
+    cta: string;
+    partner_callout_text: string | null;
+  }
+
+  const FIRST_CHAT_BY_BRAND: Record<BrandCode, IntroEntry> = {
+    ht: {
+      heading: "Before your Discovery Call",
+      body_md: [
+        "30 minutes with your franchise growth leader. No decks, no hard sell — just a real conversation about what you're looking for and whether we're the right fit.",
+        "",
+        "## What we'll cover",
+        "",
+        "- Your timeline and the markets you're eyeing",
+        "- How Hounds Town actually runs day-to-day",
+        "- The economics — honestly",
+        "- Whatever questions are top of mind for you",
+        "",
+        "## Come prepared",
+        "",
+        "- Think about what \"good\" looks like for you in a franchise",
+        "- Jot down any questions about the brand or operations",
+      ].join("\n"),
+      bullets: [],
+      cta: "Schedule the call",
+      partner_callout_text:
+        "If you have a spouse, partner, or co-investor — bring them along. These conversations are way better with the whole team. (Especially if that person is the one who'll make you write the check.)",
+    },
+    ct: {
+      heading: "Before your Discovery Call",
+      body_md: [
+        "30 minutes with your franchise growth leader. No decks, no hard sell — just a real conversation about what you're looking for and whether we're a fit.",
+        "",
+        "## What we'll cover",
+        "",
+        "- Your timeline and what waterfront markets you're considering",
+        "- How Cruisin' Tikis actually runs day-to-day on the water",
+        "- The vessel-based economics — honestly",
+        "- Whatever questions are top of mind for you",
+        "",
+        "## Come prepared",
+        "",
+        "- Think about what \"good\" looks like for you in a franchise",
+        "- Jot down any questions about the boats, permits, or operations",
+      ].join("\n"),
+      bullets: [],
+      cta: "Schedule the call",
+      partner_callout_text:
+        "If you have a spouse, partner, or co-investor — bring them along. These conversations are way better with the whole team. (Especially if that person is the one who'll make you write the check.)",
+    },
+  };
+
+  const INTROS: Record<string, IntroEntry> = {
     explore: {
       heading: "Welcome — let's get to know each other",
       body_md:
@@ -1004,18 +892,9 @@ async function seedChapterIntros(brandId: string, code: BrandCode) {
         { icon: "💾", text: "Auto-saves on every screen" },
       ],
       cta: "Show me around",
+      partner_callout_text: null,
     },
-    first_chat: {
-      heading: "Time to actually talk",
-      body_md:
-        "30 minutes with your franchise growth leader. No decks. No hard sell. Just a real conversation about what you're looking for and whether we're the right fit.",
-      bullets: [
-        { icon: "📞", text: "Pick a time that works — Google Meet" },
-        { icon: "💬", text: "Bring your questions, no matter how small" },
-        { icon: "🤝", text: "We'll send you a quick prep doc beforehand" },
-      ],
-      cta: "Let's book it",
-    },
+    first_chat: FIRST_CHAT_BY_BRAND[code],
     deep_dive: {
       heading: "Now for the real deep dive",
       body_md:
@@ -1026,6 +905,7 @@ async function seedChapterIntros(brandId: string, code: BrandCode) {
         { icon: "📊", text: "Covers model, support, unit economics" },
       ],
       cta: "Watch the deep dive",
+      partner_callout_text: null,
     },
     playbook: {
       heading: "Under the hood",
@@ -1037,6 +917,7 @@ async function seedChapterIntros(brandId: string, code: BrandCode) {
         { icon: "⏱️", text: "Most candidates finish in a few sittings" },
       ],
       cta: "Open the playbook",
+      partner_callout_text: null,
     },
     verify: {
       heading: "The verification round",
@@ -1048,6 +929,7 @@ async function seedChapterIntros(brandId: string, code: BrandCode) {
         { icon: "📞", text: "Validation calls with current owners" },
       ],
       cta: "Let's verify",
+      partner_callout_text: null,
     },
     visit: {
       heading: "Come see us in person",
@@ -1059,6 +941,7 @@ async function seedChapterIntros(brandId: string, code: BrandCode) {
         { icon: "🍽️", text: "Lunch is on us" },
       ],
       cta: "Plan my visit",
+      partner_callout_text: null,
     },
     award: {
       heading: "Ready to make it official?",
@@ -1070,6 +953,7 @@ async function seedChapterIntros(brandId: string, code: BrandCode) {
         { icon: "🎓", text: "Training schedule + first 90 days" },
       ],
       cta: "Make it official",
+      partner_callout_text: null,
     },
   };
 
@@ -1085,6 +969,7 @@ async function seedChapterIntros(brandId: string, code: BrandCode) {
     // Default the banner on for every seeded chapter — admins can flip
     // off per-chapter via /admin/structure → "Intro popup".
     show_as_banner: true,
+    partner_callout_text: intro.partner_callout_text,
   }));
 
   const { error } = await app
@@ -1214,8 +1099,6 @@ async function main() {
     await seedPortalContent(brand.id, code);
     await seedChapters(brand.id, brand.slug);
     await seedSteps(brand.id, code);
-    await seedChapter2Defaults(brand.id, code);
-    await seedCallPrepForChapter2(brand.id);
     await seedChapterVideos(brand.id, code);
     await seedChapterIntros(brand.id, code);
     await seedChapterCompletes(brand.id, code);

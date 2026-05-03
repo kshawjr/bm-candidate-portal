@@ -39,6 +39,7 @@ export interface ChapterIntroInitial {
   ctaDismissLabel: string;
   isActive: boolean;
   showAsBanner: boolean;
+  partnerCalloutText: string | null;
 }
 
 export interface ChapterVideoInitial {
@@ -651,6 +652,7 @@ function ChapterIntroDrawer({
     ctaDismissLabel: initial?.ctaDismissLabel ?? "Let's go",
     isActive: initial?.isActive ?? true,
     showAsBanner: initial?.showAsBanner ?? true,
+    partnerCalloutText: initial?.partnerCalloutText ?? "",
   }));
   const [pending, startTransition] = useTransition();
   const [uploading, setUploading] = useState(false);
@@ -738,6 +740,7 @@ function ChapterIntroDrawer({
   };
 
   const cleanedBullets = form.bullets.filter((b) => b.text.trim());
+  const partnerCalloutPreview = form.partnerCalloutText?.trim() || null;
   const popupPreviewConfig: ChapterIntroPopupConfig = {
     chapterKey: chapter.chapter_key,
     heading: form.heading.trim() || "Untitled",
@@ -745,6 +748,7 @@ function ChapterIntroDrawer({
     heroImageUrl: form.heroImageUrl,
     bullets: cleanedBullets,
     ctaDismissLabel: form.ctaDismissLabel.trim() || "Let's go",
+    partnerCalloutText: partnerCalloutPreview,
   };
   const bannerPreviewConfig: ChapterIntroBannerConfig = {
     chapterKey: chapter.chapter_key,
@@ -752,6 +756,7 @@ function ChapterIntroDrawer({
     bodyMd: form.bodyMd,
     heroImageUrl: form.heroImageUrl,
     bullets: cleanedBullets,
+    partnerCalloutText: partnerCalloutPreview,
   };
 
   return (
@@ -915,6 +920,25 @@ function ChapterIntroDrawer({
               dropped on save.
             </span>
           </div>
+
+          <label className="adm-field">
+            <span className="adm-form-label">
+              Partner / co-investor callout
+            </span>
+            <textarea
+              className="adm-textarea"
+              rows={3}
+              value={form.partnerCalloutText ?? ""}
+              onChange={(e) =>
+                setForm({ ...form, partnerCalloutText: e.target.value })
+              }
+              placeholder="Optional — a tinted nudge shown below the bullets in the popup AND banner. Use this for the 'bring your spouse / partner / co-investor' message."
+            />
+            <span className="adm-form-hint">
+              Renders with the 👥 emoji and a soft brand-tinted background.
+              Leave blank to skip.
+            </span>
+          </label>
 
           <label className="adm-field">
             <span className="adm-form-label">Dismiss button label</span>
