@@ -24,7 +24,7 @@ import { resolveJourneyCardState } from "@/components/sidebar/journey-card";
 import type { ExistingBooking } from "@/components/content-types/schedule-renderer";
 import { DevResetButton } from "@/components/portal/dev-reset-button";
 import { OnboardingPopups } from "@/components/portal/onboarding-popups";
-import type { WelcomePopupConfig } from "@/components/portal/welcome-popup";
+import type { ChapterVideoConfig } from "@/components/portal/chapter-video-popup";
 import type {
   ChapterIntroBullet,
   ChapterIntroPopupConfig,
@@ -32,7 +32,7 @@ import type {
 import type { ChapterIntroBannerConfig } from "@/components/portal/chapter-intro-banner";
 import type { StepTransitionPopupConfig } from "@/components/portal/step-transition-popup";
 import {
-  dismissWelcomePopup,
+  dismissChapterVideo,
   dismissChapterIntro,
   dismissStepTransition,
 } from "./popup-actions";
@@ -111,7 +111,7 @@ export default async function PortalTokenPage({
   const { data: session } = await app
     .from("candidates_in_portal")
     .select(
-      "id, candidate_id, current_chapter, current_step, is_app_submitted, last_activity_at, has_seen_welcome, dismissed_chapter_intros, dismissed_step_transitions",
+      "id, candidate_id, current_chapter, current_step, is_app_submitted, last_activity_at, dismissed_chapter_videos, dismissed_chapter_intros, dismissed_step_transitions",
     )
     .eq("token", params.token)
     .maybeSingle();
@@ -165,7 +165,7 @@ export default async function PortalTokenPage({
     { data: applicationRows },
     { data: progressRows },
     { data: bookingsRows },
-    { data: welcomePopupRow },
+    { data: chapterVideoRows },
     { data: chapterIntroRows },
     { data: stepTransitionRows },
   ] = await Promise.all([
@@ -201,13 +201,12 @@ export default async function PortalTokenPage({
       .select("id, step_id, start_time, end_time, meeting_url, status")
       .eq("candidate_in_portal_id", session.id),
     app
-      .from("welcome_popups")
+      .from("chapter_videos")
       .select(
-        "title, video_url, video_provider, description, cta_dismiss_label, is_active",
+        "chapter_key, title, video_url, video_provider, description, cta_dismiss_label, is_active",
       )
       .eq("brand_id", brand.id)
-      .eq("is_active", true)
-      .maybeSingle(),
+      .eq("is_active", true),
     app
       .from("chapter_intro_popups")
       .select(
@@ -364,9 +363,9 @@ export default async function PortalTokenPage({
   });
 
   // --- Onboarding popups ---
-  // Welcome shows once per candidate per brand, gated on has_seen_welcome.
-  // Chapter intro shows once per candidate per chapter, gated on the
-  // dismissed_chapter_intros array. Both queries already filter to is_active.
+  // Both chapter video and chapter intro are per-chapter: gated on the
+  // candidate's CURRENT chapter_key not appearing in the corresponding
+  // dismissal array. Both queries already filter to is_active.
   const dismissedChapterIntros: string[] = Array.isArray(
     session.dismissed_chapter_intros,
   )
@@ -375,16 +374,27 @@ export default async function PortalTokenPage({
       )
     : [];
 
-  let welcomePopup: WelcomePopupConfig | null = null;
-  if (welcomePopupRow && !session.has_seen_welcome) {
-    const provider = welcomePopupRow.video_provider as VideoProvider;
-    welcomePopup = {
-      title: (welcomePopupRow.title as string | null) ?? null,
-      videoUrl: (welcomePopupRow.video_url as string) ?? "",
-      videoProvider: provider,
-      description: (welcomePopupRow.description as string | null) ?? null,
+  // Per-chapter transition videos. Pre-parse every row, then derive the
+  // current chapter's video below (gated on dismissed_chapter_videos).
+  const dismissedChapterVideos: string[] = Array.isArray(
+    session.dismissed_chapter_videos,
+  )
+    ? (session.dismissed_chapter_videos as unknown[]).filter(
+        (v): v is string => typeof v === "string",
+      )
+    : [];
+  const videoByChapterKey: Record<string, ChapterVideoConfig> = {};
+  for (const row of chapterVideoRows ?? []) {
+    const key = row.chapter_key as string;
+    if (!key) continue;
+    videoByChapterKey[key] = {
+      chapterKey: key,
+      title: (row.title as string | null) ?? null,
+      videoUrl: (row.video_url as string) ?? "",
+      videoProvider: row.video_provider as VideoProvider,
+      description: (row.description as string | null) ?? null,
       ctaDismissLabel:
-        (welcomePopupRow.cta_dismiss_label as string | null) ?? "Got it",
+        (row.cta_dismiss_label as string | null) ?? "Got it",
     };
   }
 
@@ -436,11 +446,24 @@ export default async function PortalTokenPage({
     };
   }
 
+  // Chapter video + intro popup are both gated on the candidate's CURRENT
+  // chapter (not what they're browsing). When current_chapter advances, the
+  // next chapter's onboarding fires.
+  const currentChapterKeyForOnboarding =
+    chapters[currentChapterIdx]?.chapter_key;
+
+  let chapterVideo: ChapterVideoConfig | null = null;
+  if (currentChapterKeyForOnboarding) {
+    const video = videoByChapterKey[currentChapterKeyForOnboarding];
+    if (video && !dismissedChapterVideos.includes(currentChapterKeyForOnboarding)) {
+      chapterVideo = video;
+    }
+  }
+
   let chapterIntroPopup: ChapterIntroPopupConfig | null = null;
-  const currentChapterKeyForIntro = chapters[currentChapterIdx]?.chapter_key;
-  if (currentChapterKeyForIntro) {
-    const parsed = parsedIntroByKey[currentChapterKeyForIntro];
-    if (parsed && !dismissedChapterIntros.includes(currentChapterKeyForIntro)) {
+  if (currentChapterKeyForOnboarding) {
+    const parsed = parsedIntroByKey[currentChapterKeyForOnboarding];
+    if (parsed && !dismissedChapterIntros.includes(currentChapterKeyForOnboarding)) {
       chapterIntroPopup = {
         chapterKey: parsed.chapterKey,
         heading: parsed.heading,
@@ -488,7 +511,7 @@ export default async function PortalTokenPage({
       )
     : [];
 
-  const onDismissWelcome = dismissWelcomePopup.bind(null, params.token);
+  const onDismissChapterVideo = dismissChapterVideo.bind(null, params.token);
   const onDismissChapterIntro = dismissChapterIntro.bind(null, params.token);
   const onDismissStepTransition = dismissStepTransition.bind(
     null,
@@ -583,9 +606,9 @@ export default async function PortalTokenPage({
       />
       <DevResetButton token={params.token} />
       <OnboardingPopups
-        welcome={welcomePopup}
+        chapterVideo={chapterVideo}
         chapterIntro={chapterIntroPopup}
-        onDismissWelcome={onDismissWelcome}
+        onDismissChapterVideo={onDismissChapterVideo}
         onDismissChapterIntro={onDismissChapterIntro}
       />
     </main>

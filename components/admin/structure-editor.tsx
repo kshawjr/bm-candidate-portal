@@ -6,7 +6,8 @@ import { useRouter } from "next/navigation";
 import type { ChapterFormData } from "@/app/admin/structure/actions";
 import type {
   ChapterIntroFormData,
-} from "@/app/admin/welcome-popup/actions";
+  ChapterVideoFormData,
+} from "@/app/admin/structure/popup-actions";
 import {
   ChapterIntroPopup,
   type ChapterIntroPopupConfig,
@@ -15,6 +16,15 @@ import {
   ChapterIntroBanner,
   type ChapterIntroBannerConfig,
 } from "@/components/portal/chapter-intro-banner";
+import {
+  ChapterVideoPopup,
+  type ChapterVideoConfig,
+} from "@/components/portal/chapter-video-popup";
+import {
+  detectVideoProvider,
+  parseVideoSource,
+  type VideoProvider,
+} from "@/lib/video-source";
 
 export interface ChapterIntroInitial {
   heading: string;
@@ -24,6 +34,16 @@ export interface ChapterIntroInitial {
   ctaDismissLabel: string;
   isActive: boolean;
   showAsBanner: boolean;
+}
+
+export interface ChapterVideoInitial {
+  title: string | null;
+  videoUrl: string;
+  videoProvider: VideoProvider;
+  description: string | null;
+  ctaDismissLabel: string;
+  isActive: boolean;
+  updatedAt: string | null;
 }
 
 export interface AdminChapterRow {
@@ -38,6 +58,7 @@ export interface AdminChapterRow {
   step_count: number;
   step_count_total: number;
   intro_popup: ChapterIntroInitial | null;
+  video: ChapterVideoInitial | null;
 }
 
 interface Props {
@@ -66,13 +87,27 @@ interface Props {
     brandSlug: string,
     formData: FormData,
   ) => Promise<{ url: string } | { error: string }>;
+  saveChapterVideo: (
+    brandId: string,
+    chapterKey: string,
+    data: ChapterVideoFormData,
+  ) => Promise<{ success: boolean; error?: string }>;
+  deleteChapterVideo: (
+    brandId: string,
+    chapterKey: string,
+  ) => Promise<{ success: boolean; error?: string }>;
+  uploadChapterVideo: (
+    brandSlug: string,
+    formData: FormData,
+  ) => Promise<{ url: string } | { error: string }>;
 }
 
 type DrawerState =
   | null
   | { mode: "create" }
   | { mode: "edit"; chapter: AdminChapterRow }
-  | { mode: "intro"; chapter: AdminChapterRow };
+  | { mode: "intro"; chapter: AdminChapterRow }
+  | { mode: "video"; chapter: AdminChapterRow };
 
 export function StructureEditor({
   brandId,
@@ -87,6 +122,9 @@ export function StructureEditor({
   saveChapterIntro,
   deleteChapterIntro,
   uploadChapterIntroHero,
+  saveChapterVideo,
+  deleteChapterVideo,
+  uploadChapterVideo,
 }: Props) {
   const router = useRouter();
   const [drawer, setDrawer] = useState<DrawerState>(null);
@@ -254,6 +292,15 @@ export function StructureEditor({
                 <button
                   type="button"
                   className="adm-btn-ghost"
+                  onClick={() => setDrawer({ mode: "video", chapter })}
+                  disabled={pending}
+                  title="Configure the transition video shown when candidates first enter this chapter"
+                >
+                  {chapter.video ? "Video ✓" : "Video"}
+                </button>
+                <button
+                  type="button"
+                  className="adm-btn-ghost"
                   onClick={() => setDrawer({ mode: "intro", chapter })}
                   disabled={pending}
                   title="Configure the popup shown when candidates first reach this chapter"
@@ -292,14 +339,15 @@ export function StructureEditor({
         <div className="adm-form-error adm-form-error-inline">{error}</div>
       )}
 
-      {drawer && drawer.mode !== "intro" && (
-        <ChapterDrawer
-          initial={drawer.mode === "edit" ? drawer.chapter : null}
-          onCancel={() => setDrawer(null)}
-          onSave={handleDrawerSave}
-          saving={pending}
-        />
-      )}
+      {drawer &&
+        (drawer.mode === "create" || drawer.mode === "edit") && (
+          <ChapterDrawer
+            initial={drawer.mode === "edit" ? drawer.chapter : null}
+            onCancel={() => setDrawer(null)}
+            onSave={handleDrawerSave}
+            saving={pending}
+          />
+        )}
 
       {drawer && drawer.mode === "intro" && (
         <ChapterIntroDrawer
@@ -316,6 +364,24 @@ export function StructureEditor({
           saveChapterIntro={saveChapterIntro}
           deleteChapterIntro={deleteChapterIntro}
           uploadHero={uploadChapterIntroHero}
+        />
+      )}
+
+      {drawer && drawer.mode === "video" && (
+        <ChapterVideoDrawer
+          chapter={drawer.chapter}
+          brandId={brandId}
+          brandSlug={brandSlug}
+          onCancel={() => setDrawer(null)}
+          onSaved={(message) => {
+            setDrawer(null);
+            setToast(message);
+            router.refresh();
+          }}
+          onError={(message) => setError(message)}
+          saveChapterVideo={saveChapterVideo}
+          deleteChapterVideo={deleteChapterVideo}
+          uploadVideo={uploadChapterVideo}
         />
       )}
 
@@ -1023,6 +1089,347 @@ function BannerPreviewOverlay({
         </div>
         {children}
       </div>
+    </div>
+  );
+}
+
+// ---- chapter video drawer ----
+
+interface ChapterVideoDrawerProps {
+  chapter: AdminChapterRow;
+  brandId: string;
+  brandSlug: string;
+  onCancel: () => void;
+  onSaved: (message: string) => void;
+  onError: (message: string) => void;
+  saveChapterVideo: (
+    brandId: string,
+    chapterKey: string,
+    data: ChapterVideoFormData,
+  ) => Promise<{ success: boolean; error?: string }>;
+  deleteChapterVideo: (
+    brandId: string,
+    chapterKey: string,
+  ) => Promise<{ success: boolean; error?: string }>;
+  uploadVideo: (
+    brandSlug: string,
+    formData: FormData,
+  ) => Promise<{ url: string } | { error: string }>;
+}
+
+function ChapterVideoDrawer({
+  chapter,
+  brandId,
+  brandSlug,
+  onCancel,
+  onSaved,
+  onError,
+  saveChapterVideo,
+  deleteChapterVideo,
+  uploadVideo,
+}: ChapterVideoDrawerProps) {
+  const initial = chapter.video;
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [form, setForm] = useState<ChapterVideoFormData>(() => ({
+    title: initial?.title ?? `Welcome to ${chapter.label}`,
+    videoUrl: initial?.videoUrl ?? "",
+    videoProvider: initial?.videoProvider ?? "youtube",
+    description: initial?.description ?? "",
+    ctaDismissLabel: initial?.ctaDismissLabel ?? "Got it",
+    isActive: initial?.isActive ?? true,
+  }));
+  const [pending, startTransition] = useTransition();
+  const [uploading, setUploading] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [localError, setLocalError] = useState<string | null>(null);
+
+  // Auto-detect provider when admin pastes a URL — same UX as the previous
+  // standalone welcome popup editor. Manual override still works.
+  const handleUrlChange = (next: string) => {
+    setForm((f) => {
+      const detected = detectVideoProvider(next);
+      return {
+        ...f,
+        videoUrl: next,
+        videoProvider: detected ?? f.videoProvider,
+      };
+    });
+  };
+
+  const handleVideoFile = (file: File) => {
+    setLocalError(null);
+    setUploading(true);
+    const fd = new FormData();
+    fd.append("file", file);
+    startTransition(async () => {
+      const result = await uploadVideo(brandSlug, fd);
+      setUploading(false);
+      if ("url" in result) {
+        setForm((f) => ({
+          ...f,
+          videoUrl: result.url,
+          videoProvider: "mp4",
+        }));
+      } else {
+        setLocalError(result.error || "Upload failed");
+      }
+    });
+  };
+
+  const handleSave = () => {
+    setLocalError(null);
+    startTransition(async () => {
+      const result = await saveChapterVideo(brandId, chapter.chapter_key, form);
+      if (result.success) {
+        onSaved(`Transition video saved for ${chapter.label}`);
+      } else {
+        const msg = result.error || "Save failed";
+        setLocalError(msg);
+        onError(msg);
+      }
+    });
+  };
+
+  const handleDelete = () => {
+    if (
+      !confirm(
+        `Delete the transition video for "${chapter.label}"? Candidates will no longer see it.`,
+      )
+    )
+      return;
+    setLocalError(null);
+    startTransition(async () => {
+      const result = await deleteChapterVideo(brandId, chapter.chapter_key);
+      if (result.success) {
+        onSaved(`Transition video deleted for ${chapter.label}`);
+      } else {
+        const msg = result.error || "Delete failed";
+        setLocalError(msg);
+        onError(msg);
+      }
+    });
+  };
+
+  const parsed = parseVideoSource(form.videoUrl);
+  const urlValid = parsed !== null;
+
+  const previewConfig: ChapterVideoConfig = {
+    chapterKey: chapter.chapter_key,
+    title: form.title?.trim() || null,
+    videoUrl: form.videoUrl,
+    videoProvider: parsed?.provider ?? form.videoProvider,
+    description: form.description?.trim() || null,
+    ctaDismissLabel: form.ctaDismissLabel.trim() || "Got it",
+  };
+
+  return (
+    <div className="adm-drawer-backdrop" role="dialog" aria-modal="true">
+      <div className="adm-drawer">
+        <header className="adm-drawer-head">
+          <div>
+            <div className="adm-drawer-eyebrow">
+              {initial ? "Edit" : "Add"} transition video
+            </div>
+            <h2 className="adm-drawer-title">{chapter.label}</h2>
+          </div>
+          <button
+            type="button"
+            className="adm-drawer-close"
+            onClick={onCancel}
+            aria-label="Close"
+          >
+            ✕
+          </button>
+        </header>
+
+        <div className="adm-drawer-body">
+          <p
+            className="adm-form-hint"
+            style={{ marginTop: 0, marginBottom: 16 }}
+          >
+            Plays once when a candidate first enters this chapter. They have
+            to click the dismiss button — backdrop and ESC don&apos;t close it.
+          </p>
+
+          <label className="adm-field">
+            <span className="adm-form-label">Title</span>
+            <input
+              type="text"
+              className="adm-input"
+              value={form.title ?? ""}
+              onChange={(e) => setForm({ ...form, title: e.target.value })}
+              placeholder={`Welcome to ${chapter.label}`}
+            />
+            <span className="adm-form-hint">
+              Optional. Shown above the video.
+            </span>
+          </label>
+
+          <label className="adm-field">
+            <span className="adm-form-label">
+              Video URL{" "}
+              <span className="adm-form-required" aria-hidden="true">
+                *
+              </span>
+            </span>
+            <input
+              type="text"
+              className="adm-input"
+              value={form.videoUrl}
+              onChange={(e) => handleUrlChange(e.target.value)}
+              placeholder="https://youtube.com/watch?v=… or https://vimeo.com/… or .mp4 URL"
+            />
+            <span className="adm-form-hint">
+              YouTube, Vimeo, or a direct .mp4 URL. Provider is detected
+              automatically.
+            </span>
+            {form.videoUrl && !urlValid && (
+              <span className="adm-form-error">
+                Couldn&apos;t parse this URL.
+              </span>
+            )}
+          </label>
+
+          <div className="adm-field">
+            <span className="adm-form-label">Or upload an mp4</span>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <button
+                type="button"
+                className="adm-btn-ghost"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading || pending}
+              >
+                {uploading ? "Uploading…" : "Choose video file"}
+              </button>
+              <span className="adm-form-hint" style={{ marginTop: 0 }}>
+                MP4 / MOV / WebM, up to 100 MB.
+              </span>
+            </div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="video/mp4,video/quicktime,video/webm"
+              style={{ display: "none" }}
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) handleVideoFile(file);
+                e.target.value = "";
+              }}
+            />
+          </div>
+
+          <label className="adm-field">
+            <span className="adm-form-label">Provider</span>
+            <select
+              className="adm-input"
+              value={form.videoProvider}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  videoProvider: e.target.value as VideoProvider,
+                })
+              }
+            >
+              <option value="youtube">YouTube</option>
+              <option value="vimeo">Vimeo</option>
+              <option value="mp4">Direct mp4</option>
+            </select>
+            <span className="adm-form-hint">
+              Auto-detected from the URL above.
+            </span>
+          </label>
+
+          <label className="adm-field">
+            <span className="adm-form-label">Description</span>
+            <textarea
+              className="adm-textarea"
+              rows={3}
+              value={form.description ?? ""}
+              onChange={(e) =>
+                setForm({ ...form, description: e.target.value })
+              }
+              placeholder="Optional caption shown below the video."
+            />
+          </label>
+
+          <label className="adm-field">
+            <span className="adm-form-label">Dismiss button label</span>
+            <input
+              type="text"
+              className="adm-input"
+              value={form.ctaDismissLabel}
+              onChange={(e) =>
+                setForm({ ...form, ctaDismissLabel: e.target.value })
+              }
+              placeholder="Got it"
+            />
+          </label>
+
+          <label
+            className="adm-field"
+            style={{ flexDirection: "row", alignItems: "center", gap: 10 }}
+          >
+            <input
+              type="checkbox"
+              checked={form.isActive}
+              onChange={(e) =>
+                setForm({ ...form, isActive: e.target.checked })
+              }
+            />
+            <span className="adm-form-label" style={{ margin: 0 }}>
+              Active — show this video to candidates entering the chapter
+            </span>
+          </label>
+
+          {localError && <div className="adm-form-error">{localError}</div>}
+        </div>
+
+        <footer className="adm-drawer-foot">
+          {initial && (
+            <button
+              type="button"
+              className="adm-btn-ghost adm-btn-danger"
+              onClick={handleDelete}
+              disabled={pending}
+              style={{ marginRight: "auto" }}
+            >
+              Delete
+            </button>
+          )}
+          <button
+            type="button"
+            className="adm-btn-ghost"
+            onClick={() => setPreviewOpen(true)}
+            disabled={!urlValid || pending}
+          >
+            Preview
+          </button>
+          <button
+            type="button"
+            className="adm-btn-ghost"
+            onClick={onCancel}
+            disabled={pending}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            className="adm-btn-primary"
+            onClick={handleSave}
+            disabled={!urlValid || pending}
+          >
+            {pending ? "Saving…" : initial ? "Save changes" : "Create video"}
+          </button>
+        </footer>
+      </div>
+
+      {previewOpen && urlValid && (
+        <ChapterVideoPopup
+          config={previewConfig}
+          onDismiss={async () => ({ success: true })}
+          onDismissed={() => setPreviewOpen(false)}
+        />
+      )}
     </div>
   );
 }

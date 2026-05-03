@@ -19,11 +19,6 @@ const NAV_ITEMS: Array<{ href: string; label: string; match: (p: string) => bool
     label: "Structure",
     match: (p) => p.startsWith("/admin/structure"),
   },
-  {
-    href: "/admin/welcome-popup",
-    label: "Welcome popup",
-    match: (p) => p.startsWith("/admin/welcome-popup"),
-  },
 ];
 
 export function AdminNav() {
