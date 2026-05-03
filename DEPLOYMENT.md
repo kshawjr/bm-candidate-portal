@@ -83,3 +83,37 @@ When a third brand ships:
 hostnames are treated as admin mode by `getBrandFromHostname`, so the
 brand-mismatch redirect doesn't fire and admins can preview any
 candidate by token.
+
+## Zoho Webhook Setup
+
+After deploying the lead-creation webhook receiver (PR 51):
+
+1. **Custom fields on the Zoho Leads module** — create two text fields:
+   - `Portal_Token` (single-line text)
+   - `Portal_URL` (URL)
+
+2. **Generate the signing secret.** A 32+ character random string,
+   stored as `ZOHO_WEBHOOK_SECRET` in Vercel (Project Settings →
+   Environment Variables, scope: Production + Preview). Generate one
+   per environment so prod and preview can't replay each other's
+   webhooks. Share with whoever sets up the Zoho-side signing.
+
+3. **Zoho workflow rule.** Setup → Automation → Workflow Rules →
+   Create rule. Trigger: Lead created. Action: Webhook → POST to
+   `https://cpflightdeck.bmave.com/api/webhooks/zoho-lead-created`.
+   - Header: `X-Zoho-Webhook-Signature: <HMAC-SHA256(body, secret) as hex>`
+     (Zoho's workflow webhook UI doesn't sign natively — implement the
+     HMAC in a Deluge function that runs before the POST.)
+   - Body (JSON): `Lead_ID`, `First_Name`, `Last_Name`, `Email`,
+     `Phone`, `Zip_Code`, `ParseID`.
+
+4. **Gravity Forms redirect.** On each brand's lead form (e.g.
+   hounds-town-usa.com): After-submit redirect to
+   `https://cpflightdeck.bmave.com/loading?email={email}`. The form
+   continues to fire its existing Zoho lead-creation action — the
+   redirect just gives the user something to look at while the
+   webhook processes.
+
+5. **Welcome email template.** Update the existing Zoho welcome email
+   to include `${Portal_URL}` so candidates get a direct link in the
+   email even if they navigate away from the loading page.
