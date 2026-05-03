@@ -1092,6 +1092,12 @@ body {
   color: var(--cin-text-faint);
   margin: 6px 0 0;
 }
+/* PR 42: subtle hint under prefilled fields. Italic + brand-tinted so the
+   candidate notices it but doesn't read it as a primary instruction. */
+.app-field-hint-prefilled {
+  font-style: italic;
+  color: var(--brand-dark, var(--brand-primary, #2563eb));
+}
 .app-field-row {
   display: grid;
   grid-template-columns: 140px 1fr;

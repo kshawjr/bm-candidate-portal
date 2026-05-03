@@ -144,15 +144,14 @@ export function ChapterIntroPopup({ config, onDismiss, onDismissed }: Props) {
             <div className="pp-popup-scarcity" aria-live="polite">
               <span className="pp-popup-scarcity-pill">By invitation only</span>
               <h2 className="pp-popup-scarcity-headline">
-                Only{" "}
+                We&apos;re only taking{" "}
                 <span className="pp-popup-scarcity-num">
                   {slotsRemaining}
                 </span>{" "}
-                discovery call slot{slotsRemaining === 1 ? "" : "s"} remaining
-                this month.
+                more candidate{slotsRemaining === 1 ? "" : "s"} this month.
               </h2>
               <p className="pp-popup-scarcity-sub">
-                Limited slots. Serious candidates only.
+                Selective intake. Serious candidates only.
               </p>
             </div>
           )}

@@ -14,6 +14,10 @@ interface Props {
   onNext: () => void;
   progressPct: number;
   pending?: boolean;
+  /** PR 42: shown as a small hint under the phone field when the value
+   *  was prefilled (from candidates_in_portal.prefilled_phone). Field is
+   *  still editable. */
+  phoneIsPrefilled: boolean;
 }
 
 export function VerificationScreen({
@@ -22,6 +26,7 @@ export function VerificationScreen({
   onNext,
   progressPct,
   pending,
+  phoneIsPrefilled,
 }: Props) {
   const canAdvance =
     value.name.trim().length > 0 &&
@@ -67,6 +72,11 @@ export function VerificationScreen({
             onChange={(e) => onChange({ ...value, phone: e.target.value })}
             className="app-field-input"
           />
+          {phoneIsPrefilled && (
+            <span className="app-field-hint app-field-hint-prefilled">
+              Prefilled from your record
+            </span>
+          )}
         </label>
       </div>
     </QuestionScreen>

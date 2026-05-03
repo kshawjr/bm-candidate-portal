@@ -96,6 +96,11 @@ interface Props {
    *  ZIP step skips the cold-input box and lands on the confirmation
    *  card. Null/empty → existing cold flow. */
   prefilledZip: string | null;
+  /** PR 42: optional phone prefilled at candidate creation time. When set,
+   *  the verification screen seeds the phone field with this value and
+   *  shows a "Prefilled from your record" hint underneath. Null → falls
+   *  back to bmave-core.candidates.phone (existing behavior). */
+  prefilledPhone: string | null;
   initialAnswers: Answers;
   isAlreadySubmitted: boolean;
   onSaveAnswer: (fieldKey: string, fieldValue: unknown) => Promise<void>;
@@ -219,6 +224,7 @@ export function ApplicationRenderer({
   leaderName,
   brandSlug,
   prefilledZip,
+  prefilledPhone,
   initialAnswers,
   isAlreadySubmitted,
   onSaveAnswer,
@@ -232,10 +238,19 @@ export function ApplicationRenderer({
   const fullName = [candidate.first_name, candidate.last_name]
     .filter(Boolean)
     .join(" ");
+  // PR 42: prefer the per-portal prefilled_phone over bmave-core's
+  // candidate.phone. The per-portal value is what the Zoho lead webhook
+  // will populate for the candidate's intake; bmave-core.phone may lag
+  // until the candidate explicitly confirms.
+  const initialPhone = (prefilledPhone ?? candidate.phone ?? "").toString();
+  // Track whether the phone field landed pre-populated so the verification
+  // screen can show "Prefilled from your record" — works whether the
+  // value came from prefilled_phone or bmave-core.candidates.phone.
+  const phoneIsPrefilled = initialPhone.trim().length > 0;
   const [answers, setAnswers] = useState<Answers>(() => ({
     verified_name: fullName,
     verified_email: candidate.email,
-    verified_phone: candidate.phone ?? "",
+    verified_phone: initialPhone,
     ...initialAnswers,
   }));
 
@@ -332,6 +347,7 @@ export function ApplicationRenderer({
         }
         progressPct={p}
         pending={pending}
+        phoneIsPrefilled={phoneIsPrefilled}
       />
     );
   }
