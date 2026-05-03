@@ -3313,3 +3313,250 @@ body {
   }
 }
 
+/* =========================================================================
+   Step experience polish (PR 39)
+   - Application meta cluster (save indicator, section pill, time estimate)
+   - Inter-section microcopy
+   - Slides handoff card + brief "setting things up" loading
+   ========================================================================= */
+.app-renderer-wrap {
+  position: relative;
+}
+.app-meta-cluster {
+  position: absolute;
+  top: -8px;
+  right: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  z-index: 5;
+  font-family: var(--font-body, system-ui), system-ui, sans-serif;
+  pointer-events: none;
+}
+.app-meta-cluster > * {
+  pointer-events: auto;
+}
+.app-meta-time,
+.app-meta-section {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--brand-soft, #eef2ff) 30%, #ffffff);
+  color: var(--cin-text-muted, #6b7280);
+  border: 1px solid color-mix(in srgb, var(--brand-primary, #2563eb) 14%, #e5e7eb);
+}
+.app-meta-section {
+  color: var(--brand-dark, var(--brand-primary, #2563eb));
+}
+@media (max-width: 720px) {
+  .app-meta-cluster {
+    position: static;
+    margin: 0 0 12px;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .app-meta-time,
+  .app-meta-section {
+    font-size: 10px;
+  }
+}
+
+.save-indicator {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  animation: save-indicator-fade 220ms ease-out;
+}
+.save-indicator-saving {
+  background: #f3f4f6;
+  color: #4b5563;
+  border-color: #e5e7eb;
+}
+.save-indicator-saving::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #9ca3af;
+  margin-right: 6px;
+  animation: save-indicator-pulse 1s ease-in-out infinite;
+}
+.save-indicator-saved {
+  background: color-mix(in srgb, #10b981 12%, #ffffff);
+  color: #047857;
+  border-color: color-mix(in srgb, #10b981 32%, #d1fae5);
+}
+.save-indicator-error {
+  background: color-mix(in srgb, #dc2626 10%, #ffffff);
+  color: #991b1b;
+  border-color: color-mix(in srgb, #dc2626 30%, #fecaca);
+}
+@keyframes save-indicator-fade {
+  from { opacity: 0; transform: translateY(-3px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes save-indicator-pulse {
+  0%, 100% { opacity: 0.4; }
+  50%      { opacity: 1; }
+}
+
+/* Inter-section microcopy — fades in then out, doesn't push layout. */
+.app-section-microcopy {
+  position: absolute;
+  bottom: -28px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-family: var(--font-body, system-ui);
+  font-size: 13px;
+  font-style: italic;
+  color: var(--cin-text-muted, #6b7280);
+  opacity: 0;
+  animation: app-section-microcopy 2800ms ease-in-out forwards;
+  pointer-events: none;
+}
+@keyframes app-section-microcopy {
+  0%   { opacity: 0; transform: translateY(4px); }
+  15%  { opacity: 1; transform: translateY(0); }
+  75%  { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(-2px); }
+}
+
+/* Slides handoff card — replaces the image canvas after the last real
+   slide. Bigger fade-in + a subtle pulse on the CTA so it reads as a
+   meaningful gear-shift. */
+.slides-handoff-card {
+  width: 100%;
+  background: color-mix(in srgb, var(--brand-soft, #eef2ff) 50%, #ffffff);
+  border: 1px solid color-mix(in srgb, var(--brand-primary, #2563eb) 18%, #e5e7eb);
+  border-radius: 16px;
+  padding: 56px 32px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  animation: slides-handoff-in 420ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.slides-handoff-eyebrow {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--brand-accent, var(--brand-primary, #2563eb));
+}
+.slides-handoff-heading {
+  font-family: var(--font-heading, var(--font-body, system-ui));
+  font-weight: var(--heading-weight, 600);
+  font-size: 28px;
+  line-height: 1.2;
+  color: var(--cin-text, #111827);
+  margin: 4px 0 6px;
+}
+.slides-handoff-sub {
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--cin-text-muted, #4b5563);
+  margin: 0 0 18px;
+  max-width: 480px;
+}
+.slides-handoff-cta {
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  padding: 14px 28px;
+  background: var(--brand-primary, #2563eb);
+  color: #ffffff;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  animation: slides-handoff-pulse 2.2s ease-in-out 600ms infinite;
+  transition: filter 0.15s, transform 0.05s;
+}
+.slides-handoff-cta:hover:not(:disabled) {
+  filter: brightness(1.06);
+}
+.slides-handoff-cta:active:not(:disabled) {
+  transform: translateY(1px);
+}
+.slides-handoff-cta:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  animation: none;
+}
+.slide-nav-btn-placeholder {
+  display: inline-block;
+  width: 88px;
+}
+.slide-dot.handoff {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  transform: rotate(45deg);
+}
+@keyframes slides-handoff-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes slides-handoff-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand-primary, #2563eb) 30%, transparent); }
+  50%      { box-shadow: 0 0 0 10px color-mix(in srgb, var(--brand-primary, #2563eb) 0%, transparent); }
+}
+
+.slides-handoff-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  padding: 80px 32px;
+  text-align: center;
+  font-family: var(--font-body, system-ui);
+  color: var(--cin-text-muted, #6b7280);
+  animation: slides-handoff-in 240ms ease-out;
+}
+.slides-handoff-loading p {
+  margin: 0;
+  font-size: 15px;
+}
+.slides-handoff-loading-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--brand-primary, #2563eb);
+  animation: save-indicator-pulse 0.9s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .save-indicator,
+  .save-indicator-saving::before,
+  .app-section-microcopy,
+  .slides-handoff-card,
+  .slides-handoff-cta,
+  .slides-handoff-loading,
+  .slides-handoff-loading-dot {
+    animation: none;
+  }
+  .save-indicator,
+  .slides-handoff-card,
+  .slides-handoff-loading {
+    opacity: 1;
+    transform: none;
+  }
+  .app-section-microcopy {
+    opacity: 1;
+  }
+  .slides-handoff-cta {
+    box-shadow: none;
+  }
+}
+
