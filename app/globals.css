@@ -3848,6 +3848,12 @@ body {
   color: var(--cin-text-muted, #4b5563);
   margin: 0;
 }
+/* PR 45: explicit "tap a stop" hint inline with the subhead. Slightly
+   muted so it reads as instruction, not headline. */
+.journey-roadmap-tap {
+  color: var(--brand-dark, var(--brand-primary, #2563eb));
+  font-weight: 600;
+}
 .journey-roadmap-canvas {
   position: relative;
   width: 100%;
@@ -3891,66 +3897,105 @@ body {
   z-index: 2;
 }
 .journey-pin-circle {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: 38px;
+  height: 38px;
   border-radius: 50%;
-  background: #ffffff;
-  border: 3px solid #6b7280;
-  font-size: 14px;
-  font-weight: 700;
-  color: #374151;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
-  transition: transform 0.15s, background 0.2s, border-color 0.2s;
+  background: linear-gradient(180deg, #ffffff 0%, #e5e7eb 100%);
+  border: 3px solid #4b5563;
+  font-size: 15px;
+  font-weight: 800;
+  color: #1f2937;
+  box-shadow:
+    0 4px 10px rgba(0, 0, 0, 0.22),
+    0 1px 0 rgba(0, 0, 0, 0.06);
+  transition: transform 0.15s;
+  /* Each pin pops in via PR 45 reveal sequence; per-pin delay set via
+     CSS variable on the button (--jr-pin-delay). */
+  opacity: 0;
+  animation: jr-pin-pop 360ms cubic-bezier(0.2, 1.2, 0.4, 1.05) forwards;
+  animation-delay: var(--jr-pin-delay, 0ms);
 }
 .journey-pin:hover .journey-pin-circle {
   transform: scale(1.08);
 }
+@keyframes jr-pin-pop {
+  0%   { opacity: 0; transform: scale(0.6); }
+  60%  { opacity: 1; transform: scale(1.12); }
+  100% { opacity: 1; transform: scale(1); }
+}
+.journey-pin-sheen {
+  position: absolute;
+  top: 4px;
+  left: 8px;
+  width: 12px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.7);
+  filter: blur(1px);
+  pointer-events: none;
+}
 .journey-pin.is-past .journey-pin-circle {
-  background: var(--brand-primary, #2563eb);
-  border-color: var(--brand-primary, #2563eb);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--brand-primary, #2563eb) 100%, #ffffff) 0%,
+    color-mix(in srgb, var(--brand-primary, #2563eb) 75%, #000000) 100%
+  );
+  border-color: color-mix(in srgb, var(--brand-primary, #2563eb) 70%, #000000);
   color: #ffffff;
 }
 .journey-pin.is-current .journey-pin-circle {
-  background: var(--brand-primary, #2563eb);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--brand-primary, #2563eb) 100%, #ffffff) 0%,
+    color-mix(in srgb, var(--brand-primary, #2563eb) 75%, #000000) 100%
+  );
   border-color: #ffffff;
   color: #ffffff;
-  width: 44px;
-  height: 44px;
-  font-size: 16px;
+  width: 48px;
+  height: 48px;
+  font-size: 17px;
   box-shadow:
-    0 0 0 4px color-mix(in srgb, var(--brand-primary, #2563eb) 35%, transparent),
-    0 4px 10px rgba(0, 0, 0, 0.22);
-  animation: journey-pin-pulse 2.4s ease-in-out infinite;
+    0 0 0 5px color-mix(in srgb, var(--brand-primary, #2563eb) 35%, transparent),
+    0 6px 14px rgba(0, 0, 0, 0.25);
+  animation:
+    jr-pin-pop 360ms cubic-bezier(0.2, 1.2, 0.4, 1.05) forwards,
+    journey-pin-pulse 2.4s ease-in-out infinite;
+  animation-delay: var(--jr-pin-delay, 0ms), 400ms;
 }
 .journey-pin.is-future .journey-pin-circle {
   background: rgba(255, 255, 255, 0.92);
   border-style: dashed;
   border-color: #9ca3af;
   color: #6b7280;
+  opacity: 0.85;
 }
 
 /* "You are here" tag — sits above the current pin with a downward
    triangle pointer. Subtle bounce so the eye lands on it. */
 .journey-pin-here {
   position: absolute;
-  bottom: calc(100% + 14px);
+  bottom: calc(100% + 18px);
   left: 50%;
   transform: translateX(-50%);
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 12px;
+  padding: 7px 14px;
   background: var(--brand-primary, #2563eb);
   color: #ffffff;
-  border-radius: 10px;
+  border-radius: 12px;
+  border: 2px solid #ffffff;
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.04em;
   white-space: nowrap;
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.22);
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--brand-primary, #2563eb) 35%, transparent),
+    0 8px 18px rgba(0, 0, 0, 0.28);
   animation: journey-pin-here-bounce 2.6s ease-in-out infinite;
 }
 .journey-pin-here-decor {
@@ -3972,25 +4017,51 @@ body {
    .is-open state set by tap (mobile + click). */
 .journey-pin-tooltip {
   position: absolute;
-  top: calc(100% + 10px);
+  top: calc(100% + 14px);
   left: 50%;
-  transform: translateX(-50%);
-  width: 220px;
-  padding: 10px 12px;
-  background: #ffffff;
-  border: 1px solid var(--cin-border, #e5e7eb);
-  border-radius: 10px;
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.16);
+  transform: translateX(-50%) scale(0.96);
+  width: 230px;
+  padding: 12px 14px;
+  background: rgba(254, 252, 246, 0.97);
+  border: 1.5px solid color-mix(in srgb, var(--brand-primary, #2563eb) 30%, #e5e7eb);
+  border-radius: 12px;
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.22);
   text-align: left;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.15s;
+  transition: opacity 0.18s ease-out, transform 0.18s ease-out;
   z-index: 3;
+}
+/* Triangular pointer at the top of the tooltip card pointing back at
+   the pin, drawn with double borders (outer = brand color, inner = card
+   background) so it inherits the tinted edge. */
+.journey-pin-tooltip-tip {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-bottom: 8px solid color-mix(in srgb, var(--brand-primary, #2563eb) 30%, #e5e7eb);
+}
+.journey-pin-tooltip-tip::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: -6px;
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-bottom: 6px solid rgba(254, 252, 246, 0.97);
 }
 .journey-pin:hover .journey-pin-tooltip,
 .journey-pin.is-open .journey-pin-tooltip,
 .journey-pin:focus-visible .journey-pin-tooltip {
   opacity: 1;
+  transform: translateX(-50%) scale(1);
 }
 .journey-pin-tooltip-weeks {
   font-size: 10px;
@@ -4055,6 +4126,42 @@ body {
   }
 }
 
+/* PR 45: scenery animations — clouds drift, torch flames flicker, paw
+   prints fade in along the road, the road's dashed centerline shimmers
+   gently. All loop slowly so they decorate without distracting. */
+.jr-cloud {
+  animation: jr-cloud-drift 60s linear infinite;
+}
+.jr-cloud-slow {
+  animation-duration: 90s;
+}
+.jr-cloud-fast {
+  animation-duration: 45s;
+}
+.jr-flame {
+  transform-origin: center bottom;
+  animation: jr-flame-flicker 1.4s ease-in-out infinite;
+}
+.jr-paw {
+  /* Each paw fades in via inline style.animationDelay set on the SVG
+     <g> in journey-timeline.tsx (i * 80ms), so the trail looks like
+     paws walked along the road on first reveal. */
+  opacity: 0;
+  animation: jr-paw-fade 600ms ease-out forwards;
+}
+@keyframes jr-cloud-drift {
+  from { transform: translateX(-60px); }
+  to   { transform: translateX(80px); }
+}
+@keyframes jr-flame-flicker {
+  0%, 100% { transform: scaleY(1) scaleX(1); opacity: 1; }
+  50%      { transform: scaleY(1.12) scaleX(0.92); opacity: 0.85; }
+}
+@keyframes jr-paw-fade {
+  from { opacity: 0; transform: translateY(2px); }
+  to   { opacity: 0.85; transform: translateY(0); }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .journey-roadmap-canvas,
   .journey-roadmap.is-revealed .journey-roadmap-canvas {
@@ -4063,7 +4170,18 @@ body {
     transition: none;
   }
   .journey-pin.is-current .journey-pin-circle,
-  .journey-pin-here {
+  .journey-pin-here,
+  .jr-cloud,
+  .jr-flame,
+  .jr-paw {
+    animation: none;
+  }
+  .jr-paw {
+    opacity: 0.85;
+  }
+  .journey-pin-circle {
+    /* Skip the pop-in too — pin should just appear at full size. */
+    opacity: 1;
     animation: none;
   }
 }
