@@ -1416,37 +1416,6 @@
   z-index: 60;
 }
 
-/* ---- call_prep editor ---- */
-.adm-call-prep-editor {
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-  max-width: 880px;
-}
-.adm-call-prep-preview {
-  background: #ffffff;
-  border: 1px solid #e5e7eb;
-  border-radius: 10px;
-  padding: 18px 20px;
-}
-.adm-call-prep-form {
-  background: #ffffff;
-  border: 1px solid #e5e7eb;
-  border-radius: 10px;
-  padding: 18px 20px;
-}
-.adm-call-prep-bullets {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.adm-call-prep-bullet {
-  display: grid;
-  grid-template-columns: 1fr 26px 26px auto;
-  gap: 4px;
-  align-items: center;
-}
-
 /* Reset-candidate modal styles live in app/globals.css under the bm-modal-*
    namespace so the modal is styled regardless of which layout renders it
    (admin uses this stylesheet; the candidate portal does not). */

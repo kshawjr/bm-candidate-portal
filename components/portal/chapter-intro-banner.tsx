@@ -11,6 +11,9 @@ export interface ChapterIntroBannerConfig {
   bodyMd: string;
   heroImageUrl: string | null;
   bullets: ChapterIntroBullet[];
+  /** PR 38: optional partner-callout. Rendered with extra emphasis,
+   *  same content the popup shows but compact for the persistent banner. */
+  partnerCalloutText: string | null;
 }
 
 interface Props {
@@ -130,6 +133,20 @@ export function ChapterIntroBanner({ config }: Props) {
               </li>
             ))}
           </ul>
+        )}
+
+        {config.partnerCalloutText && (
+          <div className="cine-intro-banner-callout">
+            <span
+              className="cine-intro-banner-callout-icon"
+              aria-hidden="true"
+            >
+              👥
+            </span>
+            <p className="cine-intro-banner-callout-text">
+              {config.partnerCalloutText}
+            </p>
+          </div>
         )}
       </div>
     </div>

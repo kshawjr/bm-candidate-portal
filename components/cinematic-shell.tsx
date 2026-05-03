@@ -22,11 +22,6 @@ import {
   ScheduleRenderer,
   type ExistingBooking,
 } from "@/components/content-types/schedule-renderer";
-import {
-  CallPrepRenderer,
-  type CallPrepConfig,
-  type LinkedScheduleInfo,
-} from "@/components/content-types/call-prep-renderer";
 import { ContentCardStrip } from "@/components/content-cards/content-card-strip";
 import type { ContentCard } from "@/components/content-cards/types";
 import type { ScheduleConfig, Slot } from "@/lib/schedule-shared";
@@ -60,7 +55,6 @@ export type ContentType =
   | "application"
   | "schedule"
   | "video"
-  | "call_prep"
   | "document"
   | "checklist";
 
@@ -495,41 +489,50 @@ export function CinematicShell({
                 Chapter {selectedChapterIdx + 1} ·{" "}
                 <strong>{selectedChapter.name}</strong>
               </div>
-              <div className="cine-stepbar-count">
-                {steps.length} step{steps.length === 1 ? "" : "s"}
-              </div>
+              {/* Hide the step count for single-step chapters — "1 step"
+                  reads awkward, and the steps grid below is hidden too. */}
+              {steps.length > 1 && (
+                <div className="cine-stepbar-count">
+                  {steps.length} steps
+                </div>
+              )}
             </div>
-            <div className="cine-steps">
-              {steps.map((step, i) => {
-                const chapterIsDone = selectedChapterIdx < currentChapterIdx;
-                const isDone =
-                  chapterIsDone ||
-                  (selectedChapterIdx === currentChapterIdx && i < selectedStepIdx);
-                const isActive = selectedStepIdx === i;
-                const cls = [
-                  "cine-step",
-                  isDone && "done",
-                  isActive && "active",
-                ]
-                  .filter(Boolean)
-                  .join(" ");
+            {/* Single-step chapters skip the steps grid entirely. The
+                chapter title above is enough framing; the persistent intro
+                banner provides the rest. PR 38 made Chapter 2 single-step. */}
+            {steps.length > 1 && (
+              <div className="cine-steps">
+                {steps.map((step, i) => {
+                  const chapterIsDone = selectedChapterIdx < currentChapterIdx;
+                  const isDone =
+                    chapterIsDone ||
+                    (selectedChapterIdx === currentChapterIdx && i < selectedStepIdx);
+                  const isActive = selectedStepIdx === i;
+                  const cls = [
+                    "cine-step",
+                    isDone && "done",
+                    isActive && "active",
+                  ]
+                    .filter(Boolean)
+                    .join(" ");
 
-                return (
-                  <button
-                    key={step.step_key}
-                    className={cls}
-                    onClick={() => setSelectedStepIdx(i)}
-                  >
-                    <span className="cine-step-num">
-                      {isDone ? <CheckIcon small /> : i + 1}
-                    </span>
-                    <span className="cine-step-body">
-                      <span className="cine-step-label">{step.label}</span>
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
+                  return (
+                    <button
+                      key={step.step_key}
+                      className={cls}
+                      onClick={() => setSelectedStepIdx(i)}
+                    >
+                      <span className="cine-step-num">
+                        {isDone ? <CheckIcon small /> : i + 1}
+                      </span>
+                      <span className="cine-step-body">
+                        <span className="cine-step-label">{step.label}</span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
 
@@ -712,38 +715,6 @@ function StepRenderer({
         onGetSlots={onGetSlots}
         onBook={onBookSlot}
         onCancel={onCancelBooking}
-        onComplete={onStepAdvance}
-      />
-    );
-  }
-  if (step.content_type === "call_prep") {
-    const config = step.config as unknown as CallPrepConfig;
-    const linkedId = config?.linked_schedule_step_id ?? null;
-    const linkedStep = linkedId
-      ? stepsInChapter.find((s) => s.id === linkedId)
-      : null;
-    let linkedSchedule: LinkedScheduleInfo | null = null;
-    if (linkedStep && linkedStep.content_type === "schedule") {
-      const sc = linkedStep.config as Record<string, unknown> | undefined;
-      linkedSchedule = {
-        eventLabel:
-          typeof sc?.event_label === "string"
-            ? (sc.event_label as string)
-            : "Discovery Call",
-        durationMinutes:
-          typeof sc?.duration_minutes === "number"
-            ? (sc.duration_minutes as number)
-            : 60,
-      };
-    }
-    return (
-      <CallPrepRenderer
-        config={config}
-        linkedSchedule={linkedSchedule}
-        repName={advisorName}
-        brandName={brandName}
-        brandShortName={brandShortName}
-        candidateFirstName={candidate.first_name ?? null}
         onComplete={onStepAdvance}
       />
     );

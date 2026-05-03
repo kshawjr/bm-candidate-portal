@@ -16,6 +16,10 @@ export interface ChapterIntroPopupConfig {
   heroImageUrl: string | null;
   bullets: ChapterIntroBullet[];
   ctaDismissLabel: string;
+  /** PR 38: optional callout shown below body/bullets, before the CTA.
+   *  Rendered with extra emphasis (tinted background, bigger leading
+   *  emoji). Born from the call_prep page's partner-callout pattern. */
+  partnerCalloutText: string | null;
 }
 
 interface Props {
@@ -118,6 +122,20 @@ export function ChapterIntroPopup({ config, onDismiss, onDismissed }: Props) {
                 </li>
               ))}
             </ul>
+          )}
+
+          {config.partnerCalloutText && (
+            <div className="pp-popup-callout">
+              <span
+                className="pp-popup-callout-icon"
+                aria-hidden="true"
+              >
+                👥
+              </span>
+              <p className="pp-popup-callout-text">
+                {config.partnerCalloutText}
+              </p>
+            </div>
           )}
 
           <div className="pp-popup-foot">

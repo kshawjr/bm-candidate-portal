@@ -82,7 +82,7 @@ export default async function StructurePage({ searchParams }: Props) {
     app
       .from("chapter_intro_popups")
       .select(
-        "chapter_key, heading, body_md, hero_image_url, bullets, cta_dismiss_label, is_active, show_as_banner",
+        "chapter_key, heading, body_md, hero_image_url, bullets, cta_dismiss_label, is_active, show_as_banner, partner_callout_text",
       )
       .eq("brand_id", brand.id),
     app
@@ -133,6 +133,9 @@ export default async function StructurePage({ searchParams }: Props) {
       // column existed surface as banners.
       showAsBanner:
         (row as { show_as_banner?: boolean | null }).show_as_banner !== false,
+      partnerCalloutText:
+        (row as { partner_callout_text?: string | null })
+          .partner_callout_text ?? null,
     };
   }
 
