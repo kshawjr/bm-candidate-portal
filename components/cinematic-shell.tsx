@@ -28,6 +28,10 @@ import {
   JourneyCard,
   type JourneyCardState,
 } from "@/components/sidebar/journey-card";
+import {
+  ChapterIntroBanner,
+  type ChapterIntroBannerConfig,
+} from "@/components/portal/chapter-intro-banner";
 
 // Default logo height for all brands. Per-brand overrides below.
 const DEFAULT_LOGO_HEIGHT = 60;
@@ -139,6 +143,13 @@ export interface ShellProps {
   advisorEmail: string | null;
   brandShortName: string;
   isGCalConfigured: boolean;
+  /**
+   * Per-chapter intro banner config, keyed by chapter_key. Only chapters
+   * whose admin entry has show_as_banner = true and is_active = true appear
+   * in this map. Chapters without a banner are simply absent. Banner state
+   * (collapsed / read-more) lives in the banner component itself.
+   */
+  bannersByChapterKey: Record<string, ChapterIntroBannerConfig>;
 }
 
 export function CinematicShell({
@@ -174,6 +185,7 @@ export function CinematicShell({
   advisorEmail,
   brandShortName,
   isGCalConfigured,
+  bannersByChapterKey,
 }: ShellProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -411,6 +423,15 @@ export function CinematicShell({
               })}
             </div>
           </div>
+        )}
+
+        {bannersByChapterKey[selectedChapter.chapter_key] && (
+          <ChapterIntroBanner
+            // Re-key per chapter so collapse/expand state resets when the
+            // candidate moves between chapters.
+            key={selectedChapter.chapter_key}
+            config={bannersByChapterKey[selectedChapter.chapter_key]}
+          />
         )}
 
         <div className="cine-step-content">

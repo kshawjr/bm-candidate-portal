@@ -29,6 +29,7 @@ import type {
   ChapterIntroBullet,
   ChapterIntroPopupConfig,
 } from "@/components/portal/chapter-intro-popup";
+import type { ChapterIntroBannerConfig } from "@/components/portal/chapter-intro-banner";
 import { dismissWelcomePopup, dismissChapterIntro } from "./popup-actions";
 import type { VideoProvider } from "@/lib/video-source";
 
@@ -204,7 +205,7 @@ export default async function PortalTokenPage({
     app
       .from("chapter_intro_popups")
       .select(
-        "chapter_key, heading, body_md, hero_image_url, bullets, cta_dismiss_label, is_active",
+        "chapter_key, heading, body_md, hero_image_url, bullets, cta_dismiss_label, is_active, show_as_banner",
       )
       .eq("brand_id", brand.id)
       .eq("is_active", true),
@@ -376,38 +377,82 @@ export default async function PortalTokenPage({
     };
   }
 
+  // Pre-parse every chapter intro row once. Both the popup (one-shot) and
+  // banner (persistent per chapter) read from the same source — the only
+  // gating difference is the show_as_banner column for banners and the
+  // dismissed_chapter_intros array for popups.
+  interface ParsedIntroRow {
+    chapterKey: string;
+    heading: string;
+    bodyMd: string;
+    heroImageUrl: string | null;
+    bullets: ChapterIntroBullet[];
+    ctaDismissLabel: string;
+    showAsBanner: boolean;
+  }
+  const parsedIntroByKey: Record<string, ParsedIntroRow> = {};
+  for (const introRow of chapterIntroRows ?? []) {
+    const key = introRow.chapter_key as string;
+    if (!key) continue;
+    const rawBullets: unknown = introRow.bullets;
+    const bullets: ChapterIntroBullet[] = Array.isArray(rawBullets)
+      ? (rawBullets as unknown[])
+          .map((b) => {
+            if (!b || typeof b !== "object") return null;
+            const obj = b as { icon?: unknown; text?: unknown };
+            const text = typeof obj.text === "string" ? obj.text : "";
+            if (!text) return null;
+            return {
+              icon: typeof obj.icon === "string" ? obj.icon : "",
+              text,
+            };
+          })
+          .filter((b): b is ChapterIntroBullet => b !== null)
+      : [];
+    parsedIntroByKey[key] = {
+      chapterKey: key,
+      heading: (introRow.heading as string) ?? "",
+      bodyMd: (introRow.body_md as string) ?? "",
+      heroImageUrl: (introRow.hero_image_url as string | null) ?? null,
+      bullets,
+      ctaDismissLabel:
+        (introRow.cta_dismiss_label as string | null) ?? "Let's go",
+      // Default true so brands seeded before this column existed still get
+      // banners — matches the migration default.
+      showAsBanner:
+        (introRow as { show_as_banner?: boolean | null }).show_as_banner !==
+        false,
+    };
+  }
+
   let chapterIntroPopup: ChapterIntroPopupConfig | null = null;
   const currentChapterKeyForIntro = chapters[currentChapterIdx]?.chapter_key;
   if (currentChapterKeyForIntro) {
-    const introRow = (chapterIntroRows ?? []).find(
-      (r) => r.chapter_key === currentChapterKeyForIntro,
-    );
-    if (introRow && !dismissedChapterIntros.includes(currentChapterKeyForIntro)) {
-      const rawBullets: unknown = introRow.bullets;
-      const bullets: ChapterIntroBullet[] = Array.isArray(rawBullets)
-        ? (rawBullets as unknown[])
-            .map((b) => {
-              if (!b || typeof b !== "object") return null;
-              const obj = b as { icon?: unknown; text?: unknown };
-              const text = typeof obj.text === "string" ? obj.text : "";
-              if (!text) return null;
-              return {
-                icon: typeof obj.icon === "string" ? obj.icon : "",
-                text,
-              };
-            })
-            .filter((b): b is ChapterIntroBullet => b !== null)
-        : [];
+    const parsed = parsedIntroByKey[currentChapterKeyForIntro];
+    if (parsed && !dismissedChapterIntros.includes(currentChapterKeyForIntro)) {
       chapterIntroPopup = {
-        chapterKey: currentChapterKeyForIntro,
-        heading: (introRow.heading as string) ?? "",
-        bodyMd: (introRow.body_md as string) ?? "",
-        heroImageUrl: (introRow.hero_image_url as string | null) ?? null,
-        bullets,
-        ctaDismissLabel:
-          (introRow.cta_dismiss_label as string | null) ?? "Let's go",
+        chapterKey: parsed.chapterKey,
+        heading: parsed.heading,
+        bodyMd: parsed.bodyMd,
+        heroImageUrl: parsed.heroImageUrl,
+        bullets: parsed.bullets,
+        ctaDismissLabel: parsed.ctaDismissLabel,
       };
     }
+  }
+
+  // Banners: every chapter whose intro row is active AND show_as_banner=true.
+  // The shell looks up the right one for the currently selected chapter.
+  const bannersByChapterKey: Record<string, ChapterIntroBannerConfig> = {};
+  for (const parsed of Object.values(parsedIntroByKey)) {
+    if (!parsed.showAsBanner) continue;
+    bannersByChapterKey[parsed.chapterKey] = {
+      chapterKey: parsed.chapterKey,
+      heading: parsed.heading,
+      bodyMd: parsed.bodyMd,
+      heroImageUrl: parsed.heroImageUrl,
+      bullets: parsed.bullets,
+    };
   }
 
   const onDismissWelcome = dismissWelcomePopup.bind(null, params.token);
@@ -487,6 +532,7 @@ export default async function PortalTokenPage({
         advisorEmail={scheduleAdvisorEmail}
         brandShortName={brandShortName}
         isGCalConfigured={scheduleConfigured}
+        bannersByChapterKey={bannersByChapterKey}
       />
       <DevResetButton token={params.token} />
       <OnboardingPopups

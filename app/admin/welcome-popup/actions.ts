@@ -203,6 +203,7 @@ export interface ChapterIntroFormData {
   bullets: Array<{ icon: string; text: string }>;
   ctaDismissLabel: string;
   isActive: boolean;
+  showAsBanner: boolean;
 }
 
 export async function saveChapterIntroAction(
@@ -240,6 +241,7 @@ export async function saveChapterIntroAction(
       bullets: cleanBullets,
       cta_dismiss_label: data.ctaDismissLabel.trim() || "Let's go",
       is_active: data.isActive,
+      show_as_banner: data.showAsBanner,
     },
     { onConflict: "brand_id,chapter_key" },
   );
