@@ -31,10 +31,15 @@ interface Props {
  *   3. Both can be null — in which case nothing renders and the chapter
  *      content (plus banner, if configured) shows immediately.
  *
- * Once a popup dismisses successfully it never re-mounts in this client
- * session — the server has flipped the corresponding flag, but until the
- * router refreshes the page our local state is the source of truth so the
- * popup doesn't flash back in for a frame.
+ * The local videoDismissed / chapterDismissed flags scope to ONE chapter:
+ * once dismissed within a chapter, the same popup doesn't flash back in
+ * during the brief window between server action and revalidation.
+ *
+ * Resetting between chapters is handled by the parent: the page passes
+ * `key={currentChapterKey}` so React remounts this component when the
+ * candidate's current_chapter advances. That wipes the local flags so the
+ * next chapter's video + intro fire on a clean slate. Don't read these
+ * flags as "session-wide" — they're per-chapter by mount.
  */
 export function OnboardingPopups({
   chapterVideo,

@@ -606,6 +606,12 @@ export default async function PortalTokenPage({
       />
       <DevResetButton token={params.token} />
       <OnboardingPopups
+        // Re-key on the candidate's current chapter so React remounts the
+        // sequencer when current_chapter advances. This wipes the local
+        // videoDismissed/chapterDismissed flags between chapters — without
+        // it, the next chapter's video + intro would be blocked by the
+        // previous chapter's dismissals still sitting in component state.
+        key={currentChapterKeyForOnboarding ?? "no-chapter"}
         chapterVideo={chapterVideo}
         chapterIntro={chapterIntroPopup}
         onDismissChapterVideo={onDismissChapterVideo}
