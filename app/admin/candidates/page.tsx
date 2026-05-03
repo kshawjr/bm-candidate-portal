@@ -10,29 +10,38 @@ import {
   LIQUID_CAPITAL_RANGES,
   NET_WORTH_RANGES,
   CREDIT_SCORE_RANGES,
-  AGE_RANGES,
   MOTIVATIONS,
-  SELF_DESCRIPTORS,
   humanizeOption,
 } from "@/lib/application-options";
+import { brandClosingQuestion } from "@/lib/brand-closing-questions";
 
 export const dynamic = "force-dynamic";
 
 // Admin-surfaced application answers. Keep in sync with the renderer's
-// field_key names.
+// field_key names. PR 37: dropped age_range / self_descriptor and added
+// motivation_elaboration, has_felony / felony_explanation, the *_other_text
+// keys for the chip questions, and brand_closing_response.
 const SURFACED_FIELD_KEYS = [
   "liquid_capital_range",
   "net_worth_range",
   "credit_score_range",
-  "age_range",
   "motivation",
   "motivation_other_text",
-  "self_descriptor",
+  "motivation_elaboration",
   "zip_code",
   "derived_city",
   "derived_state",
   "target_location_confirmed",
   "target_location_other",
+  "has_filed_bankruptcy",
+  "bankruptcy_explanation",
+  "has_felony",
+  "felony_explanation",
+  "opening_timeline_other_text",
+  "involvement_level_other_text",
+  "growth_plan_other_text",
+  "brand_closing_response",
+  "brand_closing_response_other",
 ] as const;
 
 export default async function AdminCandidatesPage() {
@@ -74,18 +83,25 @@ export default async function AdminCandidatesPage() {
     ),
   );
   const { data: brands } = brandIds.length
-    ? await core.from("brands").select("id, name").in("id", brandIds)
+    ? await core.from("brands").select("id, name, slug").in("id", brandIds)
     : { data: [] };
-  const brandNameById = new Map<string, string>(
-    (brands ?? []).map((b) => [b.id as string, (b.name as string) ?? ""]),
+  const brandById = new Map<
+    string,
+    { name: string; slug: string }
+  >(
+    (brands ?? []).map((b) => [
+      b.id as string,
+      {
+        name: (b.name as string) ?? "",
+        slug: (b.slug as string) ?? "",
+      },
+    ]),
   );
 
   const candidateById = new Map(
     (candidates ?? []).map((c) => [c.id as string, c] as const),
   );
 
-  // Chapter labels per brand so the Position column can show
-  // "Chapter 2 — First chat" instead of just "Chapter 2 · Step 0".
   const { data: chapters } = brandIds.length
     ? await app
         .from("chapters_config")
@@ -100,9 +116,6 @@ export default async function AdminCandidatesPage() {
     return match ? ((match.label as string) ?? null) : null;
   };
 
-  // Application answers we surface on the admin page. jsonb values are
-  // stored as plain strings/booleans by the renderer, so cast and read
-  // directly.
   const sessionIds = sessionList.map((s) => s.id as string);
   const { data: answerRows } = sessionIds.length
     ? await app
@@ -122,6 +135,8 @@ export default async function AdminCandidatesPage() {
 
   const pickString = (v: unknown): string =>
     typeof v === "string" ? v : "";
+  const pickBool = (v: unknown): boolean | null =>
+    typeof v === "boolean" ? v : null;
 
   const rows: CandidateRow[] = sessionList.map((s) => {
     const candidate = s.candidate_id
@@ -132,7 +147,9 @@ export default async function AdminCandidatesPage() {
     const name = [firstName, lastName].filter(Boolean).join(" ").trim();
     const email = (candidate?.email as string | null) ?? "";
     const brandId = (candidate?.brand_id as string | null) ?? "";
-    const brandName = brandId ? brandNameById.get(brandId) ?? "" : "";
+    const brand = brandId ? brandById.get(brandId) : null;
+    const brandName = brand?.name ?? "";
+    const brandSlug = brand?.slug ?? "";
     const chapterIdx = (s.current_chapter as number | null) ?? 0;
     const stepIdx = (s.current_step as number | null) ?? 0;
     const token = s.token as string;
@@ -141,29 +158,67 @@ export default async function AdminCandidatesPage() {
     const liquidRaw = pickString(a.liquid_capital_range);
     const netWorthRaw = pickString(a.net_worth_range);
     const creditRaw = pickString(a.credit_score_range);
-    const ageRaw = pickString(a.age_range);
-    const motivationRaw = pickString(a.motivation);
+
+    // Motivation became multi-select in PR 37. Older rows may store a
+    // single string; tolerate both shapes.
+    const rawMotivation = a.motivation;
+    const motivationValues: string[] = Array.isArray(rawMotivation)
+      ? (rawMotivation as unknown[]).filter(
+          (v): v is string => typeof v === "string",
+        )
+      : typeof rawMotivation === "string" && rawMotivation.length > 0
+        ? [rawMotivation]
+        : [];
     const motivationOther = pickString(a.motivation_other_text).trim();
-    const descriptorRaw = pickString(a.self_descriptor);
+    let motivationLabel: string | null = null;
+    if (motivationValues.length > 0) {
+      const labels = motivationValues.map((v) => {
+        if (v === "other" && motivationOther) {
+          return `Other (${motivationOther})`;
+        }
+        return humanizeOption(v, MOTIVATIONS);
+      });
+      motivationLabel = labels.join(", ");
+    }
+    const motivationElaboration = pickString(a.motivation_elaboration).trim();
 
     const zipCode = pickString(a.zip_code);
     const derivedCity = pickString(a.derived_city);
     const derivedState = pickString(a.derived_state);
     const derivedPlace =
       derivedCity && derivedState ? `${derivedCity}, ${derivedState}` : "";
-    const targetConfirmed =
-      typeof a.target_location_confirmed === "boolean"
-        ? (a.target_location_confirmed as boolean)
-        : null;
+    const targetConfirmed = pickBool(a.target_location_confirmed);
     const targetOther = pickString(a.target_location_other).trim();
 
-    let motivationLabel: string | null = null;
-    if (motivationRaw) {
-      const base = humanizeOption(motivationRaw, MOTIVATIONS);
-      motivationLabel =
-        motivationRaw === "other" && motivationOther
-          ? `Other — ${motivationOther}`
-          : base;
+    const bankruptcyAnswer = pickBool(a.has_filed_bankruptcy);
+    const bankruptcyExplanation = pickString(a.bankruptcy_explanation).trim();
+    const felonyAnswer = pickBool(a.has_felony);
+    const felonyExplanation = pickString(a.felony_explanation).trim();
+
+    const openingTimelineOther = pickString(
+      a.opening_timeline_other_text,
+    ).trim();
+    const involvementLevelOther = pickString(
+      a.involvement_level_other_text,
+    ).trim();
+    const growthPlanOther = pickString(a.growth_plan_other_text).trim();
+
+    // Resolve the per-brand closing label by looking up the chip set the
+    // candidate would have seen. Falls back to the raw value for unknown
+    // brands so historical rows still surface.
+    const closingValue = pickString(a.brand_closing_response);
+    const closingOther = pickString(a.brand_closing_response_other).trim();
+    let brandClosingLabel: string | null = null;
+    if (closingValue) {
+      if (closingValue === "other" && closingOther) {
+        brandClosingLabel = `Other (${closingOther})`;
+      } else if (brandSlug) {
+        const closing = brandClosingQuestion(brandSlug);
+        const match = closing.options.find((o) => o.value === closingValue);
+        brandClosingLabel = match ? match.label : `${closingValue} (legacy)`;
+      } else {
+        brandClosingLabel = closingValue;
+      }
     }
 
     return {
@@ -186,15 +241,20 @@ export default async function AdminCandidatesPage() {
       creditScoreLabel: creditRaw
         ? humanizeOption(creditRaw, CREDIT_SCORE_RANGES)
         : null,
-      ageRangeLabel: ageRaw ? humanizeOption(ageRaw, AGE_RANGES) : null,
       motivationLabel,
-      selfDescriptorLabel: descriptorRaw
-        ? humanizeOption(descriptorRaw, SELF_DESCRIPTORS)
-        : null,
+      motivationElaboration: motivationElaboration || null,
+      brandClosingLabel,
       zipCode: zipCode || null,
       derivedPlace: derivedPlace || null,
       targetConfirmed,
       targetOther: targetOther || null,
+      bankruptcyAnswer,
+      bankruptcyExplanation: bankruptcyExplanation || null,
+      felonyAnswer,
+      felonyExplanation: felonyExplanation || null,
+      openingTimelineOther: openingTimelineOther || null,
+      involvementLevelOther: involvementLevelOther || null,
+      growthPlanOther: growthPlanOther || null,
     };
   });
 

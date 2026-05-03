@@ -147,6 +147,10 @@ export interface ShellProps {
   candidate: ApplicationCandidate;
   initialApplicationAnswers: Record<string, unknown>;
   isApplicationSubmitted: boolean;
+  /** ZIP prefilled at candidate creation time (PR 37). When set, the
+   *  application's location step skips the cold ZIP input and lands on
+   *  the confirmation card. */
+  prefilledZip: string | null;
   // Schedule content-type inputs
   bookingsByStepId: Record<string, ExistingBooking>;
   hasAssignedRep: boolean;
@@ -207,6 +211,7 @@ export function CinematicShell({
   candidate,
   initialApplicationAnswers,
   isApplicationSubmitted,
+  prefilledZip,
   bookingsByStepId,
   hasAssignedRep,
   advisorName,
@@ -552,6 +557,8 @@ export function CinematicShell({
                 brandName={brandName}
                 initialApplicationAnswers={initialApplicationAnswers}
                 isApplicationSubmitted={isApplicationSubmitted}
+                prefilledZip={prefilledZip}
+                brandSlug={brandSlug}
                 onSaveApplicationAnswer={onSaveApplicationAnswer}
                 onSubmitApplication={onSubmitApplication}
                 onContinueAfterApplication={handleContinueAfterApplication}
@@ -599,6 +606,8 @@ function StepRenderer({
   brandName,
   initialApplicationAnswers,
   isApplicationSubmitted,
+  prefilledZip,
+  brandSlug,
   onSaveApplicationAnswer,
   onSubmitApplication,
   onContinueAfterApplication,
@@ -622,6 +631,8 @@ function StepRenderer({
   brandName: string;
   initialApplicationAnswers: Record<string, unknown>;
   isApplicationSubmitted: boolean;
+  prefilledZip: string | null;
+  brandSlug: string;
   onSaveApplicationAnswer: (
     fieldKey: string,
     fieldValue: unknown,
@@ -665,6 +676,8 @@ function StepRenderer({
       <ApplicationRenderer
         candidate={candidate}
         leaderName={leaderName}
+        brandSlug={brandSlug}
+        prefilledZip={prefilledZip}
         initialAnswers={initialApplicationAnswers}
         isAlreadySubmitted={isApplicationSubmitted}
         onSaveAnswer={onSaveApplicationAnswer}

@@ -357,10 +357,30 @@ const BRAND_TOUR_SLIDES: Record<BrandCode, Slide[]> = {
   ct: placeholderSlides("Cruisin Tikis", "f86e4f"),
 };
 
-// Stable dev tokens. One per brand.
-const DEV_TOKENS: Record<BrandCode, { token: string; firstName: string; email: string }> = {
-  ht: { token: "test-token-123", firstName: "Jamie", email: "test-candidate-ht@example.com" },
-  ct: { token: "test-token-456", firstName: "Jamie", email: "test-candidate-ct@example.com" },
+// Stable dev tokens. One per brand. PR 37 added prefilledZip — HT seeds a
+// real ZIP so the application location step skips the cold flow; CT leaves
+// it null so the cold-input flow stays exercised.
+const DEV_TOKENS: Record<
+  BrandCode,
+  {
+    token: string;
+    firstName: string;
+    email: string;
+    prefilledZip: string | null;
+  }
+> = {
+  ht: {
+    token: "test-token-123",
+    firstName: "Jamie",
+    email: "test-candidate-ht@example.com",
+    prefilledZip: "11237",
+  },
+  ct: {
+    token: "test-token-456",
+    firstName: "Jamie",
+    email: "test-candidate-ct@example.com",
+    prefilledZip: null,
+  },
 };
 
 // Per-brand typography — writes to bmave-core.brands.font_overrides.
@@ -1121,7 +1141,7 @@ async function seedDevCandidate(
   code: BrandCode,
   repId: string,
 ) {
-  const { token, firstName, email } = DEV_TOKENS[code];
+  const { token, firstName, email, prefilledZip } = DEV_TOKENS[code];
 
   // Upsert candidate identity in bmave-core — includes the assigned rep
   // so scheduling knows whose calendar to query.
@@ -1149,13 +1169,16 @@ async function seedDevCandidate(
     .eq("token", token)
     .maybeSingle();
 
-  const row = {
+  const row: Record<string, unknown> = {
     candidate_id: candidate.id,
     token,
     // Land new dev tokens on Chapter 1 / Step 0 (Brand tour) so the slides
     // renderer exercises on first load. Existing rows keep their state.
     current_chapter: existing?.current_chapter ?? 0,
     current_step: existing?.current_step ?? 0,
+    // PR 37: stamp prefilled_zip on every reseed so flipping the per-brand
+    // value above immediately reflects in the test candidate's flow.
+    prefilled_zip: prefilledZip,
   };
 
   const { error: pErr } = await app

@@ -16,6 +16,10 @@ export interface ZipLocationValue {
 interface Props {
   value: ZipLocationValue;
   onChange: (v: ZipLocationValue) => void;
+  /** When set, skip the cold ZIP-input step. The lookup runs on mount and
+   *  the candidate lands on the "We have you in <city, state>" confirm
+   *  card. Yes/No → free-text override flow stays the same. */
+  prefilledZip?: string | null;
 }
 
 type LookupState =
@@ -23,11 +27,33 @@ type LookupState =
   | { kind: "loading" }
   | { kind: "error" };
 
-export function ZipLocationField({ value, onChange }: Props) {
+export function ZipLocationField({
+  value,
+  onChange,
+  prefilledZip,
+}: Props) {
   const [lookup, setLookup] = useState<LookupState>({ kind: "idle" });
   // Ref used to cancel in-flight lookups when the user keeps typing. The
   // previous fetch's result is discarded if a newer lookup has started.
   const latestLookupId = useRef(0);
+
+  // PR 37: when a prefilled ZIP is available and no answer has been saved
+  // yet, seed the field with the prefilled value on mount. The existing
+  // lookup useEffect picks it up and fetches the city/state, landing the
+  // candidate on the confirmation card. Runs once per mount because the
+  // dependency only refers to `prefilledZip`.
+  useEffect(() => {
+    if (!prefilledZip) return;
+    if (value.zip || value.derivedCity) return; // already populated
+    onChange({ ...value, zip: prefilledZip });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefilledZip]);
+
+  // True for the prefill flow once the ZIP exists — used to hide the cold
+  // ZIP input box. The candidate can still flip to manual entry from the
+  // error card if zippopotam.us doesn't recognize the prefilled value.
+  const isPrefilledFlow =
+    Boolean(prefilledZip) && value.zip === prefilledZip;
 
   useEffect(() => {
     const zip = value.zip.trim();
@@ -105,22 +131,24 @@ export function ZipLocationField({ value, onChange }: Props) {
 
   return (
     <div className="zip-location">
-      <label className="app-field-col">
-        <span className="app-field-sublabel">What&apos;s your ZIP code?</span>
-        <input
-          type="text"
-          inputMode="numeric"
-          maxLength={5}
-          value={value.zip}
-          onChange={(e) => {
-            const raw = e.target.value.replace(/\D/g, "").slice(0, 5);
-            onChange({ ...value, zip: raw });
-          }}
-          placeholder="12345"
-          className="app-field-input zip-input"
-          autoFocus
-        />
-      </label>
+      {!isPrefilledFlow && (
+        <label className="app-field-col">
+          <span className="app-field-sublabel">What&apos;s your ZIP code?</span>
+          <input
+            type="text"
+            inputMode="numeric"
+            maxLength={5}
+            value={value.zip}
+            onChange={(e) => {
+              const raw = e.target.value.replace(/\D/g, "").slice(0, 5);
+              onChange({ ...value, zip: raw });
+            }}
+            placeholder="12345"
+            className="app-field-input zip-input"
+            autoFocus
+          />
+        </label>
+      )}
 
       {hasValidZip && lookup.kind === "loading" && !value.manualFallback && (
         <div className="zip-lookup-status">Looking up your area…</div>

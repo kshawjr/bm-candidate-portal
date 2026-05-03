@@ -113,7 +113,7 @@ export default async function PortalTokenPage({
   const { data: session } = await app
     .from("candidates_in_portal")
     .select(
-      "id, candidate_id, current_chapter, current_step, is_app_submitted, last_activity_at, dismissed_chapter_videos, dismissed_chapter_intros, dismissed_step_transitions, dismissed_chapter_completes",
+      "id, candidate_id, current_chapter, current_step, is_app_submitted, last_activity_at, dismissed_chapter_videos, dismissed_chapter_intros, dismissed_step_transitions, dismissed_chapter_completes, prefilled_zip",
     )
     .eq("token", params.token)
     .maybeSingle();
@@ -644,6 +644,7 @@ export default async function PortalTokenPage({
         }}
         initialApplicationAnswers={initialApplicationAnswers}
         isApplicationSubmitted={Boolean(session.is_app_submitted)}
+        prefilledZip={(session.prefilled_zip as string | null) ?? null}
         bookingsByStepId={bookingsByStepId}
         hasAssignedRep={hasAssignedRep}
         advisorName={scheduleAdvisorName}

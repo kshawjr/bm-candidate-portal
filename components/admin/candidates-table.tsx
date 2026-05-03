@@ -21,13 +21,26 @@ export interface CandidateRow {
   liquidCapitalLabel: string | null;
   netWorthLabel: string | null;
   creditScoreLabel: string | null;
-  ageRangeLabel: string | null;
+  /** Comma-separated motivation chip labels (PR 37: now multi-select). */
   motivationLabel: string | null;
-  selfDescriptorLabel: string | null;
+  /** PR 37: short free-text follow-up that contextualises motivation chips. */
+  motivationElaboration: string | null;
+  /** PR 37: per-brand closing question response. */
+  brandClosingLabel: string | null;
   zipCode: string | null;
   derivedPlace: string | null;
   targetConfirmed: boolean | null;
   targetOther: string | null;
+  /** PR 37: bankruptcy moved into background-check section. */
+  bankruptcyAnswer: boolean | null;
+  bankruptcyExplanation: string | null;
+  /** PR 37: new felony question alongside bankruptcy. */
+  felonyAnswer: boolean | null;
+  felonyExplanation: string | null;
+  /** PR 37: free-text overrides for the chip questions that gained Other. */
+  openingTimelineOther: string | null;
+  involvementLevelOther: string | null;
+  growthPlanOther: string | null;
 }
 
 interface Props {
@@ -46,6 +59,12 @@ function formatRelative(iso: string | null): string {
   const days = Math.round(hrs / 24);
   if (days < 14) return `${days}d ago`;
   return d.toLocaleDateString();
+}
+
+function yesNo(answer: boolean | null, explanation: string | null): string | null {
+  if (answer === null) return null;
+  if (answer === false) return "No";
+  return explanation ? `Yes — ${explanation}` : "Yes";
 }
 
 export function CandidatesTable({ rows }: Props) {
@@ -86,6 +105,7 @@ export function CandidatesTable({ rows }: Props) {
             <th>Location</th>
             <th>About</th>
             <th>Financials</th>
+            <th>Background</th>
             <th>Last activity</th>
             <th aria-label="Actions" />
           </tr>
@@ -110,10 +130,20 @@ export function CandidatesTable({ rows }: Props) {
                   : null;
 
             const aboutBits: string[] = [];
-            if (r.ageRangeLabel) aboutBits.push(`Age: ${r.ageRangeLabel}`);
             if (r.motivationLabel) aboutBits.push(`Why: ${r.motivationLabel}`);
-            if (r.selfDescriptorLabel)
-              aboutBits.push(`Self: ${r.selfDescriptorLabel}`);
+            if (r.motivationElaboration)
+              aboutBits.push(`More: ${r.motivationElaboration}`);
+            if (r.openingTimelineOther)
+              aboutBits.push(`Timing other: ${r.openingTimelineOther}`);
+            if (r.involvementLevelOther)
+              aboutBits.push(`Hands-on other: ${r.involvementLevelOther}`);
+            if (r.growthPlanOther)
+              aboutBits.push(`Growth other: ${r.growthPlanOther}`);
+            if (r.brandClosingLabel)
+              aboutBits.push(`Closing: ${r.brandClosingLabel}`);
+
+            const bankruptcy = yesNo(r.bankruptcyAnswer, r.bankruptcyExplanation);
+            const felony = yesNo(r.felonyAnswer, r.felonyExplanation);
 
             return (
               <tr key={r.token} className={r.isTest ? "is-test" : undefined}>
@@ -179,6 +209,16 @@ export function CandidatesTable({ rows }: Props) {
                       {r.creditScoreLabel && (
                         <div>Credit: {r.creditScoreLabel}</div>
                       )}
+                    </div>
+                  ) : (
+                    <span className="adm-muted">—</span>
+                  )}
+                </td>
+                <td>
+                  {bankruptcy || felony ? (
+                    <div className="adm-candidates-financials">
+                      {bankruptcy && <div>Bk: {bankruptcy}</div>}
+                      {felony && <div>Felony: {felony}</div>}
                     </div>
                   ) : (
                     <span className="adm-muted">—</span>
