@@ -28,6 +28,7 @@ import type { ChapterVideoConfig } from "@/components/portal/chapter-video-popup
 import type {
   ChapterIntroBullet,
   ChapterIntroPopupConfig,
+  PreDismissChecklist,
 } from "@/components/portal/chapter-intro-popup";
 import type { ChapterIntroBannerConfig } from "@/components/portal/chapter-intro-banner";
 import type { StepTransitionPopupConfig } from "@/components/portal/step-transition-popup";
@@ -38,6 +39,7 @@ import {
   dismissStepTransition,
   completeChapterAndAdvance,
 } from "./popup-actions";
+import { submitBookingUnavailableAction } from "./booking-actions";
 import type { VideoProvider } from "@/lib/video-source";
 
 export const dynamic = "force-dynamic";
@@ -213,7 +215,7 @@ export default async function PortalTokenPage({
     app
       .from("chapter_intro_popups")
       .select(
-        "chapter_key, heading, body_md, hero_image_url, bullets, cta_dismiss_label, is_active, show_as_banner, partner_callout_text",
+        "chapter_key, heading, body_md, hero_image_url, bullets, cta_dismiss_label, is_active, show_as_banner, partner_callout_text, pre_dismiss_checklist",
       )
       .eq("brand_id", brand.id)
       .eq("is_active", true),
@@ -425,6 +427,7 @@ export default async function PortalTokenPage({
     ctaDismissLabel: string;
     showAsBanner: boolean;
     partnerCalloutText: string | null;
+    preDismissChecklist: PreDismissChecklist | null;
   }
   const parsedIntroByKey: Record<string, ParsedIntroRow> = {};
   for (const introRow of chapterIntroRows ?? []) {
@@ -461,6 +464,25 @@ export default async function PortalTokenPage({
       partnerCalloutText:
         (introRow as { partner_callout_text?: string | null })
           .partner_callout_text ?? null,
+      preDismissChecklist: (() => {
+        const raw = (introRow as { pre_dismiss_checklist?: unknown })
+          .pre_dismiss_checklist;
+        if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+        const obj = raw as { heading?: unknown; items?: unknown };
+        const items = Array.isArray(obj.items)
+          ? (obj.items as unknown[]).filter(
+              (v): v is string => typeof v === "string" && v.trim().length > 0,
+            )
+          : [];
+        if (items.length === 0) return null;
+        return {
+          heading:
+            typeof obj.heading === "string" && obj.heading.trim().length > 0
+              ? obj.heading
+              : "Before you continue",
+          items,
+        };
+      })(),
     };
   }
 
@@ -490,6 +512,7 @@ export default async function PortalTokenPage({
         bullets: parsed.bullets,
         ctaDismissLabel: parsed.ctaDismissLabel,
         partnerCalloutText: parsed.partnerCalloutText,
+        preDismissChecklist: parsed.preDismissChecklist,
       };
     }
   }
@@ -653,6 +676,10 @@ export default async function PortalTokenPage({
   const onGetSlots = getAvailableSlotsAction.bind(null, params.token);
   const onBookSlot = bookSlotAction.bind(null, params.token);
   const onCancelBooking = cancelBookingAction.bind(null, params.token);
+  const onSubmitBookingUnavailable = submitBookingUnavailableAction.bind(
+    null,
+    params.token,
+  );
 
   const bookingsByStepId: Record<string, ExistingBooking> = {};
   for (const b of bookingsRows ?? []) {
@@ -700,6 +727,7 @@ export default async function PortalTokenPage({
         onGetSlots={onGetSlots}
         onBookSlot={onBookSlot}
         onCancelBooking={onCancelBooking}
+        onSubmitBookingUnavailable={onSubmitBookingUnavailable}
         candidate={{
           first_name: candidate.first_name ?? "",
           last_name: candidate.last_name ?? null,

@@ -41,6 +41,13 @@ export interface CandidateRow {
   openingTimelineOther: string | null;
   involvementLevelOther: string | null;
   growthPlanOther: string | null;
+  /** PR 40: most recent pending booking_unavailable_request for the
+   *  candidate, if any. Null when they haven't asked for help. */
+  pendingSchedulingRequest: {
+    availableTimes: string;
+    notes: string | null;
+    createdAt: string;
+  } | null;
 }
 
 interface Props {
@@ -159,6 +166,18 @@ export function CandidatesTable({ rows }: Props) {
                   <div>{r.name || "(no name)"}</div>
                   {r.email && (
                     <div className="adm-muted adm-candidates-sub">{r.email}</div>
+                  )}
+                  {r.pendingSchedulingRequest && (
+                    <div
+                      className="adm-candidates-sched-badge"
+                      title={`Available: ${r.pendingSchedulingRequest.availableTimes}${
+                        r.pendingSchedulingRequest.notes
+                          ? `\nNotes: ${r.pendingSchedulingRequest.notes}`
+                          : ""
+                      }`}
+                    >
+                      🔔 Needs scheduling help
+                    </div>
                   )}
                 </td>
                 <td>{r.brandName}</td>

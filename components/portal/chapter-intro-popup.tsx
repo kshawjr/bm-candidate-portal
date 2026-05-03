@@ -9,6 +9,11 @@ export interface ChapterIntroBullet {
   text: string;
 }
 
+export interface PreDismissChecklist {
+  heading: string;
+  items: string[];
+}
+
 export interface ChapterIntroPopupConfig {
   chapterKey: string;
   heading: string;
@@ -20,6 +25,10 @@ export interface ChapterIntroPopupConfig {
    *  Rendered with extra emphasis (tinted background, bigger leading
    *  emoji). Born from the call_prep page's partner-callout pattern. */
   partnerCalloutText: string | null;
+  /** PR 40: optional pre-dismiss checklist. When present, the dismiss CTA
+   *  is disabled until every item is checked. Used by Chapter 2 to gate
+   *  booking on a few "I commit" affirmations. */
+  preDismissChecklist: PreDismissChecklist | null;
 }
 
 interface Props {
@@ -38,6 +47,16 @@ interface Props {
 export function ChapterIntroPopup({ config, onDismiss, onDismissed }: Props) {
   const [closing, setClosing] = useState(false);
   const [pending, startTransition] = useTransition();
+  // PR 40: pre-dismiss checklist state. Each item is a boolean keyed by
+  // index. CTA gates on every item being true.
+  const checklistItems = config.preDismissChecklist?.items ?? [];
+  const [checkedFlags, setCheckedFlags] = useState<boolean[]>(
+    () => checklistItems.map(() => false),
+  );
+  const allChecked =
+    checklistItems.length === 0 ||
+    checkedFlags.length === checklistItems.length &&
+      checkedFlags.every(Boolean);
 
   // Lock page scroll while open. Restored on unmount.
   useEffect(() => {
@@ -50,6 +69,7 @@ export function ChapterIntroPopup({ config, onDismiss, onDismissed }: Props) {
 
   const triggerDismiss = () => {
     if (pending || closing) return;
+    if (!allChecked) return; // gated by checklist when present
     setClosing(true);
     startTransition(async () => {
       const result = await onDismiss(config.chapterKey);
@@ -64,6 +84,8 @@ export function ChapterIntroPopup({ config, onDismiss, onDismissed }: Props) {
   };
 
   // Escape-to-dismiss. Bound once; re-bound if the closing state flips.
+  // When a pre-dismiss checklist is gating the popup, ESC is inert too —
+  // candidates have to actually check the boxes to proceed.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") triggerDismiss();
@@ -71,7 +93,15 @@ export function ChapterIntroPopup({ config, onDismiss, onDismissed }: Props) {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [allChecked]);
+
+  const toggleChecklistItem = (i: number) => {
+    setCheckedFlags((prev) => {
+      const next = [...prev];
+      next[i] = !next[i];
+      return next;
+    });
+  };
 
   const bodyHtml = renderMiniMarkdown(config.bodyMd);
 
@@ -138,12 +168,57 @@ export function ChapterIntroPopup({ config, onDismiss, onDismissed }: Props) {
             </div>
           )}
 
-          <div className="pp-popup-foot">
+          {config.preDismissChecklist && checklistItems.length > 0 && (
+            <div className="pp-popup-checklist">
+              <div className="pp-popup-checklist-heading">
+                {config.preDismissChecklist.heading}
+              </div>
+              <ul className="pp-popup-checklist-list">
+                {checklistItems.map((item, i) => {
+                  const checked = checkedFlags[i] ?? false;
+                  return (
+                    <li
+                      key={i}
+                      className={`pp-popup-checklist-item${checked ? " is-checked" : ""}`}
+                    >
+                      <button
+                        type="button"
+                        className="pp-popup-checklist-row"
+                        onClick={() => toggleChecklistItem(i)}
+                        aria-pressed={checked}
+                      >
+                        <span
+                          className="pp-popup-checklist-box"
+                          aria-hidden="true"
+                        >
+                          {checked ? "✓" : ""}
+                        </span>
+                        <span className="pp-popup-checklist-text">
+                          {item}
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
+
+          <div className="pp-popup-foot pp-popup-foot-checklist">
+            {config.preDismissChecklist && !allChecked && (
+              <span className="pp-popup-cta-hint">
+                Check the items above to continue
+              </span>
+            )}
             <button
               type="button"
-              className="pp-popup-cta"
+              className={`pp-popup-cta${
+                config.preDismissChecklist && allChecked
+                  ? " is-pulsing"
+                  : ""
+              }`}
               onClick={triggerDismiss}
-              disabled={pending || closing}
+              disabled={pending || closing || !allChecked}
             >
               {pending ? "…" : config.ctaDismissLabel}
             </button>

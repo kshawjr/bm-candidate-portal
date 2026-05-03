@@ -2921,6 +2921,111 @@ body {
   line-height: 1.55;
   color: #1f2937;
 }
+
+/* Pre-dismiss checklist (PR 40) — gates the chapter intro popup CTA. Each
+   row is a clickable button with a fake checkbox; checked rows get a
+   brand-tinted background and a check mark animation. */
+.pp-popup-checklist {
+  margin: 18px 0 0;
+  padding: 14px 16px 16px;
+  background: color-mix(in srgb, var(--brand-soft, #eef2ff) 35%, #ffffff);
+  border: 1px solid color-mix(in srgb, var(--brand-primary, #2563eb) 14%, #e5e7eb);
+  border-radius: 12px;
+}
+.pp-popup-checklist-heading {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--brand-dark, var(--brand-primary, #2563eb));
+  margin-bottom: 10px;
+}
+.pp-popup-checklist-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.pp-popup-checklist-row {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  width: 100%;
+  padding: 10px 12px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.4;
+  text-align: left;
+  color: #374151;
+  transition: background 0.15s, border-color 0.15s;
+}
+.pp-popup-checklist-row:hover {
+  background: color-mix(in srgb, var(--brand-primary, #2563eb) 4%, #ffffff);
+  border-color: color-mix(in srgb, var(--brand-primary, #2563eb) 28%, #e5e7eb);
+}
+.pp-popup-checklist-item.is-checked .pp-popup-checklist-row {
+  background: color-mix(in srgb, var(--brand-primary, #2563eb) 8%, #ffffff);
+  border-color: color-mix(in srgb, var(--brand-primary, #2563eb) 40%, #e5e7eb);
+  color: #111827;
+}
+.pp-popup-checklist-box {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: #ffffff;
+  border: 1.5px solid #d1d5db;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 700;
+  color: #ffffff;
+  transition: background 0.15s, border-color 0.15s, transform 0.15s;
+}
+.pp-popup-checklist-item.is-checked .pp-popup-checklist-box {
+  background: var(--brand-primary, #2563eb);
+  border-color: var(--brand-primary, #2563eb);
+  animation: pp-popup-checklist-check 320ms ease-out;
+}
+.pp-popup-checklist-text {
+  flex: 1;
+}
+@keyframes pp-popup-checklist-check {
+  0%   { transform: scale(0.85); }
+  50%  { transform: scale(1.12); }
+  100% { transform: scale(1); }
+}
+.pp-popup-foot-checklist {
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+.pp-popup-cta-hint {
+  font-size: 12px;
+  color: #6b7280;
+  font-style: italic;
+}
+.pp-popup-cta.is-pulsing {
+  animation: pp-popup-cta-pulse 1.6s ease-in-out infinite;
+}
+@keyframes pp-popup-cta-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand-primary, #2563eb) 30%, transparent); }
+  50%      { box-shadow: 0 0 0 8px color-mix(in srgb, var(--brand-primary, #2563eb) 0%, transparent); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pp-popup-checklist-item.is-checked .pp-popup-checklist-box,
+  .pp-popup-cta.is-pulsing {
+    animation: none;
+  }
+}
+
 .pp-popup-foot {
   display: flex;
   justify-content: flex-end;
@@ -3311,6 +3416,41 @@ body {
     animation: none;
     opacity: 0;
   }
+}
+
+/* PR 40: scheduling escape hatch trigger that sits at the bottom of the
+   schedule grid. Low-key text-style so it doesn't compete with the
+   primary "book this slot" CTA. */
+.cant-schedule-trigger-row {
+  margin: 32px auto 8px;
+  padding: 16px 0 0;
+  border-top: 1px dashed var(--border-strong, #d1d5db);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: center;
+  font-family: var(--font-body, system-ui), system-ui, sans-serif;
+}
+.cant-schedule-trigger {
+  background: transparent;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--brand-primary, #2563eb);
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 4px;
+}
+.cant-schedule-trigger:hover {
+  color: var(--brand-dark, var(--brand-primary, #2563eb));
+}
+.cant-schedule-trigger-sub {
+  font-size: 12.5px;
+  color: var(--cin-text-muted, #6b7280);
 }
 
 /* =========================================================================

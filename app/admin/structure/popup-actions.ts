@@ -164,6 +164,13 @@ export interface ChapterIntroFormData {
   isActive: boolean;
   showAsBanner: boolean;
   partnerCalloutText: string | null;
+  /** PR 40: optional pre-dismiss checklist. Empty items array means
+   *  no checklist — the row's pre_dismiss_checklist column is set to
+   *  null in that case. */
+  preDismissChecklist: {
+    heading: string;
+    items: string[];
+  } | null;
 }
 
 export async function saveChapterIntroAction(
@@ -203,6 +210,19 @@ export async function saveChapterIntroAction(
       is_active: data.isActive,
       show_as_banner: data.showAsBanner,
       partner_callout_text: data.partnerCalloutText?.trim() || null,
+      pre_dismiss_checklist: (() => {
+        if (!data.preDismissChecklist) return null;
+        const items = data.preDismissChecklist.items
+          .map((s) => s.trim())
+          .filter((s) => s.length > 0);
+        if (items.length === 0) return null;
+        return {
+          heading:
+            data.preDismissChecklist.heading.trim() ||
+            "Before you continue",
+          items,
+        };
+      })(),
     },
     { onConflict: "brand_id,chapter_key" },
   );

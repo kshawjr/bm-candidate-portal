@@ -60,6 +60,32 @@ export default async function AdminCandidatesPage() {
 
   const sessionList = sessions ?? [];
 
+  // PR 40: surface pending booking_unavailable_requests as a per-row badge
+  // so growth leaders can see at a glance which candidates need help with
+  // scheduling.
+  const sessionIdsForRequests = sessionList.map((s) => s.id as string);
+  const { data: pendingRequests } = sessionIdsForRequests.length
+    ? await app
+        .from("booking_unavailable_requests")
+        .select("candidate_in_portal_id, available_times, notes, created_at")
+        .in("candidate_in_portal_id", sessionIdsForRequests)
+        .eq("status", "pending")
+        .order("created_at", { ascending: false })
+    : { data: [] };
+  const pendingRequestBySession = new Map<
+    string,
+    { availableTimes: string; notes: string | null; createdAt: string }
+  >();
+  for (const r of pendingRequests ?? []) {
+    const sid = r.candidate_in_portal_id as string;
+    if (pendingRequestBySession.has(sid)) continue; // most recent wins
+    pendingRequestBySession.set(sid, {
+      availableTimes: (r.available_times as string) ?? "",
+      notes: (r.notes as string | null) ?? null,
+      createdAt: (r.created_at as string) ?? "",
+    });
+  }
+
   const candidateIds = Array.from(
     new Set(
       sessionList
@@ -255,6 +281,8 @@ export default async function AdminCandidatesPage() {
       openingTimelineOther: openingTimelineOther || null,
       involvementLevelOther: involvementLevelOther || null,
       growthPlanOther: growthPlanOther || null,
+      pendingSchedulingRequest:
+        pendingRequestBySession.get(s.id as string) ?? null,
     };
   });
 
