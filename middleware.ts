@@ -37,14 +37,14 @@ export async function middleware(request: NextRequest) {
   if (path === "/admin" || path.startsWith("/admin/")) {
     if (cfg.type === "portal") {
       return NextResponse.redirect(
-        `https://flightdeck.bmave.com${path}${request.nextUrl.search}`,
+        `https://cpflightdeck.bmave.com${path}${request.nextUrl.search}`,
       );
     }
     if (cfg.type === "unknown") {
       // Defensive — should rarely happen since DNS won't route here, but
       // an unknown host hitting /admin shouldn't expose the admin UI.
       return NextResponse.redirect(
-        `https://flightdeck.bmave.com${path}${request.nextUrl.search}`,
+        `https://cpflightdeck.bmave.com${path}${request.nextUrl.search}`,
       );
     }
     // Admin host (or dev/preview): apply the existing auth gate.
