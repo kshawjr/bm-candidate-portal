@@ -9,6 +9,15 @@ import {
 } from "@/lib/candidate-events";
 import { zohoApi } from "@/lib/zoho-api";
 
+// Zoho's DateTime fields reject the `Z` suffix and millisecond precision
+// that `toISOString()` produces — they want `YYYY-MM-DDTHH:mm:ss±hh:mm`.
+// Stripping the milliseconds and swapping `Z` → `+00:00` is enough to
+// pass validation; the value is always UTC because we feed `Date` (which
+// `toISOString` always emits in UTC).
+function formatZohoDateTime(d: Date): string {
+  return d.toISOString().slice(0, 19) + "+00:00";
+}
+
 export interface LogEventArgs {
   candidateId: string;
   brandId: string;
@@ -96,7 +105,7 @@ async function syncMilestoneToZoho(
 
     await zohoApi.updateLead(candidate.zoho_lead_id, {
       Portal_Status: status,
-      Last_Active_Date: new Date().toISOString(),
+      Last_Active_Date: formatZohoDateTime(new Date()),
     });
 
     await supabase
