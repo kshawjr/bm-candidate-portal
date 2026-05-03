@@ -23,6 +23,14 @@ import { isGCalConfigured } from "@/lib/google-calendar";
 import { resolveJourneyCardState } from "@/components/sidebar/journey-card";
 import type { ExistingBooking } from "@/components/content-types/schedule-renderer";
 import { DevResetButton } from "@/components/portal/dev-reset-button";
+import { OnboardingPopups } from "@/components/portal/onboarding-popups";
+import type { WelcomePopupConfig } from "@/components/portal/welcome-popup";
+import type {
+  ChapterIntroBullet,
+  ChapterIntroPopupConfig,
+} from "@/components/portal/chapter-intro-popup";
+import { dismissWelcomePopup, dismissChapterIntro } from "./popup-actions";
+import type { VideoProvider } from "@/lib/video-source";
 
 export const dynamic = "force-dynamic";
 
@@ -97,7 +105,7 @@ export default async function PortalTokenPage({
   const { data: session } = await app
     .from("candidates_in_portal")
     .select(
-      "id, candidate_id, current_chapter, current_step, is_app_submitted, last_activity_at",
+      "id, candidate_id, current_chapter, current_step, is_app_submitted, last_activity_at, has_seen_welcome, dismissed_chapter_intros",
     )
     .eq("token", params.token)
     .maybeSingle();
@@ -151,6 +159,8 @@ export default async function PortalTokenPage({
     { data: applicationRows },
     { data: progressRows },
     { data: bookingsRows },
+    { data: welcomePopupRow },
+    { data: chapterIntroRows },
   ] = await Promise.all([
     core
       .from("portal_content")
@@ -183,6 +193,21 @@ export default async function PortalTokenPage({
       .from("bookings")
       .select("id, step_id, start_time, end_time, meeting_url, status")
       .eq("candidate_in_portal_id", session.id),
+    app
+      .from("welcome_popups")
+      .select(
+        "title, video_url, video_provider, description, cta_dismiss_label, is_active",
+      )
+      .eq("brand_id", brand.id)
+      .eq("is_active", true)
+      .maybeSingle(),
+    app
+      .from("chapter_intro_popups")
+      .select(
+        "chapter_key, heading, body_md, hero_image_url, bullets, cta_dismiss_label, is_active",
+      )
+      .eq("brand_id", brand.id)
+      .eq("is_active", true),
   ]);
 
   if (!chaptersRows?.length) {
@@ -326,6 +351,68 @@ export default async function PortalTokenPage({
     currentChapterStepCount,
   });
 
+  // --- Onboarding popups ---
+  // Welcome shows once per candidate per brand, gated on has_seen_welcome.
+  // Chapter intro shows once per candidate per chapter, gated on the
+  // dismissed_chapter_intros array. Both queries already filter to is_active.
+  const dismissedChapterIntros: string[] = Array.isArray(
+    session.dismissed_chapter_intros,
+  )
+    ? (session.dismissed_chapter_intros as unknown[]).filter(
+        (v): v is string => typeof v === "string",
+      )
+    : [];
+
+  let welcomePopup: WelcomePopupConfig | null = null;
+  if (welcomePopupRow && !session.has_seen_welcome) {
+    const provider = welcomePopupRow.video_provider as VideoProvider;
+    welcomePopup = {
+      title: (welcomePopupRow.title as string | null) ?? null,
+      videoUrl: (welcomePopupRow.video_url as string) ?? "",
+      videoProvider: provider,
+      description: (welcomePopupRow.description as string | null) ?? null,
+      ctaDismissLabel:
+        (welcomePopupRow.cta_dismiss_label as string | null) ?? "Got it",
+    };
+  }
+
+  let chapterIntroPopup: ChapterIntroPopupConfig | null = null;
+  const currentChapterKeyForIntro = chapters[currentChapterIdx]?.chapter_key;
+  if (currentChapterKeyForIntro) {
+    const introRow = (chapterIntroRows ?? []).find(
+      (r) => r.chapter_key === currentChapterKeyForIntro,
+    );
+    if (introRow && !dismissedChapterIntros.includes(currentChapterKeyForIntro)) {
+      const rawBullets: unknown = introRow.bullets;
+      const bullets: ChapterIntroBullet[] = Array.isArray(rawBullets)
+        ? (rawBullets as unknown[])
+            .map((b) => {
+              if (!b || typeof b !== "object") return null;
+              const obj = b as { icon?: unknown; text?: unknown };
+              const text = typeof obj.text === "string" ? obj.text : "";
+              if (!text) return null;
+              return {
+                icon: typeof obj.icon === "string" ? obj.icon : "",
+                text,
+              };
+            })
+            .filter((b): b is ChapterIntroBullet => b !== null)
+        : [];
+      chapterIntroPopup = {
+        chapterKey: currentChapterKeyForIntro,
+        heading: (introRow.heading as string) ?? "",
+        bodyMd: (introRow.body_md as string) ?? "",
+        heroImageUrl: (introRow.hero_image_url as string | null) ?? null,
+        bullets,
+        ctaDismissLabel:
+          (introRow.cta_dismiss_label as string | null) ?? "Let's go",
+      };
+    }
+  }
+
+  const onDismissWelcome = dismissWelcomePopup.bind(null, params.token);
+  const onDismissChapterIntro = dismissChapterIntro.bind(null, params.token);
+
   const onTourComplete = completeTourAction.bind(null, params.token);
   const onStepAdvance = advanceStepAction.bind(null, params.token);
   const onSaveApplicationAnswer = saveApplicationAnswerAction.bind(
@@ -402,6 +489,12 @@ export default async function PortalTokenPage({
         isGCalConfigured={scheduleConfigured}
       />
       <DevResetButton token={params.token} />
+      <OnboardingPopups
+        welcome={welcomePopup}
+        chapterIntro={chapterIntroPopup}
+        onDismissWelcome={onDismissWelcome}
+        onDismissChapterIntro={onDismissChapterIntro}
+      />
     </main>
   );
 }

@@ -151,6 +151,11 @@ export async function resetCandidateAction(params: {
       current_step: 0,
       is_tour_complete: false,
       is_app_submitted: false,
+      // Reset onboarding popups so the candidate sees them again on next
+      // load — the main reason to reset a candidate is to walk through the
+      // experience fresh.
+      has_seen_welcome: false,
+      dismissed_chapter_intros: [],
       last_activity_at: new Date().toISOString(),
     })
     .eq("id", portalId);

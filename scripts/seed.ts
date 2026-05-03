@@ -911,6 +911,172 @@ async function backfillScheduleConfigDefaults() {
   }
 }
 
+/**
+ * PR 31: per-brand welcome popup. Idempotent — uses upsert on brand_id since
+ * welcome_popups has a unique (brand_id) constraint. Re-runs replace whatever
+ * is there with the seed defaults; admins can edit via /admin/welcome-popup
+ * after the initial seed.
+ */
+async function seedWelcomePopup(brandId: string, code: BrandCode) {
+  // Same demo YouTube videos used by Chapter 2's "hello" video step. Real
+  // welcome videos will be uploaded per brand by Blue Maven.
+  const TITLES: Record<BrandCode, string> = {
+    ht: "Welcome to Hounds Town",
+    ct: "Welcome to Cruisin' Tikis",
+  };
+  const DESCRIPTIONS: Record<BrandCode, string> = {
+    ht: "Two minutes on who we are, what makes us different, and what to expect as you explore franchise ownership with us.",
+    ct: "Two minutes on the brand, the boats, and what life as a Cruisin' Tikis owner actually looks like.",
+  };
+
+  const { error } = await app.from("welcome_popups").upsert(
+    {
+      brand_id: brandId,
+      title: TITLES[code],
+      video_url: "https://www.youtube.com/watch?v=aqz-KE-bpKQ",
+      video_provider: "youtube",
+      description: DESCRIPTIONS[code],
+      cta_dismiss_label: "Got it",
+      is_active: true,
+    },
+    { onConflict: "brand_id" },
+  );
+  if (error) {
+    if (/welcome_popups/.test(error.message)) {
+      throw new Error(
+        `welcome_popups upsert failed (did you run 20260423_welcome_and_chapter_intro_popups.sql?): ${error.message}`,
+      );
+    }
+    throw new Error(`welcome_popups upsert failed: ${error.message}`);
+  }
+  console.log(`[seed] welcome_popups -> ${code}`);
+}
+
+/**
+ * PR 31: chapter intro popups. Seeds one per brand for each STAGES key so
+ * every chapter has a friendly intro on first arrival. Idempotent via
+ * upsert(brand_id, chapter_key).
+ */
+async function seedChapterIntros(brandId: string, code: BrandCode) {
+  // Per-chapter copy. Mirrors the warm, conversational voice of the journey.
+  // Using brand-agnostic copy keeps the seed identical across brands; admins
+  // can rewrite per-brand via /admin/structure → "Intro popup".
+  void code;
+  const INTROS: Record<
+    string,
+    {
+      heading: string;
+      body_md: string;
+      bullets: Array<{ icon: string; text: string }>;
+      cta: string;
+    }
+  > = {
+    explore: {
+      heading: "Welcome — let's get to know each other",
+      body_md:
+        "This first chapter is light. Walk through who we are, then a short application so we can get to know you. Both save as you go — close the tab whenever, pick up where you left off.",
+      bullets: [
+        { icon: "✨", text: "Brand tour — about 5 minutes" },
+        { icon: "📝", text: "Light application — about 10 minutes" },
+        { icon: "💾", text: "Auto-saves on every screen" },
+      ],
+      cta: "Show me around",
+    },
+    first_chat: {
+      heading: "Time to actually talk",
+      body_md:
+        "30 minutes with your franchise growth leader. No decks. No hard sell. Just a real conversation about what you're looking for and whether we're the right fit.",
+      bullets: [
+        { icon: "📞", text: "Pick a time that works — Google Meet" },
+        { icon: "💬", text: "Bring your questions, no matter how small" },
+        { icon: "🤝", text: "We'll send you a quick prep doc beforehand" },
+      ],
+      cta: "Let's book it",
+    },
+    deep_dive: {
+      heading: "Now for the real deep dive",
+      body_md:
+        "An hour with our founder and a current franchisee. Live Tuesdays at 2pm ET, or watch on demand whenever works.",
+      bullets: [
+        { icon: "🎥", text: "Founder + franchisee on the line" },
+        { icon: "❓", text: "Ask anything — that's the whole point" },
+        { icon: "📊", text: "Covers model, support, unit economics" },
+      ],
+      cta: "Watch the deep dive",
+    },
+    playbook: {
+      heading: "Under the hood",
+      body_md:
+        "The FDD — our franchise in document form. We've broken it into readable sections so you can move at your own pace. Mark questions as you go and we'll address them on our next call.",
+      bullets: [
+        { icon: "📖", text: "23 sections, broken up for readability" },
+        { icon: "✏️", text: "Highlight + ask questions inline" },
+        { icon: "⏱️", text: "Most candidates finish in a few sittings" },
+      ],
+      cta: "Open the playbook",
+    },
+    verify: {
+      heading: "The verification round",
+      body_md:
+        "The formal bit. Background check, financial verification, and validation calls with current franchisees. Most of it happens quietly in the background — your only real task is picking two or three franchisees to talk to.",
+      bullets: [
+        { icon: "✅", text: "Background check — consent + ID" },
+        { icon: "💳", text: "Financial verification" },
+        { icon: "📞", text: "Validation calls with current owners" },
+      ],
+      cta: "Let's verify",
+    },
+    visit: {
+      heading: "Come see us in person",
+      body_md:
+        "Your day at HQ. Meet the whole team, see operations live, walk the path of a typical day. Lunch is on us. This is the confirmation step on both sides.",
+      bullets: [
+        { icon: "📍", text: "One day at HQ — usually a Tuesday" },
+        { icon: "✈️", text: "We cover travel + hotel" },
+        { icon: "🍽️", text: "Lunch is on us" },
+      ],
+      cta: "Plan my visit",
+    },
+    award: {
+      heading: "Ready to make it official?",
+      body_md:
+        "The last step — sign the franchise agreement and you're one of us. Territory locked in, training scheduled, doors ahead.",
+      bullets: [
+        { icon: "🏆", text: "Sign the franchise agreement" },
+        { icon: "🗺️", text: "Lock in your territory" },
+        { icon: "🎓", text: "Training schedule + first 90 days" },
+      ],
+      cta: "Make it official",
+    },
+  };
+
+  const rows = Object.entries(INTROS).map(([chapter_key, intro]) => ({
+    brand_id: brandId,
+    chapter_key,
+    heading: intro.heading,
+    body_md: intro.body_md,
+    hero_image_url: null,
+    bullets: intro.bullets,
+    cta_dismiss_label: intro.cta,
+    is_active: true,
+  }));
+
+  const { error } = await app
+    .from("chapter_intro_popups")
+    .upsert(rows, { onConflict: "brand_id,chapter_key" });
+  if (error) {
+    if (/chapter_intro_popups/.test(error.message)) {
+      throw new Error(
+        `chapter_intro_popups upsert failed (did you run 20260423_welcome_and_chapter_intro_popups.sql?): ${error.message}`,
+      );
+    }
+    throw new Error(`chapter_intro_popups upsert failed: ${error.message}`);
+  }
+  console.log(
+    `[seed] chapter_intro_popups: ${rows.length} chapters seeded for brand ${brandId}`,
+  );
+}
+
 async function seedDevCandidate(
   brandId: string,
   code: BrandCode,
@@ -988,6 +1154,8 @@ async function main() {
     await seedSteps(brand.id, code);
     await seedChapter2Defaults(brand.id, code);
     await seedCallPrepForChapter2(brand.id);
+    await seedWelcomePopup(brand.id, code);
+    await seedChapterIntros(brand.id, code);
     await seedDevCandidate(brand.id, code, repId);
   }
 
