@@ -71,6 +71,19 @@
   color: #111827;
   font-family: var(--font-inter), system-ui, sans-serif;
 }
+/* PR 47 (TEMPORARY): persistent banner for the disabled-auth period.
+   Always visible across every admin page — not dismissable on purpose,
+   so the team can't lose track of the trust model. */
+.admin-auth-banner {
+  background: #fde68a;
+  color: #78350f;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+  padding: 8px 16px;
+  border-bottom: 1px solid #f59e0b;
+  letter-spacing: 0.01em;
+}
 .admin-topbar {
   background: #ffffff;
   border-bottom: 1px solid #e5e7eb;
