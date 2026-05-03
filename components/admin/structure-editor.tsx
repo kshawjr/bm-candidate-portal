@@ -11,6 +11,10 @@ import {
   ChapterIntroPopup,
   type ChapterIntroPopupConfig,
 } from "@/components/portal/chapter-intro-popup";
+import {
+  ChapterIntroBanner,
+  type ChapterIntroBannerConfig,
+} from "@/components/portal/chapter-intro-banner";
 
 export interface ChapterIntroInitial {
   heading: string;
@@ -19,6 +23,7 @@ export interface ChapterIntroInitial {
   bullets: Array<{ icon: string; text: string }>;
   ctaDismissLabel: string;
   isActive: boolean;
+  showAsBanner: boolean;
 }
 
 export interface AdminChapterRow {
@@ -529,10 +534,13 @@ function ChapterIntroDrawer({
       : [{ icon: "✓", text: "" }],
     ctaDismissLabel: initial?.ctaDismissLabel ?? "Let's go",
     isActive: initial?.isActive ?? true,
+    showAsBanner: initial?.showAsBanner ?? true,
   }));
   const [pending, startTransition] = useTransition();
   const [uploading, setUploading] = useState(false);
-  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewMode, setPreviewMode] = useState<"none" | "popup" | "banner">(
+    "none",
+  );
   const [localError, setLocalError] = useState<string | null>(null);
 
   const valid = form.heading.trim().length > 0 && form.bodyMd.trim().length > 0;
@@ -613,13 +621,21 @@ function ChapterIntroDrawer({
     }));
   };
 
-  const previewConfig: ChapterIntroPopupConfig = {
+  const cleanedBullets = form.bullets.filter((b) => b.text.trim());
+  const popupPreviewConfig: ChapterIntroPopupConfig = {
     chapterKey: chapter.chapter_key,
     heading: form.heading.trim() || "Untitled",
     bodyMd: form.bodyMd,
     heroImageUrl: form.heroImageUrl,
-    bullets: form.bullets.filter((b) => b.text.trim()),
+    bullets: cleanedBullets,
     ctaDismissLabel: form.ctaDismissLabel.trim() || "Let's go",
+  };
+  const bannerPreviewConfig: ChapterIntroBannerConfig = {
+    chapterKey: chapter.chapter_key,
+    heading: form.heading.trim() || "Untitled",
+    bodyMd: form.bodyMd,
+    heroImageUrl: form.heroImageUrl,
+    bullets: cleanedBullets,
   };
 
   return (
@@ -813,6 +829,29 @@ function ChapterIntroDrawer({
             </span>
           </label>
 
+          <label
+            className="adm-field"
+            style={{ flexDirection: "row", alignItems: "flex-start", gap: 10 }}
+          >
+            <input
+              type="checkbox"
+              checked={form.showAsBanner}
+              onChange={(e) =>
+                setForm({ ...form, showAsBanner: e.target.checked })
+              }
+              style={{ marginTop: 3 }}
+            />
+            <span style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+              <span className="adm-form-label" style={{ margin: 0 }}>
+                Show as persistent banner at top of chapter
+              </span>
+              <span className="adm-form-hint" style={{ marginTop: 0 }}>
+                When on, the same content shows as a banner above the step
+                content even after the popup is dismissed.
+              </span>
+            </span>
+          </label>
+
           {localError && (
             <div className="adm-form-error">{localError}</div>
           )}
@@ -830,14 +869,48 @@ function ChapterIntroDrawer({
               Delete
             </button>
           )}
-          <button
-            type="button"
-            className="adm-btn-ghost"
-            onClick={() => setPreviewOpen(true)}
-            disabled={!valid || pending}
+          <div
+            style={{
+              display: "inline-flex",
+              border: "1px solid #d1d5db",
+              borderRadius: 6,
+              overflow: "hidden",
+            }}
           >
-            Preview
-          </button>
+            <button
+              type="button"
+              className="adm-btn-ghost"
+              onClick={() => setPreviewMode("popup")}
+              disabled={!valid || pending}
+              style={{
+                borderRadius: 0,
+                borderRight: "1px solid #d1d5db",
+                borderTop: "none",
+                borderBottom: "none",
+                borderLeft: "none",
+              }}
+              title="Preview as a one-time popup"
+            >
+              Preview popup
+            </button>
+            <button
+              type="button"
+              className="adm-btn-ghost"
+              onClick={() => setPreviewMode("banner")}
+              disabled={!valid || pending || !form.showAsBanner}
+              style={{
+                borderRadius: 0,
+                border: "none",
+              }}
+              title={
+                form.showAsBanner
+                  ? "Preview the persistent banner"
+                  : "Enable 'Show as persistent banner' to preview"
+              }
+            >
+              Preview banner
+            </button>
+          </div>
           <button
             type="button"
             className="adm-btn-ghost"
@@ -857,13 +930,99 @@ function ChapterIntroDrawer({
         </footer>
       </div>
 
-      {previewOpen && (
+      {previewMode === "popup" && (
         <ChapterIntroPopup
-          config={previewConfig}
+          config={popupPreviewConfig}
           onDismiss={async () => ({ success: true })}
-          onDismissed={() => setPreviewOpen(false)}
+          onDismissed={() => setPreviewMode("none")}
         />
       )}
+
+      {previewMode === "banner" && (
+        <BannerPreviewOverlay onClose={() => setPreviewMode("none")}>
+          <ChapterIntroBanner
+            key={`preview-${chapter.chapter_key}`}
+            config={bannerPreviewConfig}
+          />
+        </BannerPreviewOverlay>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Floats the banner preview in the same kind of overlay the popup uses, so
+ * admins can see the banner without leaving the editor. The banner itself
+ * is normally rendered inline above step content; this overlay just gives
+ * it a neutral surface to render on for preview purposes.
+ */
+function BannerPreviewOverlay({
+  children,
+  onClose,
+}: {
+  children: React.ReactNode;
+  onClose: () => void;
+}) {
+  // ESC closes the preview. Backdrop click also closes.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  return (
+    <div
+      className="adm-drawer-backdrop"
+      role="dialog"
+      aria-modal="true"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+      style={{ alignItems: "flex-start", paddingTop: 60 }}
+    >
+      <div
+        style={{
+          background: "#F6F5F0",
+          padding: 24,
+          borderRadius: 14,
+          width: "min(720px, 100%)",
+          boxShadow: "0 20px 48px rgba(0,0,0,0.2)",
+          maxHeight: "calc(100vh - 120px)",
+          overflowY: "auto",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: 16,
+          }}
+        >
+          <span
+            style={{
+              fontSize: 11,
+              fontWeight: 600,
+              letterSpacing: "0.08em",
+              textTransform: "uppercase",
+              color: "#6b7280",
+            }}
+          >
+            Banner preview
+          </span>
+          <button
+            type="button"
+            className="adm-drawer-close"
+            onClick={onClose}
+            aria-label="Close preview"
+          >
+            ✕
+          </button>
+        </div>
+        {children}
+      </div>
     </div>
   );
 }

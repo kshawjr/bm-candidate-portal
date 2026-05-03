@@ -2942,3 +2942,190 @@ body {
   }
 }
 
+/* =========================================================================
+   Chapter intro banner (cine-intro-banner-*)
+   Persistent overview that sits between the chapter step strip and the step
+   content. Reuses chapter_intro_popups data — same heading/body/bullets — but
+   styled compact and brand-skinned. Local UI state for collapse + read-more.
+   ========================================================================= */
+@keyframes cine-intro-banner-fadein {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.cine-intro-banner {
+  position: relative;
+  margin: 0 0 20px;
+  padding: 0;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--brand-soft, #eef2ff) 55%, #ffffff) 0%,
+    #ffffff 100%
+  );
+  border: 1px solid color-mix(in srgb, var(--brand-primary, #2563eb) 18%, #e5e7eb);
+  border-left: 4px solid var(--brand-primary, #2563eb);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  animation: cine-intro-banner-fadein 320ms ease-out;
+}
+.cine-intro-banner-collapsed {
+  padding: 10px 16px;
+  background: color-mix(in srgb, var(--brand-soft, #eef2ff) 35%, #ffffff);
+  border-left-width: 4px;
+}
+.cine-intro-banner-hero {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 32 / 9;
+  background: #f3f4f6;
+  overflow: hidden;
+}
+.cine-intro-banner-hero-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.cine-intro-banner-body {
+  padding: 16px 20px 18px;
+}
+.cine-intro-banner-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.cine-intro-banner-heading {
+  font-family: var(--font-heading, var(--font-body, system-ui));
+  font-weight: var(--heading-weight, 600);
+  font-size: 17px;
+  line-height: 1.3;
+  margin: 0;
+  color: var(--cin-text, #111827);
+}
+.cine-intro-banner-collapse {
+  flex-shrink: 0;
+  background: transparent;
+  border: 1px solid transparent;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  font-size: 18px;
+  line-height: 1;
+  color: var(--cin-text-muted, #6b7280);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.cine-intro-banner-collapse:hover,
+.cine-intro-banner-collapse:focus-visible {
+  background: rgba(15, 23, 42, 0.05);
+  border-color: rgba(15, 23, 42, 0.1);
+  color: var(--cin-text, #111827);
+  outline: none;
+}
+.cine-intro-banner-prose {
+  font-family: var(--font-body, system-ui);
+  font-size: 14px;
+  line-height: 1.55;
+  color: #374151;
+  margin: 8px 0 0;
+}
+.cine-intro-banner-prose p {
+  margin: 0 0 8px;
+}
+.cine-intro-banner-prose p:last-child {
+  margin-bottom: 0;
+}
+.cine-intro-banner-prose a {
+  color: var(--brand-primary, #2563eb);
+  text-decoration: underline;
+}
+.cine-intro-banner-prose strong {
+  font-weight: 600;
+  color: #111827;
+}
+.cine-intro-banner-prose.is-clamped {
+  position: relative;
+  max-height: 3.4em; /* about 2 lines */
+  overflow: hidden;
+  mask-image: linear-gradient(180deg, #000 70%, transparent 100%);
+  -webkit-mask-image: linear-gradient(180deg, #000 70%, transparent 100%);
+}
+.cine-intro-banner-readmore {
+  background: transparent;
+  border: none;
+  padding: 4px 0 0;
+  margin: 0;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--brand-primary, #2563eb);
+  cursor: pointer;
+}
+.cine-intro-banner-readmore:hover {
+  text-decoration: underline;
+}
+.cine-intro-banner-bullets {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.cine-intro-banner-bullet {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: #4b5563;
+}
+.cine-intro-banner-bullet-icon {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--brand-primary, #2563eb) 12%, #ffffff);
+  color: var(--brand-primary, #2563eb);
+  font-size: 12px;
+  font-weight: 600;
+}
+.cine-intro-banner-bullet-text {
+  flex: 1;
+}
+.cine-intro-banner-refresh {
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font-family: var(--font-body, system-ui);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--brand-primary, #2563eb);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.cine-intro-banner-refresh:hover {
+  text-decoration: underline;
+}
+@media (prefers-reduced-motion: reduce) {
+  .cine-intro-banner {
+    animation: none;
+  }
+}
+

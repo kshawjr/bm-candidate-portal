@@ -1059,6 +1059,9 @@ async function seedChapterIntros(brandId: string, code: BrandCode) {
     bullets: intro.bullets,
     cta_dismiss_label: intro.cta,
     is_active: true,
+    // Default the banner on for every seeded chapter — admins can flip
+    // off per-chapter via /admin/structure → "Intro popup".
+    show_as_banner: true,
   }));
 
   const { error } = await app

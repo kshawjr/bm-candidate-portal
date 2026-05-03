@@ -69,7 +69,7 @@ export default async function StructurePage({ searchParams }: Props) {
       app
         .from("chapter_intro_popups")
         .select(
-          "chapter_key, heading, body_md, hero_image_url, bullets, cta_dismiss_label, is_active",
+          "chapter_key, heading, body_md, hero_image_url, bullets, cta_dismiss_label, is_active, show_as_banner",
         )
         .eq("brand_id", brand.id),
     ]);
@@ -105,6 +105,11 @@ export default async function StructurePage({ searchParams }: Props) {
       bullets,
       ctaDismissLabel: (row.cta_dismiss_label as string | null) ?? "Let's go",
       isActive: Boolean(row.is_active),
+      // show_as_banner default-true is enforced at the DB layer; treat any
+      // value other than explicit false as on, so rows seeded before the
+      // column existed surface as banners.
+      showAsBanner:
+        (row as { show_as_banner?: boolean | null }).show_as_banner !== false,
     };
   }
 
