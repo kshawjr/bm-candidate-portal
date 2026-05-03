@@ -666,11 +666,17 @@ function StepRenderer({
   if (step.content_type === "slides") {
     const raw = step.config?.slides;
     const slides = (Array.isArray(raw) ? raw : []) as Slide[];
+    // PR 39: pass next-step context so the slides renderer can show a
+    // handoff card after the last image slide that previews where the
+    // candidate is heading.
+    const nextStep = stepsInChapter[step.position + 1] ?? null;
     return (
       <SlidesRenderer
         slides={slides}
         onComplete={onTourComplete}
         disabled={tourPending}
+        nextStepLabel={nextStep?.label ?? null}
+        nextStepIsApplication={nextStep?.content_type === "application"}
       />
     );
   }

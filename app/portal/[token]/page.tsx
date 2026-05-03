@@ -185,7 +185,7 @@ export default async function PortalTokenPage({
     app
       .from("steps_config")
       .select(
-        "id, chapter_key, position, step_key, label, description, content_type, config, content_cards",
+        "id, chapter_key, position, step_key, label, description, content_type, config, content_cards, is_step_transition_enabled",
       )
       .eq("brand_id", brand.id)
       .eq("is_archived", false)
@@ -546,7 +546,15 @@ export default async function PortalTokenPage({
   // Step transition popups — keyed by step_id. The shell looks up the
   // newly-selected step's id and fires the toast on step change (not on
   // initial render).
+  //
+  // PR 39 made transitions default-on with auto-generated content. Order of
+  // precedence per step:
+  //   1. Admin-configured row in step_transition_popups (highest)
+  //   2. Auto-generated config based on step + chapter context
+  //   3. Skipped entirely if is_step_transition_enabled=false on the step
   const transitionsByStepId: Record<string, StepTransitionPopupConfig> = {};
+
+  // 1. Admin-configured rows first.
   for (const row of stepTransitionRows ?? []) {
     const stepId = row.step_id as string;
     if (!stepId) continue;
@@ -555,6 +563,56 @@ export default async function PortalTokenPage({
       heading: (row.heading as string) ?? "",
       bodyMd: (row.body_md as string | null) ?? null,
       ctaLabel: (row.cta_label as string | null) ?? "Continue",
+    };
+  }
+
+  // 2. Auto-generated fallbacks. We need step counts per chapter to know if a
+  // step is the last step of its chapter, plus a chapter-name lookup for the
+  // "almost done with X" framing.
+  const stepCountByChapter: Record<string, number> = {};
+  for (const row of stepsRows ?? []) {
+    const ck = row.chapter_key as string;
+    stepCountByChapter[ck] = (stepCountByChapter[ck] ?? 0) + 1;
+  }
+  const chapterNameByKey: Record<string, string> = {};
+  for (const c of chapters) {
+    chapterNameByKey[c.chapter_key] = c.name;
+  }
+  for (const row of stepsRows ?? []) {
+    const stepId = row.id as string;
+    if (!stepId) continue;
+    if (transitionsByStepId[stepId]) continue; // admin row wins
+    const transitionEnabled =
+      (row as { is_step_transition_enabled?: boolean | null })
+        .is_step_transition_enabled !== false;
+    if (!transitionEnabled) continue;
+    // Skip the first step of the candidate's first chapter — that's the
+    // initial portal landing, the welcome video / chapter video already
+    // covers the "you've arrived" beat.
+    const ck = row.chapter_key as string;
+    const pos = row.position as number;
+    if (pos === 0 && ck === chapters[0]?.chapter_key) continue;
+    const stepLabel = (row.label as string) ?? "the next step";
+    const total = stepCountByChapter[ck] ?? 1;
+    const isLast = pos === total - 1;
+    const isFirst = pos === 0;
+    let heading: string;
+    let bodyMd: string | null;
+    if (isLast && total > 1) {
+      heading = `Almost done with ${chapterNameByKey[ck] ?? "this chapter"}`;
+      bodyMd = "Last bit ahead — you're almost there.";
+    } else if (isFirst) {
+      heading = `Next: ${stepLabel}`;
+      bodyMd = "Let's get into it.";
+    } else {
+      heading = `Next: ${stepLabel}`;
+      bodyMd = "Nice work. Couple more questions ahead.";
+    }
+    transitionsByStepId[stepId] = {
+      stepId,
+      heading,
+      bodyMd,
+      ctaLabel: "Continue",
     };
   }
   const dismissedStepTransitions: string[] = Array.isArray(

@@ -1,12 +1,16 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, type ReactNode } from "react";
 import {
   ShortTextField,
   SingleSelectField,
   ChipGroupField,
   type SelectOption,
 } from "@/components/application/fields";
+import {
+  SaveIndicator,
+  type SaveState,
+} from "@/components/portal/save-indicator";
 import {
   ZipLocationField,
   isZipLocationComplete,
@@ -125,6 +129,71 @@ function progressFor(idx: number): number {
   return Math.round((idx / LAST_INTERACTIVE_IDX) * 100);
 }
 
+// ---------- Section grouping (PR 39) ----------
+//
+// The 14 screens cluster into 7 logical sections. The section pill, the
+// inter-section microcopy, and the decreasing time estimate all read off
+// this map. Edits here flow to all three.
+
+interface SectionDef {
+  /** 1-indexed section number for display ("Section X of 7"). */
+  num: number;
+  /** Title shown nowhere right now but useful for future labels. */
+  title: string;
+  /** Microcopy that fades in briefly the first time the candidate
+   *  advances OUT of this section. */
+  doneCopy: string;
+}
+
+const SECTION_BY_IDX: Record<number, SectionDef> = {
+  // Section 1 — Personal info (verification + current_role)
+  0: { num: 1, title: "Personal", doneCopy: "Got the basics." },
+  1: { num: 1, title: "Personal", doneCopy: "Got the basics." },
+  // Section 2 — Location
+  2: { num: 2, title: "Location", doneCopy: "Locked in." },
+  // Section 3 — Motivation (chips + elaboration)
+  3: { num: 3, title: "Motivation", doneCopy: "Got it." },
+  4: { num: 3, title: "Motivation", doneCopy: "Got it." },
+  // Section 4 — Financial (intro + the chip screen)
+  5: {
+    num: 4,
+    title: "Financial",
+    doneCopy: "Nice — now the easy part.",
+  },
+  6: {
+    num: 4,
+    title: "Financial",
+    doneCopy: "Nice — now the easy part.",
+  },
+  // Section 5 — Background check
+  7: { num: 5, title: "Background", doneCopy: "Halfway through. Hang with us." },
+  8: { num: 5, title: "Background", doneCopy: "Halfway through. Hang with us." },
+  // Section 6 — Practical (timing / hands-on / growth)
+  9: { num: 6, title: "Practical", doneCopy: "Almost done." },
+  10: { num: 6, title: "Practical", doneCopy: "Almost done." },
+  11: { num: 6, title: "Practical", doneCopy: "Almost done." },
+  // Section 7 — Closing (brand question + sign-off)
+  12: { num: 7, title: "Closing", doneCopy: "" },
+  13: { num: 7, title: "Closing", doneCopy: "" },
+};
+const SECTION_TOTAL = 7;
+
+// Static decreasing time estimate, keyed by sections completed (0..7).
+// Real timer would be anxiety-inducing; this is a vibe-based heuristic.
+const TIME_LEFT_BY_SECTIONS_DONE: Record<number, string> = {
+  0: "About 10 minutes",
+  1: "About 8 minutes",
+  2: "About 7 minutes",
+  3: "About 5 minutes",
+  4: "About 4 minutes",
+  5: "About 3 minutes",
+  6: "About 2 minutes",
+};
+
+function sectionForIdx(idx: number): SectionDef {
+  return SECTION_BY_IDX[idx] ?? { num: 7, title: "Closing", doneCopy: "" };
+}
+
 // Helper: parse the stored motivation value. Older rows may contain a
 // single-string value (PR 27) or no value. Coerce to the current
 // MotivationValue shape (multi-select array).
@@ -171,14 +240,37 @@ export function ApplicationRenderer({
   }));
 
   const [pending, startTransition] = useTransition();
+  const [saveState, setSaveState] = useState<SaveState>("idle");
+  // PR 39: microcopy that fades in once when the candidate advances out of
+  // a section. Cleared by a timeout so it doesn't linger.
+  const [doneCopy, setDoneCopy] = useState<string | null>(null);
 
   const setA = (patch: Answers) =>
     setAnswers((prev) => ({ ...prev, ...patch }));
 
   const advanceWithSave = (keys: string[]) => {
     startTransition(async () => {
-      for (const k of keys) {
-        await onSaveAnswer(k, answers[k]);
+      setSaveState("saving");
+      try {
+        for (const k of keys) {
+          await onSaveAnswer(k, answers[k]);
+        }
+        setSaveState("saved");
+      } catch {
+        setSaveState("error");
+        return;
+      }
+      // Trigger inter-section microcopy when the advance crosses a section
+      // boundary. Done before advancing idx so the copy reads "you finished
+      // section X" before the next section's pill ticks over.
+      const fromSection = sectionForIdx(idx).num;
+      const toSection = sectionForIdx(idx + 1).num;
+      if (toSection !== fromSection) {
+        const copy = sectionForIdx(idx).doneCopy;
+        if (copy) {
+          setDoneCopy(copy);
+          window.setTimeout(() => setDoneCopy(null), 2800);
+        }
       }
       setIdx((i) => i + 1);
     });
@@ -193,7 +285,14 @@ export function ApplicationRenderer({
       agreement_accepted: true,
     };
     startTransition(async () => {
-      await onSubmit(finalAnswers);
+      setSaveState("saving");
+      try {
+        await onSubmit(finalAnswers);
+        setSaveState("saved");
+      } catch {
+        setSaveState("error");
+        return;
+      }
       setAnswers(finalAnswers);
       setIdx(SUCCESS_IDX);
     });
@@ -203,6 +302,13 @@ export function ApplicationRenderer({
   const closingQ = brandClosingQuestion(brandSlug);
 
   // ---- Screen rendering ----
+  //
+  // PR 39 wraps the dispatch in a function so the SaveIndicator + section
+  // pill + estimated time + microcopy can all sit alongside whichever screen
+  // the candidate is on, without each `if (idx === N)` branch having to
+  // include its own copy of the wrapping cluster.
+
+  const pickScreen = (): ReactNode => {
 
   // 0: Verification
   if (idx === 0) {
@@ -667,6 +773,39 @@ export function ApplicationRenderer({
       firstName={candidate.first_name}
       onContinue={onContinueToNextChapter}
     />
+  );
+  };
+
+  // ---- Wrapping cluster ----
+  // Save state, section pill, time estimate, and inter-section microcopy
+  // ride above whichever screen the candidate is on. Hidden once the
+  // candidate is past the form (success screen).
+  const section = sectionForIdx(idx);
+  const sectionsCompletedLeftOfCurrent = Math.max(0, section.num - 1);
+  const timeLeftLabel =
+    TIME_LEFT_BY_SECTIONS_DONE[sectionsCompletedLeftOfCurrent] ?? null;
+  const onForm = idx < SUCCESS_IDX;
+
+  return (
+    <div className="app-renderer-wrap">
+      {onForm && (
+        <div className="app-meta-cluster" aria-live="polite">
+          {timeLeftLabel && (
+            <span className="app-meta-time">{timeLeftLabel}</span>
+          )}
+          <span className="app-meta-section">
+            Section {section.num} of {SECTION_TOTAL}
+          </span>
+          <SaveIndicator state={saveState} />
+        </div>
+      )}
+      {pickScreen()}
+      {doneCopy && (
+        <div className="app-section-microcopy" role="status">
+          {doneCopy}
+        </div>
+      )}
+    </div>
   );
 }
 
