@@ -1161,8 +1161,26 @@ body {
   display: flex;
   flex-direction: column;
 }
+/* PR 37: elevated treatment so the financial questions feel like a
+   distinct section, not just three chip rows. Larger header, soft
+   tinted surface, more breathing room. */
+.financial-section-elevated {
+  padding: 28px 28px 24px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--brand-soft, #eef2ff) 30%, #ffffff);
+  border: 1px solid color-mix(in srgb, var(--brand-primary, #2563eb) 12%, var(--border-strong));
+  margin-top: 4px;
+}
+@media (max-width: 720px) {
+  .financial-section-elevated {
+    padding: 20px 18px 18px;
+  }
+}
 .financial-section-header {
   margin-bottom: 8px;
+}
+.financial-section-elevated .financial-section-header {
+  margin-bottom: 18px;
 }
 .financial-section-eyebrow {
   font-family: var(--font-body);
@@ -1173,11 +1191,28 @@ body {
   color: var(--brand-accent, var(--brand-primary));
   margin: 0 0 4px;
 }
+/* Bigger heading inside the elevated section so it reads as a real
+   section title rather than an eyebrow caption. */
+.financial-section-elevated .financial-section-eyebrow {
+  font-family: var(--font-heading, var(--font-body));
+  font-size: 18px;
+  font-weight: var(--heading-weight, 600);
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--cin-text);
+  margin-bottom: 6px;
+}
 .financial-section-subhead {
   font-family: var(--font-body);
   font-size: 13px;
   color: var(--cin-text-muted);
   margin: 0;
+}
+.financial-section-elevated .financial-section-subhead {
+  font-size: 14px;
+}
+.financial-section-elevated .financial-question.visible {
+  margin-top: 28px;
 }
 .financial-question {
   opacity: 0;

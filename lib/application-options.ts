@@ -6,18 +6,26 @@ export interface ApplicationOption {
   label: string;
 }
 
+// PR 37: 6 brackets each for liquid capital + net worth. Older bucket values
+// (0_50k, 200k_plus, etc.) still exist on historical rows — humanizeOption
+// renders them with a "(legacy)" suffix on the admin page rather than
+// crashing.
 export const LIQUID_CAPITAL_RANGES: ApplicationOption[] = [
-  { value: "0_50k",     label: "$0 – $50K" },
-  { value: "50_100k",   label: "$50K – $100K" },
-  { value: "100_200k",  label: "$100K – $200K" },
-  { value: "200k_plus", label: "$200K+" },
+  { value: "0_50k",      label: "$0 – $50K" },
+  { value: "50_100k",    label: "$50K – $100K" },
+  { value: "100_200k",   label: "$100K – $200K" },
+  { value: "200_500k",   label: "$200K – $500K" },
+  { value: "500k_1m",    label: "$500K – $1M" },
+  { value: "1m_plus",    label: "$1M+" },
 ];
 
 export const NET_WORTH_RANGES: ApplicationOption[] = [
-  { value: "0_250k",    label: "$0 – $250K" },
-  { value: "250_500k",  label: "$250K – $500K" },
-  { value: "500_850k",  label: "$500K – $850K" },
-  { value: "850k_plus", label: "$850K+" },
+  { value: "0_250k",     label: "$0 – $250K" },
+  { value: "250_500k",   label: "$250K – $500K" },
+  { value: "500_850k",   label: "$500K – $850K" },
+  { value: "850k_1_5m",  label: "$850K – $1.5M" },
+  { value: "1_5m_3m",    label: "$1.5M – $3M" },
+  { value: "3m_plus",    label: "$3M+" },
 ];
 
 export const CREDIT_SCORE_RANGES: ApplicationOption[] = [

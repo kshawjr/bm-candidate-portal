@@ -91,11 +91,11 @@ export function FinancialCheckScreen({
         </p>
       </div>
 
-      <div className="financial-section">
+      <div className="financial-section financial-section-elevated">
         <div className="financial-section-header">
           <h2 className="financial-section-eyebrow">Quick financial check</h2>
           <p className="financial-section-subhead">
-            No documents needed yet — just ranges.
+            No documents needed yet — just ranges. Pick the bracket that fits.
           </p>
         </div>
 

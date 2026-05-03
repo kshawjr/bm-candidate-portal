@@ -5,9 +5,7 @@ import {
   ShortTextField,
   SingleSelectField,
   ChipGroupField,
-  YesNoWithFollowupField,
   type SelectOption,
-  type YesNoWithFollowupValue,
 } from "@/components/application/fields";
 import {
   ZipLocationField,
@@ -16,6 +14,7 @@ import {
 } from "@/components/application/zip-location-field";
 import {
   MotivationField,
+  motivationElaborationPrompt,
   type MotivationValue,
 } from "@/components/application/motivation-field";
 import { QuestionScreen } from "@/components/application/question-screen";
@@ -27,13 +26,15 @@ import { ChapterIntroScreen } from "@/components/application/chapter-intro-scree
 import { FinancialCheckScreen } from "@/components/application/financial-check-screen";
 import { SignOffScreen } from "@/components/application/sign-off-screen";
 import { SuccessScreen } from "@/components/application/success-screen";
-import {
-  AGE_RANGES,
-  MOTIVATIONS,
-  SELF_DESCRIPTORS,
-} from "@/lib/application-options";
+import { MOTIVATIONS } from "@/lib/application-options";
+import { brandClosingQuestion } from "@/lib/brand-closing-questions";
 
 // ---------- Option sets ----------
+//
+// PR 37 added an "Other" chip to opening_timeline / involvement_level /
+// growth_plan and routes its free-text into a dedicated *_other_text key.
+
+const OTHER_VALUE = "other";
 
 const OPENING_TIMELINE: SelectOption[] = [
   { value: "asap",         label: "As soon as possible" },
@@ -41,6 +42,7 @@ const OPENING_TIMELINE: SelectOption[] = [
   { value: "6_12_months",  label: "6–12 months" },
   { value: "12_plus",      label: "12+ months" },
   { value: "figuring_out", label: "Still figuring it out" },
+  { value: OTHER_VALUE,    label: "Other" },
 ];
 
 const INVOLVEMENT_LEVELS: SelectOption[] = [
@@ -59,12 +61,14 @@ const INVOLVEMENT_LEVELS: SelectOption[] = [
     label: "Absentee",
     desc: "I want to own it, not operate it",
   },
+  { value: OTHER_VALUE, label: "Other" },
 ];
 
 const GROWTH_PLAN: SelectOption[] = [
   { value: "one_to_start", label: "Just one to start" },
   { value: "open_to_more", label: "Open to a second or third down the line" },
   { value: "multi_unit",   label: "Multi-unit from the start" },
+  { value: OTHER_VALUE,    label: "Other" },
 ];
 
 // ---------- Types ----------
@@ -81,6 +85,13 @@ type Answers = Record<string, unknown>;
 interface Props {
   candidate: ApplicationCandidate;
   leaderName: string;
+  /** Brand slug for the candidate's brand. Drives the per-brand closing
+   *  question (PR 37). Unknown slugs fall back to a generic chip set. */
+  brandSlug: string;
+  /** Optional ZIP prefilled at candidate creation time. When set, the
+   *  ZIP step skips the cold-input box and lands on the confirmation
+   *  card. Null/empty → existing cold flow. */
+  prefilledZip: string | null;
   initialAnswers: Answers;
   isAlreadySubmitted: boolean;
   onSaveAnswer: (fieldKey: string, fieldValue: unknown) => Promise<void>;
@@ -88,31 +99,48 @@ interface Props {
   onContinueToNextChapter: () => void;
 }
 
-// ---------- Screen helpers ----------
-
-// Screen layout:
+// ---------- Screen indices ----------
+//
 //   0  verification
-//   1  Q1 current_role           (Chapter 1: Tell us about you)
-//   2  Q2 age_range
-//   3  Q3 zip-location
-//   4  Q4 motivation
-//   5  Chapter 2 intro           (Chapter 2: The money conversation)
-//   6  Q5 quick financial check (liquid_capital + net_worth + credit_score)
-//   7  Q6 bankruptcy
-//   8  Q7 opening_timeline       (Chapter 3: Your plans)
-//   9  Q8 involvement_level
-//   10 Q9 growth_plan
-//   11 Q10 self_descriptor       (Chapter 4: One last thing)
-//   12 sign-off
-//   13 success
-const LAST_INTERACTIVE_IDX = 12; // sign-off
-const SUCCESS_IDX = 13;
-const TOTAL_SCREENS = 14;
-const TOTAL_QUESTIONS = 10;
+//   1  Q1  current_role            (Chapter 1 of 4 · About you)
+//   2  Q2  zip-location
+//   3  Q3  motivation (multi)
+//   4  Q4  motivation elaboration  ← own question per PR 37 counter
+//   5  Chapter 2 intro             (Chapter 2 of 4 · The money conversation)
+//   6  Q5  quick financial check
+//   7  Q6  bankruptcy              (Background check sub-section)
+//   8  Q7  felony
+//   9  Q8  opening_timeline        (Chapter 3 of 4 · Your plans)
+//   10 Q9  involvement_level
+//   11 Q10 growth_plan
+//   12 Q11 brand-specific closing  (Chapter 4 of 4 · One last thing)
+//   13 sign-off
+//   14 success
+const SUCCESS_IDX = 14;
+const LAST_INTERACTIVE_IDX = 13;
+const TOTAL_QUESTIONS = 11;
 
 function progressFor(idx: number): number {
   if (idx >= SUCCESS_IDX) return 100;
   return Math.round((idx / LAST_INTERACTIVE_IDX) * 100);
+}
+
+// Helper: parse the stored motivation value. Older rows may contain a
+// single-string value (PR 27) or no value. Coerce to the current
+// MotivationValue shape (multi-select array).
+function parseMotivation(raw: unknown, otherText: unknown): MotivationValue {
+  let selected: string[] = [];
+  if (Array.isArray(raw)) {
+    selected = (raw as unknown[]).filter(
+      (v): v is string => typeof v === "string",
+    );
+  } else if (typeof raw === "string" && raw.length > 0) {
+    selected = [raw];
+  }
+  return {
+    selected,
+    otherText: typeof otherText === "string" ? otherText : "",
+  };
 }
 
 // ---------- Renderer ----------
@@ -120,6 +148,8 @@ function progressFor(idx: number): number {
 export function ApplicationRenderer({
   candidate,
   leaderName,
+  brandSlug,
+  prefilledZip,
   initialAnswers,
   isAlreadySubmitted,
   onSaveAnswer,
@@ -130,9 +160,6 @@ export function ApplicationRenderer({
   // so they see confirmation rather than the form again.
   const [idx, setIdx] = useState(isAlreadySubmitted ? SUCCESS_IDX : 0);
 
-  // Flat answers keyed by field_key (same shape as application_responses rows).
-  // Pre-filled with candidates.first/last/email/phone for the verification
-  // screen; merged over with any stored answers.
   const fullName = [candidate.first_name, candidate.last_name]
     .filter(Boolean)
     .join(" ");
@@ -148,7 +175,6 @@ export function ApplicationRenderer({
   const setA = (patch: Answers) =>
     setAnswers((prev) => ({ ...prev, ...patch }));
 
-  // advance(idx+1), persisting the given keys on the way.
   const advanceWithSave = (keys: string[]) => {
     startTransition(async () => {
       for (const k of keys) {
@@ -158,12 +184,8 @@ export function ApplicationRenderer({
     });
   };
 
-  // Back: just decrement, no save (answers stay in state; previously-saved
-  // ones stay in DB).
   const goBack = () => setIdx((i) => Math.max(0, i - 1));
 
-  // Submit: batch-save sign-off fields + everything in answers, then fire
-  // onSubmit action, then advance to success screen.
   const handleSubmit = (signatureName: string) => {
     const finalAnswers: Answers = {
       ...answers,
@@ -178,6 +200,7 @@ export function ApplicationRenderer({
   };
 
   const p = progressFor(idx);
+  const closingQ = brandClosingQuestion(brandSlug);
 
   // ---- Screen rendering ----
 
@@ -229,32 +252,8 @@ export function ApplicationRenderer({
     );
   }
 
-  // 2: Q2 age_range
+  // 2: Q2 zip-location
   if (idx === 2) {
-    const v = (answers.age_range as string) ?? "";
-    return (
-      <QuestionScreen
-        eyebrow={`Chapter 1 of 4 · Question 2 of ${TOTAL_QUESTIONS}`}
-        question="Roughly how old are you?"
-        subCaption="Informational — franchising generally requires 25+, and this helps us tailor the conversation."
-        progressPct={p}
-        canAdvance={v.length > 0}
-        onBack={goBack}
-        onNext={() => advanceWithSave(["age_range"])}
-        pending={pending}
-      >
-        <ChipGroupField
-          value={v}
-          onChange={(x) => setA({ age_range: x })}
-          options={AGE_RANGES}
-          ariaLabel="Age range"
-        />
-      </QuestionScreen>
-    );
-  }
-
-  // 3: Q3 zip-location
-  if (idx === 3) {
     const v: ZipLocationValue = {
       zip: (answers.zip_code as string) ?? "",
       derivedCity: (answers.derived_city as string) ?? "",
@@ -270,7 +269,7 @@ export function ApplicationRenderer({
     };
     return (
       <QuestionScreen
-        eyebrow={`Chapter 1 of 4 · Question 3 of ${TOTAL_QUESTIONS}`}
+        eyebrow={`Chapter 1 of 4 · Question 2 of ${TOTAL_QUESTIONS}`}
         question="Where are you?"
         progressPct={p}
         canAdvance={isZipLocationComplete(v)}
@@ -289,6 +288,7 @@ export function ApplicationRenderer({
       >
         <ZipLocationField
           value={v}
+          prefilledZip={prefilledZip}
           onChange={(nv) =>
             setA({
               zip_code: nv.zip,
@@ -305,19 +305,18 @@ export function ApplicationRenderer({
     );
   }
 
-  // 4: Q4 motivation (chip grid with "Other" reveal)
-  if (idx === 4) {
-    const v: MotivationValue = {
-      value: (answers.motivation as string) ?? "",
-      otherText: (answers.motivation_other_text as string) ?? "",
-    };
+  // 3: Q3 motivation (multi-select chips)
+  if (idx === 3) {
+    const v = parseMotivation(answers.motivation, answers.motivation_other_text);
+    const hasOther = v.selected.includes(OTHER_VALUE);
     const canAdvance =
-      v.value.length > 0 &&
-      (v.value !== "other" || v.otherText.trim().length > 0);
+      v.selected.length > 0 &&
+      (!hasOther || v.otherText.trim().length > 0);
     return (
       <QuestionScreen
-        eyebrow={`Chapter 1 of 4 · Question 4 of ${TOTAL_QUESTIONS}`}
+        eyebrow={`Chapter 1 of 4 · Question 3 of ${TOTAL_QUESTIONS}`}
         question="What's drawing you to this?"
+        subCaption="Pick all that apply."
         progressPct={p}
         canAdvance={canAdvance}
         onBack={goBack}
@@ -328,7 +327,7 @@ export function ApplicationRenderer({
           value={v}
           onChange={(nv) =>
             setA({
-              motivation: nv.value,
+              motivation: nv.selected,
               motivation_other_text: nv.otherText,
             })
           }
@@ -338,8 +337,35 @@ export function ApplicationRenderer({
     );
   }
 
-  // 5: Chapter 2 intro (leaving the money-questions copy to the financial
-  // screen's intro card — this is the gentler gear-shift announcement)
+  // 4: Q4 motivation elaboration — contextual follow-up referencing chips
+  if (idx === 4) {
+    const v = parseMotivation(answers.motivation, answers.motivation_other_text);
+    const elaboration = (answers.motivation_elaboration as string) ?? "";
+    const prompt = motivationElaborationPrompt(v, MOTIVATIONS);
+    return (
+      <QuestionScreen
+        eyebrow={`Chapter 1 of 4 · Question 4 of ${TOTAL_QUESTIONS}`}
+        question="Tell us more"
+        subCaption={prompt}
+        progressPct={p}
+        canAdvance={elaboration.trim().length > 0}
+        onBack={goBack}
+        onNext={() => advanceWithSave(["motivation_elaboration"])}
+        pending={pending}
+      >
+        <textarea
+          value={elaboration}
+          onChange={(e) => setA({ motivation_elaboration: e.target.value })}
+          className="app-field-textarea"
+          rows={5}
+          placeholder="A sentence or two — what's the pull?"
+          autoFocus
+        />
+      </QuestionScreen>
+    );
+  }
+
+  // 5: Chapter 2 intro
   if (idx === 5) {
     return (
       <ChapterIntroScreen
@@ -351,7 +377,7 @@ export function ApplicationRenderer({
     );
   }
 
-  // 6: Q5 Quick financial check (liquid capital + net worth + credit score chips)
+  // 6: Q4 quick financial check (liquid + net worth + credit)
   if (idx === 6) {
     const v = {
       liquid_capital_range: (answers.liquid_capital_range as string) ?? "",
@@ -377,137 +403,250 @@ export function ApplicationRenderer({
     );
   }
 
-  // 7: Q6 bankruptcy
+  // 7: Q5 bankruptcy (background check sub-section)
   if (idx === 7) {
-    const v: YesNoWithFollowupValue = {
+    const v: YesNoExplain = {
       answer:
         answers.has_filed_bankruptcy === true
           ? "yes"
           : answers.has_filed_bankruptcy === false
             ? "no"
             : null,
-      note: (answers.bankruptcy_note as string) ?? "",
+      explanation: (answers.bankruptcy_explanation as string) ?? "",
     };
+    const canAdvance =
+      v.answer === "no" ||
+      (v.answer === "yes" && v.explanation.trim().length > 0);
     return (
       <QuestionScreen
-        eyebrow={`Chapter 2 of 4 · Question 6 of ${TOTAL_QUESTIONS}`}
+        eyebrow={`Chapter 2 of 4 · Background check · Question 6 of ${TOTAL_QUESTIONS}`}
         question="Have you ever filed for bankruptcy?"
+        subCaption="Quick yes/no — none of these are automatic disqualifiers, but we need to know."
         progressPct={p}
-        canAdvance={v.answer !== null}
+        canAdvance={canAdvance}
         onBack={goBack}
         onNext={() =>
-          advanceWithSave(["has_filed_bankruptcy", "bankruptcy_note"])
+          advanceWithSave(["has_filed_bankruptcy", "bankruptcy_explanation"])
         }
         pending={pending}
       >
-        <YesNoWithFollowupField
+        <YesNoExplainField
           value={v}
           onChange={(nv) =>
             setA({
-              has_filed_bankruptcy: nv.answer === "yes",
-              bankruptcy_note: nv.note,
+              has_filed_bankruptcy:
+                nv.answer === null ? null : nv.answer === "yes",
+              bankruptcy_explanation: nv.explanation,
             })
           }
-          followupLabel="Want to share anything about that? (Optional)"
+          followupLabel="When and what happened?"
         />
       </QuestionScreen>
     );
   }
 
-  // 8: Q7 opening timeline
+  // 8: Q6 felony
   if (idx === 8) {
-    const v = (answers.opening_timeline as string) ?? "";
+    const v: YesNoExplain = {
+      answer:
+        answers.has_felony === true
+          ? "yes"
+          : answers.has_felony === false
+            ? "no"
+            : null,
+      explanation: (answers.felony_explanation as string) ?? "",
+    };
+    const canAdvance =
+      v.answer === "no" ||
+      (v.answer === "yes" && v.explanation.trim().length > 0);
     return (
       <QuestionScreen
-        eyebrow={`Chapter 3 of 4 · Question 7 of ${TOTAL_QUESTIONS}`}
-        question="When would you want to open?"
+        eyebrow={`Chapter 2 of 4 · Background check · Question 7 of ${TOTAL_QUESTIONS}`}
+        question="Have you ever been convicted of a felony?"
         progressPct={p}
-        canAdvance={v.length > 0}
+        canAdvance={canAdvance}
         onBack={goBack}
-        onNext={() => advanceWithSave(["opening_timeline"])}
+        onNext={() => advanceWithSave(["has_felony", "felony_explanation"])}
         pending={pending}
       >
-        <SingleSelectField
+        <YesNoExplainField
           value={v}
-          onChange={(x) => setA({ opening_timeline: x })}
-          options={OPENING_TIMELINE}
+          onChange={(nv) =>
+            setA({
+              has_felony: nv.answer === null ? null : nv.answer === "yes",
+              felony_explanation: nv.explanation,
+            })
+          }
+          followupLabel="When and what was the outcome?"
         />
       </QuestionScreen>
     );
   }
 
-  // 9: Q8 involvement level
+  // 9: Q7 opening timeline (with Other reveal)
   if (idx === 9) {
-    const v = (answers.involvement_level as string) ?? "";
+    const v = (answers.opening_timeline as string) ?? "";
+    const otherText = (answers.opening_timeline_other_text as string) ?? "";
+    const canAdvance =
+      v.length > 0 && (v !== OTHER_VALUE || otherText.trim().length > 0);
     return (
       <QuestionScreen
         eyebrow={`Chapter 3 of 4 · Question 8 of ${TOTAL_QUESTIONS}`}
-        question="How hands-on do you want to be?"
+        question="When would you want to open?"
         progressPct={p}
-        canAdvance={v.length > 0}
+        canAdvance={canAdvance}
         onBack={goBack}
-        onNext={() => advanceWithSave(["involvement_level"])}
+        onNext={() =>
+          advanceWithSave(["opening_timeline", "opening_timeline_other_text"])
+        }
         pending={pending}
       >
-        <SingleSelectField
+        <SelectWithOther
           value={v}
-          onChange={(x) => setA({ involvement_level: x })}
-          options={INVOLVEMENT_LEVELS}
+          otherText={otherText}
+          options={OPENING_TIMELINE}
+          onChange={(value, text) =>
+            setA({
+              opening_timeline: value,
+              opening_timeline_other_text: text,
+            })
+          }
+          otherPlaceholder="Tell us more about your timing"
         />
       </QuestionScreen>
     );
   }
 
-  // 10: Q9 growth plan
+  // 10: Q8 involvement level (with Other reveal)
   if (idx === 10) {
-    const v = (answers.growth_plan as string) ?? "";
+    const v = (answers.involvement_level as string) ?? "";
+    const otherText = (answers.involvement_level_other_text as string) ?? "";
+    const canAdvance =
+      v.length > 0 && (v !== OTHER_VALUE || otherText.trim().length > 0);
     return (
       <QuestionScreen
         eyebrow={`Chapter 3 of 4 · Question 9 of ${TOTAL_QUESTIONS}`}
-        question="One location, or building a portfolio?"
+        question="How hands-on do you want to be?"
         progressPct={p}
-        canAdvance={v.length > 0}
+        canAdvance={canAdvance}
         onBack={goBack}
-        onNext={() => advanceWithSave(["growth_plan"])}
+        onNext={() =>
+          advanceWithSave([
+            "involvement_level",
+            "involvement_level_other_text",
+          ])
+        }
         pending={pending}
       >
-        <SingleSelectField
+        <SelectWithOther
           value={v}
-          onChange={(x) => setA({ growth_plan: x })}
-          options={GROWTH_PLAN}
+          otherText={otherText}
+          options={INVOLVEMENT_LEVELS}
+          onChange={(value, text) =>
+            setA({
+              involvement_level: value,
+              involvement_level_other_text: text,
+            })
+          }
+          otherPlaceholder="Tell us how you'd want to be involved"
         />
       </QuestionScreen>
     );
   }
 
-  // 11: Q10 self descriptor (playful closing question)
+  // 11: Q9 growth plan (with Other reveal)
   if (idx === 11) {
-    const v = (answers.self_descriptor as string) ?? "";
+    const v = (answers.growth_plan as string) ?? "";
+    const otherText = (answers.growth_plan_other_text as string) ?? "";
+    const canAdvance =
+      v.length > 0 && (v !== OTHER_VALUE || otherText.trim().length > 0);
     return (
       <QuestionScreen
-        eyebrow={`Chapter 4 of 4 · Question 10 of ${TOTAL_QUESTIONS}`}
-        question="One last one — which word describes you best?"
-        subCaption="There's no wrong answer. We're just curious."
+        eyebrow={`Chapter 3 of 4 · Question 10 of ${TOTAL_QUESTIONS}`}
+        question="One location, or building a portfolio?"
         progressPct={p}
-        canAdvance={v.length > 0}
+        canAdvance={canAdvance}
         onBack={goBack}
-        onNext={() => advanceWithSave(["self_descriptor"])}
+        onNext={() =>
+          advanceWithSave(["growth_plan", "growth_plan_other_text"])
+        }
+        pending={pending}
+      >
+        <SelectWithOther
+          value={v}
+          otherText={otherText}
+          options={GROWTH_PLAN}
+          onChange={(value, text) =>
+            setA({
+              growth_plan: value,
+              growth_plan_other_text: text,
+            })
+          }
+          otherPlaceholder="Tell us about your growth plans"
+        />
+      </QuestionScreen>
+    );
+  }
+
+  // 12: Q10 brand-specific closing question
+  if (idx === 12) {
+    const v = (answers.brand_closing_response as string) ?? "";
+    const otherText = (answers.brand_closing_response_other as string) ?? "";
+    const canAdvance =
+      v.length > 0 && (v !== OTHER_VALUE || otherText.trim().length > 0);
+    return (
+      <QuestionScreen
+        eyebrow={`Chapter 4 of 4 · Question 11 of ${TOTAL_QUESTIONS}`}
+        question={closingQ.question}
+        subCaption={closingQ.subCaption}
+        progressPct={p}
+        canAdvance={canAdvance}
+        onBack={goBack}
+        onNext={() =>
+          advanceWithSave([
+            "brand_closing_response",
+            "brand_closing_response_other",
+          ])
+        }
         pending={pending}
       >
         <div className="self-descriptor-wrap">
           <ChipGroupField
             value={v}
-            onChange={(x) => setA({ self_descriptor: x })}
-            options={SELF_DESCRIPTORS}
-            ariaLabel="Which word describes you best"
+            onChange={(x) =>
+              setA({
+                brand_closing_response: x,
+                // Clear other text when switching off Other so a stale
+                // value doesn't sneak into the saved row.
+                brand_closing_response_other:
+                  x === OTHER_VALUE ? otherText : "",
+              })
+            }
+            options={closingQ.options}
+            ariaLabel={closingQ.question}
           />
+          {v === OTHER_VALUE && (
+            <label className="app-followup-label">
+              <span className="app-field-sublabel">Tell us more</span>
+              <input
+                type="text"
+                value={otherText}
+                onChange={(e) =>
+                  setA({ brand_closing_response_other: e.target.value })
+                }
+                placeholder="Anything you'd like to share"
+                className="app-field-input"
+                autoFocus
+              />
+            </label>
+          )}
         </div>
       </QuestionScreen>
     );
   }
 
-  // 12: Sign-off
-  if (idx === 12) {
+  // 13: Sign-off
+  if (idx === 13) {
     return (
       <SignOffScreen
         initialName={(answers.verified_name as string) ?? ""}
@@ -519,15 +658,117 @@ export function ApplicationRenderer({
     );
   }
 
-  // 13: Success
+  // 14: Success — minimal transitional placeholder. The chapter complete
+  // popup (PR 36) is the real celebration; this screen exists only to
+  // bridge the moment between submit and the popup, and to handle
+  // already-submitted candidates returning to Chapter 1 Step 2.
   return (
     <SuccessScreen
       firstName={candidate.first_name}
-      leaderName={leaderName}
       onContinue={onContinueToNextChapter}
     />
   );
 }
 
-// Export so the shell's dispatch can reason about totals if needed later.
-export { TOTAL_SCREENS };
+// ---------- Yes/No with REQUIRED explanation when Yes ----------
+
+interface YesNoExplain {
+  answer: "yes" | "no" | null;
+  explanation: string;
+}
+
+function YesNoExplainField({
+  value,
+  onChange,
+  followupLabel,
+}: {
+  value: YesNoExplain;
+  onChange: (v: YesNoExplain) => void;
+  followupLabel: string;
+}) {
+  return (
+    <div>
+      <div className="app-toggle-row">
+        <button
+          type="button"
+          className={`app-toggle${value.answer === "no" ? " active" : ""}`}
+          onClick={() => onChange({ answer: "no", explanation: "" })}
+        >
+          No
+        </button>
+        <button
+          type="button"
+          className={`app-toggle${value.answer === "yes" ? " active" : ""}`}
+          onClick={() =>
+            onChange({ answer: "yes", explanation: value.explanation })
+          }
+        >
+          Yes
+        </button>
+      </div>
+      {value.answer === "yes" && (
+        <label className="app-followup-label">
+          <span className="app-field-sublabel">
+            {followupLabel}{" "}
+            <span className="app-form-required" aria-hidden="true">
+              *
+            </span>
+          </span>
+          <textarea
+            value={value.explanation}
+            onChange={(e) =>
+              onChange({ answer: "yes", explanation: e.target.value })
+            }
+            className="app-field-textarea"
+            rows={3}
+            placeholder="A short explanation"
+            autoFocus
+          />
+        </label>
+      )}
+    </div>
+  );
+}
+
+// ---------- SingleSelect with "Other" reveal ----------
+
+function SelectWithOther({
+  value,
+  otherText,
+  options,
+  onChange,
+  otherPlaceholder,
+}: {
+  value: string;
+  otherText: string;
+  options: SelectOption[];
+  onChange: (value: string, otherText: string) => void;
+  otherPlaceholder: string;
+}) {
+  return (
+    <div>
+      <SingleSelectField
+        value={value}
+        onChange={(x) =>
+          // Clear otherText when switching off Other so we don't ship
+          // stale free-text alongside a non-Other selection.
+          onChange(x, x === OTHER_VALUE ? otherText : "")
+        }
+        options={options}
+      />
+      {value === OTHER_VALUE && (
+        <label className="app-followup-label">
+          <span className="app-field-sublabel">Tell us more</span>
+          <input
+            type="text"
+            value={otherText}
+            onChange={(e) => onChange(OTHER_VALUE, e.target.value)}
+            placeholder={otherPlaceholder}
+            className="app-field-input"
+            autoFocus
+          />
+        </label>
+      )}
+    </div>
+  );
+}
