@@ -3,7 +3,6 @@
 import { revalidatePath } from "next/cache";
 import { createAppServiceClient } from "@/lib/supabase-app";
 import { createCoreClient } from "@/lib/core-client";
-import { getAdminUser } from "@/lib/supabase-auth";
 import { parseVideoSource, type VideoProvider } from "@/lib/video-source";
 
 const STORAGE_BUCKET = "brand-assets";
@@ -21,10 +20,17 @@ const ALLOWED_IMAGE_TYPES = new Set([
   "image/webp",
 ]);
 
+// PR 48: matching middleware-level admin auth bypass (PR 47). Returns
+// a stub user so existing call sites that destructure or check the
+// return value don't break, but skips the actual gate. Restore the
+// getAdminUser() check + Not authorized throw when re-enabling per
+// TODO_AUTH.md.
+const STUB_ADMIN_USER = {
+  id: "00000000-0000-0000-0000-000000000000",
+  email: "auth-disabled@bmave.com",
+};
 async function requireAdmin() {
-  const user = await getAdminUser();
-  if (!user) throw new Error("Not authorized");
-  return user;
+  return STUB_ADMIN_USER;
 }
 
 // ======================================================================

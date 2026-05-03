@@ -3,7 +3,6 @@
 import { revalidatePath } from "next/cache";
 import { createAppServiceClient } from "@/lib/supabase-app";
 import { createCoreClient } from "@/lib/core-client";
-import { getAdminUser } from "@/lib/supabase-auth";
 import { cancelSlot, isGCalConfigured } from "@/lib/google-calendar";
 
 export interface ResetCounts {
@@ -30,13 +29,11 @@ export async function resetCandidateAction(params: {
   confirmToken: string;
   deleteCalendarEvents: boolean;
 }): Promise<ResetResult> {
-  const user = await getAdminUser();
-  if (!user) {
-    return {
-      success: false,
-      error: "Not authorized. Sign in at /admin to use reset.",
-    };
-  }
+  // PR 48: admin auth gate is disabled (PR 47). Previously checked
+  // getAdminUser() and bailed for unauthed callers; bypass while the
+  // middleware-level gate is off so admins can actually run resets.
+  // See TODO_AUTH.md for restoration. The token-confirmation check
+  // below remains the safety net against accidental destructive runs.
 
   if (params.confirmToken !== params.token) {
     return {
