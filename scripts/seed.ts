@@ -124,11 +124,12 @@ const CHAPTER_STEPS: Record<string, Array<{ key: string; label: string; type: Co
   first_chat: [
     { key: "book",     label: "Book your call",     type: "schedule",    desc: "Pick a time that works — Google Meet, 60 minutes" },
   ],
-  deep_dive: [
-    { key: "register", label: "Register",           type: "schedule",    desc: "Tuesday 2pm ET, or watch on demand" },
-    { key: "webinar",  label: "The webinar",        type: "video",       desc: "One hour with the founder" },
-    { key: "qa",       label: "Ask anything",       type: "static",      desc: "Follow-up questions, answered within 24 hours" },
-  ],
+  // PR 44: deep_dive intentionally has no steps. After Chapter 2's
+  // booking, current_chapter advances to 2 (deep_dive) and the portal
+  // renders YoureCurrentScreen because the chapter has zero active
+  // steps. Real Chapter 3 content lands in a future PR; meanwhile the
+  // candidate sees a holding card. The companion migration archives
+  // any deep_dive steps existing brands picked up from earlier seeds.
   playbook: [
     { key: "intro",    label: "How to read the FDD", type: "static",     desc: "A quick primer on the document" },
     { key: "document", label: "The FDD",             type: "document",   desc: "23 sections, broken up for readability" },

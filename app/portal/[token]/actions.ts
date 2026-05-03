@@ -460,22 +460,87 @@ export async function bookSlotAction(
     .single();
   if (insErr) throw new Error(`booking insert failed: ${insErr.message}`);
 
-  // Progress: log completion of this step and advance the candidate to
-  // whichever step comes next within the same chapter.
+  // Progress: log completion of this step.
   await app.from("candidate_progress").insert({
     candidate_in_portal_id: ctx.portalId,
     chapter_key: ctx.chapterKey,
     step_key: null,
   });
-  await app
-    .from("candidates_in_portal")
-    .update({
-      // Advance past this step by position+1. The portal page will clamp
-      // this to the actual step count on next render.
-      current_step: ctx.stepPosition + 1,
-      last_activity_at: new Date().toISOString(),
-    })
-    .eq("id", ctx.portalId);
+
+  // PR 44: when this booking finishes the LAST active step of the
+  // chapter (e.g., Chapter 2's lone schedule step), auto-advance
+  // current_chapter past it. The booking confirmation screen IS the
+  // celebration moment — no need to also fire the chapter complete
+  // popup here, so we mark it dismissed.
+  //
+  // For non-last-step bookings, fall back to the existing per-step
+  // advance behaviour.
+  const { count: activeStepCount } = await app
+    .from("steps_config")
+    .select("id", { count: "exact", head: true })
+    .eq("brand_id", ctx.brand.id)
+    .eq("chapter_key", ctx.chapterKey)
+    .eq("is_archived", false);
+  const wasLastStep =
+    typeof activeStepCount === "number" &&
+    ctx.stepPosition + 1 >= activeStepCount;
+
+  if (wasLastStep) {
+    // Find the candidate's current chapter index from the active chapter
+    // ordering for this brand, plus the dismissed array to dedupe.
+    const [{ data: chapterRows }, { data: sessionRow }] = await Promise.all([
+      app
+        .from("chapters_config")
+        .select("chapter_key, position")
+        .eq("brand_id", ctx.brand.id)
+        .eq("is_archived", false)
+        .order("position"),
+      app
+        .from("candidates_in_portal")
+        .select("dismissed_chapter_completes")
+        .eq("id", ctx.portalId)
+        .maybeSingle(),
+    ]);
+    const chapters = chapterRows ?? [];
+    const lastIdx = Math.max(0, chapters.length - 1);
+    const finishedIdx = chapters.findIndex(
+      (c) => c.chapter_key === ctx.chapterKey,
+    );
+    const nextChapterIdx = Math.min(
+      Math.max(0, finishedIdx) + 1,
+      lastIdx,
+    );
+    const existingDismissals: unknown =
+      sessionRow?.dismissed_chapter_completes;
+    const dismissed: string[] = Array.isArray(existingDismissals)
+      ? (existingDismissals as unknown[]).filter(
+          (v): v is string => typeof v === "string",
+        )
+      : [];
+    const nextDismissals = dismissed.includes(ctx.chapterKey)
+      ? dismissed
+      : [...dismissed, ctx.chapterKey];
+
+    await app
+      .from("candidates_in_portal")
+      .update({
+        current_chapter: nextChapterIdx,
+        current_step: 0,
+        dismissed_chapter_completes: nextDismissals,
+        last_activity_at: new Date().toISOString(),
+      })
+      .eq("id", ctx.portalId);
+  } else {
+    await app
+      .from("candidates_in_portal")
+      .update({
+        // Advance past this step by position+1. The portal page will clamp
+        // this to the actual step count on next render.
+        current_step: ctx.stepPosition + 1,
+        last_activity_at: new Date().toISOString(),
+      })
+      .eq("id", ctx.portalId);
+  }
 
   revalidatePath(`/portal/${token}`);
 
