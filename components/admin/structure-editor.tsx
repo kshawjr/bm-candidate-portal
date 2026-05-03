@@ -7,6 +7,7 @@ import type { ChapterFormData } from "@/app/admin/structure/actions";
 import type {
   ChapterIntroFormData,
   ChapterVideoFormData,
+  ChapterCompleteFormData,
 } from "@/app/admin/structure/popup-actions";
 import {
   ChapterIntroPopup,
@@ -20,6 +21,10 @@ import {
   ChapterVideoPopup,
   type ChapterVideoConfig,
 } from "@/components/portal/chapter-video-popup";
+import {
+  ChapterCompletePopup,
+  type ChapterCompletePopupConfig,
+} from "@/components/portal/chapter-complete-popup";
 import {
   detectVideoProvider,
   parseVideoSource,
@@ -46,6 +51,13 @@ export interface ChapterVideoInitial {
   updatedAt: string | null;
 }
 
+export interface ChapterCompleteInitial {
+  heading: string;
+  bodyMd: string | null;
+  ctaLabel: string;
+  isActive: boolean;
+}
+
 export interface AdminChapterRow {
   id: string;
   chapter_key: string;
@@ -59,6 +71,7 @@ export interface AdminChapterRow {
   step_count_total: number;
   intro_popup: ChapterIntroInitial | null;
   video: ChapterVideoInitial | null;
+  complete_popup: ChapterCompleteInitial | null;
 }
 
 interface Props {
@@ -100,6 +113,15 @@ interface Props {
     brandSlug: string,
     formData: FormData,
   ) => Promise<{ url: string } | { error: string }>;
+  saveChapterComplete: (
+    brandId: string,
+    chapterKey: string,
+    data: ChapterCompleteFormData,
+  ) => Promise<{ success: boolean; error?: string }>;
+  deleteChapterComplete: (
+    brandId: string,
+    chapterKey: string,
+  ) => Promise<{ success: boolean; error?: string }>;
 }
 
 type DrawerState =
@@ -107,7 +129,8 @@ type DrawerState =
   | { mode: "create" }
   | { mode: "edit"; chapter: AdminChapterRow }
   | { mode: "intro"; chapter: AdminChapterRow }
-  | { mode: "video"; chapter: AdminChapterRow };
+  | { mode: "video"; chapter: AdminChapterRow }
+  | { mode: "complete"; chapter: AdminChapterRow };
 
 export function StructureEditor({
   brandId,
@@ -125,6 +148,8 @@ export function StructureEditor({
   saveChapterVideo,
   deleteChapterVideo,
   uploadChapterVideo,
+  saveChapterComplete,
+  deleteChapterComplete,
 }: Props) {
   const router = useRouter();
   const [drawer, setDrawer] = useState<DrawerState>(null);
@@ -310,6 +335,15 @@ export function StructureEditor({
                 <button
                   type="button"
                   className="adm-btn-ghost"
+                  onClick={() => setDrawer({ mode: "complete", chapter })}
+                  disabled={pending}
+                  title="Configure the celebration popup shown when candidates finish this chapter"
+                >
+                  {chapter.complete_popup ? "Complete popup ✓" : "Complete popup"}
+                </button>
+                <button
+                  type="button"
+                  className="adm-btn-ghost"
                   onClick={() => handleArchive(chapter)}
                   disabled={pending}
                   title={
@@ -382,6 +416,22 @@ export function StructureEditor({
           saveChapterVideo={saveChapterVideo}
           deleteChapterVideo={deleteChapterVideo}
           uploadVideo={uploadChapterVideo}
+        />
+      )}
+
+      {drawer && drawer.mode === "complete" && (
+        <ChapterCompleteDrawer
+          chapter={drawer.chapter}
+          brandId={brandId}
+          onCancel={() => setDrawer(null)}
+          onSaved={(message) => {
+            setDrawer(null);
+            setToast(message);
+            router.refresh();
+          }}
+          onError={(message) => setError(message)}
+          saveChapterComplete={saveChapterComplete}
+          deleteChapterComplete={deleteChapterComplete}
         />
       )}
 
@@ -1425,6 +1475,234 @@ function ChapterVideoDrawer({
 
       {previewOpen && urlValid && (
         <ChapterVideoPopup
+          config={previewConfig}
+          onDismiss={async () => ({ success: true })}
+          onDismissed={() => setPreviewOpen(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+// ---- chapter complete drawer ----
+
+interface ChapterCompleteDrawerProps {
+  chapter: AdminChapterRow;
+  brandId: string;
+  onCancel: () => void;
+  onSaved: (message: string) => void;
+  onError: (message: string) => void;
+  saveChapterComplete: (
+    brandId: string,
+    chapterKey: string,
+    data: ChapterCompleteFormData,
+  ) => Promise<{ success: boolean; error?: string }>;
+  deleteChapterComplete: (
+    brandId: string,
+    chapterKey: string,
+  ) => Promise<{ success: boolean; error?: string }>;
+}
+
+function ChapterCompleteDrawer({
+  chapter,
+  brandId,
+  onCancel,
+  onSaved,
+  onError,
+  saveChapterComplete,
+  deleteChapterComplete,
+}: ChapterCompleteDrawerProps) {
+  const initial = chapter.complete_popup;
+  const [form, setForm] = useState<ChapterCompleteFormData>(() => ({
+    heading: initial?.heading ?? `${chapter.label} complete!`,
+    bodyMd: initial?.bodyMd ?? "",
+    ctaLabel: initial?.ctaLabel ?? "Keep going",
+    isActive: initial?.isActive ?? true,
+  }));
+  const [pending, startTransition] = useTransition();
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [localError, setLocalError] = useState<string | null>(null);
+
+  const valid = form.heading.trim().length > 0;
+
+  const handleSave = () => {
+    setLocalError(null);
+    startTransition(async () => {
+      const result = await saveChapterComplete(
+        brandId,
+        chapter.chapter_key,
+        form,
+      );
+      if (result.success) {
+        onSaved(`Complete popup saved for ${chapter.label}`);
+      } else {
+        const msg = result.error || "Save failed";
+        setLocalError(msg);
+        onError(msg);
+      }
+    });
+  };
+
+  const handleDelete = () => {
+    if (
+      !confirm(
+        `Delete the complete popup for "${chapter.label}"? Candidates will no longer see the celebration when they finish this chapter.`,
+      )
+    )
+      return;
+    setLocalError(null);
+    startTransition(async () => {
+      const result = await deleteChapterComplete(brandId, chapter.chapter_key);
+      if (result.success) {
+        onSaved(`Complete popup deleted for ${chapter.label}`);
+      } else {
+        const msg = result.error || "Delete failed";
+        setLocalError(msg);
+        onError(msg);
+      }
+    });
+  };
+
+  const previewConfig: ChapterCompletePopupConfig = {
+    chapterKey: chapter.chapter_key,
+    heading: form.heading.trim() || `${chapter.label} complete`,
+    bodyMd: form.bodyMd?.trim() || null,
+    ctaLabel: form.ctaLabel.trim() || "Keep going",
+  };
+
+  return (
+    <div className="adm-drawer-backdrop" role="dialog" aria-modal="true">
+      <div className="adm-drawer">
+        <header className="adm-drawer-head">
+          <div>
+            <div className="adm-drawer-eyebrow">
+              {initial ? "Edit" : "Add"} chapter complete popup
+            </div>
+            <h2 className="adm-drawer-title">{chapter.label}</h2>
+          </div>
+          <button
+            type="button"
+            className="adm-drawer-close"
+            onClick={onCancel}
+            aria-label="Close"
+          >
+            ✕
+          </button>
+        </header>
+
+        <div className="adm-drawer-body">
+          <p
+            className="adm-form-hint"
+            style={{ marginTop: 0, marginBottom: 16 }}
+          >
+            Fires when a candidate finishes the last step of this chapter,
+            BEFORE current_chapter advances. Confetti animation plays once
+            on mount. Click-through dismissal is what advances the candidate
+            to the next chapter.
+          </p>
+
+          <label className="adm-field">
+            <span className="adm-form-label">
+              Heading{" "}
+              <span className="adm-form-required" aria-hidden="true">
+                *
+              </span>
+            </span>
+            <input
+              type="text"
+              className="adm-input"
+              value={form.heading}
+              onChange={(e) => setForm({ ...form, heading: e.target.value })}
+              placeholder={`${chapter.label} complete!`}
+              autoFocus
+            />
+          </label>
+
+          <label className="adm-field">
+            <span className="adm-form-label">Body</span>
+            <textarea
+              className="adm-textarea"
+              rows={3}
+              value={form.bodyMd ?? ""}
+              onChange={(e) => setForm({ ...form, bodyMd: e.target.value })}
+              placeholder="Optional. Markdown supported — bold, italic, links, paragraphs."
+            />
+          </label>
+
+          <label className="adm-field">
+            <span className="adm-form-label">CTA label</span>
+            <input
+              type="text"
+              className="adm-input"
+              value={form.ctaLabel}
+              onChange={(e) => setForm({ ...form, ctaLabel: e.target.value })}
+              placeholder="Keep going"
+            />
+          </label>
+
+          <label
+            className="adm-field"
+            style={{ flexDirection: "row", alignItems: "center", gap: 10 }}
+          >
+            <input
+              type="checkbox"
+              checked={form.isActive}
+              onChange={(e) =>
+                setForm({ ...form, isActive: e.target.checked })
+              }
+            />
+            <span className="adm-form-label" style={{ margin: 0 }}>
+              Active — fire when candidates finish this chapter
+            </span>
+          </label>
+
+          {localError && <div className="adm-form-error">{localError}</div>}
+        </div>
+
+        <footer className="adm-drawer-foot">
+          {initial && (
+            <button
+              type="button"
+              className="adm-btn-ghost adm-btn-danger"
+              onClick={handleDelete}
+              disabled={pending}
+              style={{ marginRight: "auto" }}
+            >
+              Delete
+            </button>
+          )}
+          <button
+            type="button"
+            className="adm-btn-ghost"
+            onClick={() => setPreviewOpen(true)}
+            disabled={!valid || pending}
+          >
+            Preview
+          </button>
+          <button
+            type="button"
+            className="adm-btn-ghost"
+            onClick={onCancel}
+            disabled={pending}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            className="adm-btn-primary"
+            onClick={handleSave}
+            disabled={!valid || pending}
+          >
+            {pending ? "Saving…" : initial ? "Save changes" : "Create popup"}
+          </button>
+        </footer>
+      </div>
+
+      {previewOpen && (
+        <ChapterCompletePopup
+          // Re-key per heading so the confetti restarts each time the
+          // admin opens the preview to tweak copy.
+          key={`preview-${chapter.chapter_key}-${previewConfig.heading}`}
           config={previewConfig}
           onDismiss={async () => ({ success: true })}
           onDismissed={() => setPreviewOpen(false)}

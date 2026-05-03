@@ -2818,6 +2818,106 @@ body {
 .pp-popup-chapter {
   width: min(560px, 100%);
 }
+.pp-popup-complete {
+  width: min(480px, 100%);
+  text-align: center;
+  padding: 28px 28px 0;
+  position: relative;
+  z-index: 2;
+}
+.cc-popup-icon {
+  font-size: 56px;
+  line-height: 1;
+  margin-bottom: 6px;
+  animation: cc-popup-icon 600ms cubic-bezier(0.2, 1.2, 0.4, 1.05);
+}
+.cc-popup-title {
+  padding: 8px 0 0;
+  text-align: center;
+}
+.cc-popup-prose {
+  margin: 12px 0 0;
+  padding: 0;
+  text-align: center;
+  font-size: 15px;
+  color: #4b5563;
+  line-height: 1.55;
+}
+.cc-popup-prose p {
+  margin: 0 0 8px;
+}
+.cc-popup-prose p:last-child {
+  margin-bottom: 0;
+}
+.pp-popup-complete .pp-popup-foot {
+  justify-content: center;
+  padding-top: 22px;
+}
+@keyframes cc-popup-icon {
+  from {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  60% {
+    transform: scale(1.15);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* ---- confetti (cc-confetti-*) ----
+   CSS-only celebration. 32 absolutely-positioned divs fall + spin from above
+   the viewport, fading to 0 by the end of their animation. The container is
+   pointer-events: none so it never intercepts the CTA click. */
+.cc-confetti {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 1;
+}
+.cc-confetti-piece {
+  position: absolute;
+  top: -24px;
+  width: 10px;
+  height: 14px;
+  opacity: 0.95;
+  animation-name: cc-confetti-fall;
+  animation-timing-function: cubic-bezier(0.4, 0.6, 0.6, 1);
+  animation-fill-mode: forwards;
+  will-change: transform, opacity;
+}
+.cc-confetti-circle {
+  border-radius: 999px;
+  width: 8px;
+  height: 8px;
+}
+.cc-confetti-square {
+  border-radius: 2px;
+}
+@keyframes cc-confetti-fall {
+  0% {
+    transform: translateY(-24px) rotate(0deg);
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(110vh) rotate(720deg);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cc-confetti {
+    display: none;
+  }
+  .cc-popup-icon {
+    animation: none;
+  }
+}
 .pp-popup-title {
   font-family: var(--font-heading, var(--font-body, system-ui));
   font-weight: var(--heading-weight, 600);

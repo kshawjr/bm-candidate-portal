@@ -113,8 +113,12 @@ export async function saveApplicationAnswerAction(
 
 /**
  * Submit the application. Writes any final answers in a single batch, flips
- * is_app_submitted, advances to Chapter 2 (Say hi) at step 0, and logs a
- * candidate_progress audit row.
+ * is_app_submitted, and bumps current_step PAST the last step of Chapter 1
+ * (the page clamps to the actual count) — leaving current_chapter alone.
+ *
+ * Chapter advancement happens later, when the candidate dismisses the
+ * Chapter Complete popup (PR 36). The "past last step" sentinel is what
+ * tells the page to fire that popup on next render.
  */
 export async function submitApplicationAction(
   token: string,
@@ -137,13 +141,14 @@ export async function submitApplicationAction(
     if (upErr) throw new Error(`submit batch upsert failed: ${upErr.message}`);
   }
 
-  // Flip submitted + advance to Chapter 2 · Step 0 (Say hi).
+  // Flip submitted + push current_step past the last step of Chapter 1.
+  // 99 is a "past the end" sentinel — page clamps to the real step count
+  // (which is robust to admins adding/removing steps from Chapter 1).
   const { error: pErr } = await app
     .from("candidates_in_portal")
     .update({
       is_app_submitted: true,
-      current_chapter: 1,
-      current_step: 0,
+      current_step: 99,
       last_activity_at: new Date().toISOString(),
     })
     .eq("id", portalId);

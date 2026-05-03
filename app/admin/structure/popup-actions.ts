@@ -233,6 +233,72 @@ export async function deleteChapterIntroAction(
   return { success: true };
 }
 
+// ======================================================================
+// Chapter complete popups (PR 36)
+// ======================================================================
+
+export interface ChapterCompleteFormData {
+  heading: string;
+  bodyMd: string | null;
+  ctaLabel: string;
+  isActive: boolean;
+}
+
+export async function saveChapterCompleteAction(
+  brandId: string,
+  chapterKey: string,
+  data: ChapterCompleteFormData,
+): Promise<{ success: boolean; error?: string }> {
+  await requireAdmin();
+
+  if (!chapterKey) {
+    return { success: false, error: "chapter_key required" };
+  }
+  if (!data.heading.trim()) {
+    return { success: false, error: "Heading is required" };
+  }
+
+  const app = createAppServiceClient();
+  const { error } = await app.from("chapter_complete_popups").upsert(
+    {
+      brand_id: brandId,
+      chapter_key: chapterKey,
+      heading: data.heading.trim(),
+      body_md: data.bodyMd?.trim() || null,
+      cta_label: data.ctaLabel.trim() || "Keep going",
+      is_active: data.isActive,
+    },
+    { onConflict: "brand_id,chapter_key" },
+  );
+  if (error) {
+    return {
+      success: false,
+      error: `chapter_complete_popups upsert failed: ${error.message}`,
+    };
+  }
+
+  revalidatePath("/admin/structure");
+  revalidatePath("/portal/[token]", "page");
+  return { success: true };
+}
+
+export async function deleteChapterCompleteAction(
+  brandId: string,
+  chapterKey: string,
+): Promise<{ success: boolean; error?: string }> {
+  await requireAdmin();
+  const app = createAppServiceClient();
+  const { error } = await app
+    .from("chapter_complete_popups")
+    .delete()
+    .eq("brand_id", brandId)
+    .eq("chapter_key", chapterKey);
+  if (error) return { success: false, error: error.message };
+  revalidatePath("/admin/structure");
+  revalidatePath("/portal/[token]", "page");
+  return { success: true };
+}
+
 export async function uploadChapterIntroHeroAction(
   brandSlug: string,
   formData: FormData,

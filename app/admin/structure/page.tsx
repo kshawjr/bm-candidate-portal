@@ -7,6 +7,7 @@ import type {
   AdminChapterRow,
   ChapterIntroInitial,
   ChapterVideoInitial,
+  ChapterCompleteInitial,
 } from "@/components/admin/structure-editor";
 import {
   archiveChapterAction,
@@ -22,6 +23,8 @@ import {
   saveChapterVideoAction,
   deleteChapterVideoAction,
   uploadChapterVideoAction,
+  saveChapterCompleteAction,
+  deleteChapterCompleteAction,
 } from "./popup-actions";
 import type { VideoProvider } from "@/lib/video-source";
 
@@ -63,6 +66,7 @@ export default async function StructurePage({ searchParams }: Props) {
     { data: stepRows },
     { data: introRows },
     { data: videoRows },
+    { data: completeRows },
   ] = await Promise.all([
     app
       .from("chapters_config")
@@ -86,6 +90,10 @@ export default async function StructurePage({ searchParams }: Props) {
       .select(
         "chapter_key, title, video_url, video_provider, description, cta_dismiss_label, is_active, updated_at",
       )
+      .eq("brand_id", brand.id),
+    app
+      .from("chapter_complete_popups")
+      .select("chapter_key, heading, body_md, cta_label, is_active")
       .eq("brand_id", brand.id),
   ]);
 
@@ -141,6 +149,16 @@ export default async function StructurePage({ searchParams }: Props) {
     };
   }
 
+  const completeByKey: Record<string, ChapterCompleteInitial> = {};
+  for (const row of completeRows ?? []) {
+    completeByKey[row.chapter_key as string] = {
+      heading: (row.heading as string) ?? "",
+      bodyMd: (row.body_md as string | null) ?? null,
+      ctaLabel: (row.cta_label as string | null) ?? "Keep going",
+      isActive: Boolean(row.is_active),
+    };
+  }
+
   const chapters: AdminChapterRow[] = (chapterRows ?? []).map((s) => ({
     id: s.id,
     chapter_key: s.chapter_key,
@@ -154,6 +172,7 @@ export default async function StructurePage({ searchParams }: Props) {
     step_count_total: stepCounts[s.chapter_key]?.total ?? 0,
     intro_popup: introByKey[s.chapter_key] ?? null,
     video: videoByKey[s.chapter_key] ?? null,
+    complete_popup: completeByKey[s.chapter_key] ?? null,
   }));
 
   return (
@@ -173,6 +192,8 @@ export default async function StructurePage({ searchParams }: Props) {
       saveChapterVideo={saveChapterVideoAction}
       deleteChapterVideo={deleteChapterVideoAction}
       uploadChapterVideo={uploadChapterVideoAction}
+      saveChapterComplete={saveChapterCompleteAction}
+      deleteChapterComplete={deleteChapterCompleteAction}
     />
   );
 }

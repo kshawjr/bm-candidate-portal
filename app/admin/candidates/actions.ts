@@ -153,13 +153,14 @@ export async function resetCandidateAction(params: {
       is_app_submitted: false,
       // Reset onboarding popups so the candidate sees them again on next
       // load — the main reason to reset a candidate is to walk through the
-      // experience fresh. All three dismissal arrays + the deprecated
+      // experience fresh. All four dismissal arrays + the deprecated
       // has_seen_welcome boolean (kept for back-compat from PR 31) are
-      // cleared so every chapter video, intro popup, and step transition
-      // re-fires.
+      // cleared so every chapter video, intro popup, complete celebration,
+      // and step transition re-fires.
       has_seen_welcome: false,
       dismissed_chapter_videos: [],
       dismissed_chapter_intros: [],
+      dismissed_chapter_completes: [],
       dismissed_step_transitions: [],
       last_activity_at: new Date().toISOString(),
     })

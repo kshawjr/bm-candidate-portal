@@ -270,6 +270,22 @@ export function CinematicShell({
     return onDismissStepTransition(stepId);
   };
 
+  // Sync the user's view to the server's current chapter when it advances.
+  // PR 36: completing a chapter via the chapter complete popup bumps
+  // current_chapter server-side, but useState ignores prop changes. Without
+  // this effect, the user would still see their old chapter in the shell
+  // even after the popup closes and the journey moved forward.
+  //
+  // The sidebar still lets candidates browse to past chapters; manually
+  // selecting only changes selectedChapterIdx, not currentChapterIdx, so
+  // this effect doesn't fight that — it only fires when the SERVER bumps
+  // current_chapter.
+  useEffect(() => {
+    setSelectedChapterIdx(currentChapterIdx);
+    setSelectedStepIdx(0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentChapterIdx]);
+
   const completedCount = currentChapterIdx;
   const progressPct = Math.round((completedCount / chapters.length) * 100);
   const weeksLeft = Math.max(2, chapters.length - completedCount + 1);
@@ -277,11 +293,12 @@ export function CinematicShell({
   const logoHeight = LOGO_HEIGHT_OVERRIDE[brandSlug] ?? DEFAULT_LOGO_HEIGHT;
 
   const handleTourComplete = () => {
-    const nextIdx =
-      selectedStepIdx + 1 < steps.length ? selectedStepIdx + 1 : selectedStepIdx;
-    // Optimistic UI update — move to the next step immediately.
+    // Allow advancing one past the last step — that sentinel triggers the
+    // chapter complete popup on next render. The renderer falls back to the
+    // last step's content via Math.min so the user briefly sees the last
+    // step behind the popup.
+    const nextIdx = Math.min(selectedStepIdx + 1, steps.length);
     setSelectedStepIdx(nextIdx);
-    // Persist, then refetch server data so current_step + is_tour_complete match.
     startTransition(async () => {
       await onTourComplete(nextIdx);
       router.refresh();
@@ -289,12 +306,9 @@ export function CinematicShell({
   };
 
   // For non-tour steps (video, schedule) that just need to advance without
-  // flipping the is_tour_complete flag.
+  // flipping the is_tour_complete flag. Same past-the-last-step semantics.
   const handleStepAdvance = () => {
-    const nextIdx =
-      selectedStepIdx + 1 < steps.length
-        ? selectedStepIdx + 1
-        : selectedStepIdx;
+    const nextIdx = Math.min(selectedStepIdx + 1, steps.length);
     setSelectedStepIdx(nextIdx);
     startTransition(async () => {
       await onStepAdvance(nextIdx);
@@ -302,12 +316,13 @@ export function CinematicShell({
     });
   };
 
-  // Called from the success screen of the application renderer. Server already
-  // advanced current_chapter -> 1, current_step -> 0 as part of submit; this just
-  // syncs the shell's local view state and refetches.
+  // Called from the success screen of the application renderer. The server
+  // (PR 36) no longer advances current_chapter on submit — it just bumps
+  // current_step past the last step so the chapter complete popup fires.
+  // Don't change selected*Idx locally; refresh so the new server props
+  // (chapterComplete config + step sentinel) flow in and OnboardingPopups
+  // takes over.
   const handleContinueAfterApplication = () => {
-    setSelectedChapterIdx(1);
-    setSelectedStepIdx(0);
     startTransition(() => {
       router.refresh();
     });
