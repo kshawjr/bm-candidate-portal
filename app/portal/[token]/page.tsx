@@ -1,5 +1,7 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
+import { headers } from "next/headers";
 import { Baloo_2, Nunito_Sans, Montserrat } from "next/font/google";
+import { getCorrectPortalUrl } from "@/lib/brand-from-hostname";
 import { createAppServiceClient } from "@/lib/supabase-app";
 import { createCoreClient } from "@/lib/core-client";
 import {
@@ -130,6 +132,29 @@ export default async function PortalTokenPage({
     .eq("id", session.candidate_id)
     .maybeSingle();
   if (!candidate) notFound();
+
+  // PR 46: brand-mismatch redirect. Middleware sets x-brand-type +
+  // x-brand-id from the hostname. If the candidate's brand doesn't
+  // match the subdomain, send them to the correct one. Admin host
+  // (and dev/preview) skips the check so admins can preview any
+  // candidate from flightdeck.
+  const headersList = headers();
+  const hostBrandType = headersList.get("x-brand-type");
+  const hostBrandId = headersList.get("x-brand-id");
+  if (
+    hostBrandType === "portal" &&
+    hostBrandId &&
+    hostBrandId !== candidate.brand_id
+  ) {
+    // Look up the candidate's brand slug just to build the redirect.
+    const { data: candidateBrand } = await core
+      .from("brands")
+      .select("slug")
+      .eq("id", candidate.brand_id)
+      .maybeSingle();
+    const slug = (candidateBrand as { slug?: string } | null)?.slug ?? "";
+    redirect(getCorrectPortalUrl(params.token, slug));
+  }
 
   const { data: brand } = await core
     .from("brands")
