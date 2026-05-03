@@ -12,6 +12,12 @@ import "server-only";
 // across requests within a Vercel function instance. Cold starts pay
 // one extra refresh; hot instances reuse the same access token.
 
+// Match the flightdeck pattern: API host is env-overridable so EU/IN/AU
+// data-center accounts can point at zohoapis.eu / .in / .com.au without
+// a code change. US (zohoapis.com) is the default since Blue Maven's
+// Zoho lives there.
+const API_DOMAIN = process.env.ZOHO_API_DOMAIN || "https://www.zohoapis.com";
+
 class ZohoApiClient {
   private accessToken: string | null = null;
   private tokenExpiresAt = 0;
@@ -64,16 +70,25 @@ class ZohoApiClient {
     leadId: string,
     fields: Record<string, string>,
   ): Promise<void> {
+    // Force-string the lead id at the boundary. Zoho lead IDs (e.g.
+    // 5380286000091668000) exceed Number.MAX_SAFE_INTEGER, so any caller
+    // that accidentally passes a JS number would silently corrupt the id.
+    // Coercing here means a single source of truth for the format.
+    const id = String(leadId);
+
     const token = await this.getAccessToken();
     const response = await fetch(
-      `https://www.zohoapis.com/crm/v3/Leads/${encodeURIComponent(leadId)}`,
+      `${API_DOMAIN}/crm/v3/Leads/${encodeURIComponent(id)}`,
       {
         method: "PUT",
         headers: {
           Authorization: `Zoho-oauthtoken ${token}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ data: [fields] }),
+        // Zoho v3 PUT /Leads/{id} requires the id in the body record too,
+        // not just the URL — omitting it returns "the id given seems to
+        // be invalid". Matches flightdeck's updateDeal pattern.
+        body: JSON.stringify({ data: [{ id, ...fields }] }),
       },
     );
 

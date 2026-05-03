@@ -241,7 +241,10 @@ export async function POST(request: Request) {
     // webhook_events row so a future retry job can pick it up.
     let zohoCallbackError: string | null = null;
     try {
-      await zohoApi.updateLead(Lead_ID!, {
+      // Lead_ID is force-stringed inside updateLead too, but coerce here
+      // as well so the type is unambiguous at the call site (Zoho lead
+      // IDs blow past Number.MAX_SAFE_INTEGER).
+      await zohoApi.updateLead(String(Lead_ID), {
         Portal_Token: token,
         Portal_URL: portalUrl,
       });
