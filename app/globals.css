@@ -2899,20 +2899,33 @@ body {
   flex: 1;
 }
 /* PR 38: partner callout — tinted card with leading emoji, sits between
-   bullets and the CTA. Born from the call_prep page's partner nudge. */
+   bullets and the CTA. Born from the call_prep page's partner nudge.
+   PR 41: thicker brand border + breathing glow animation so the partner
+   reminder reads as a deliberate visual moment, not just a tinted box. */
 .pp-popup-callout {
   margin: 18px 0 0;
-  padding: 14px 16px;
+  padding: 16px 18px;
   display: flex;
-  gap: 12px;
+  gap: 14px;
   align-items: flex-start;
-  background: color-mix(in srgb, var(--brand-soft, #eef2ff) 55%, #ffffff);
-  border: 1px solid color-mix(in srgb, var(--brand-primary, #2563eb) 18%, #e5e7eb);
-  border-radius: 10px;
+  background: color-mix(in srgb, var(--brand-soft, #eef2ff) 60%, #ffffff);
+  border: 2px solid color-mix(in srgb, var(--brand-primary, #2563eb) 35%, #e5e7eb);
+  border-radius: 12px;
+  animation: pp-popup-callout-glow 4500ms ease-in-out infinite;
+}
+@keyframes pp-popup-callout-glow {
+  0%, 100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand-primary, #2563eb) 0%, transparent);
+    border-color: color-mix(in srgb, var(--brand-primary, #2563eb) 35%, #e5e7eb);
+  }
+  50% {
+    box-shadow: 0 0 0 8px color-mix(in srgb, var(--brand-primary, #2563eb) 8%, transparent);
+    border-color: color-mix(in srgb, var(--brand-primary, #2563eb) 55%, #e5e7eb);
+  }
 }
 .pp-popup-callout-icon {
   flex-shrink: 0;
-  font-size: 22px;
+  font-size: 26px;
   line-height: 1.1;
 }
 .pp-popup-callout-text {
@@ -2920,6 +2933,66 @@ body {
   font-size: 14px;
   line-height: 1.55;
   color: #1f2937;
+}
+
+/* PR 41: scarcity / urgency block at the top of the Chapter 2 intro popup.
+   Brand-color heading, tinted underline, the slot count animates once on
+   mount so the eye lands on the number. */
+.pp-popup-scarcity {
+  padding: 8px 0 18px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid color-mix(in srgb, var(--brand-primary, #2563eb) 18%, #e5e7eb);
+  text-align: left;
+}
+.pp-popup-scarcity-pill {
+  display: inline-block;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  background: color-mix(in srgb, var(--brand-primary, #2563eb) 12%, #ffffff);
+  color: var(--brand-dark, var(--brand-primary, #2563eb));
+  border-radius: 999px;
+  margin-bottom: 10px;
+}
+.pp-popup-scarcity-headline {
+  font-family: var(--font-heading, var(--font-body, system-ui));
+  font-weight: var(--heading-weight, 700);
+  font-size: 22px;
+  line-height: 1.25;
+  margin: 0 0 4px;
+  color: var(--cin-text, #111827);
+}
+.pp-popup-scarcity-num {
+  display: inline-block;
+  font-size: 1.4em;
+  font-weight: 800;
+  color: var(--brand-primary, #2563eb);
+  animation: pp-popup-scarcity-num 600ms cubic-bezier(0.2, 1.2, 0.4, 1.05);
+  transform-origin: center;
+}
+@keyframes pp-popup-scarcity-num {
+  0%   { transform: scale(0.85); opacity: 0; }
+  60%  { transform: scale(1.2); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.pp-popup-scarcity-sub {
+  margin: 0;
+  font-size: 13px;
+  font-style: italic;
+  color: var(--cin-text-muted, #6b7280);
+}
+@media (prefers-reduced-motion: reduce) {
+  .pp-popup-callout,
+  .pp-popup-scarcity-num {
+    animation: none;
+  }
+}
+@media (max-width: 720px) {
+  .pp-popup-scarcity-headline {
+    font-size: 19px;
+  }
 }
 
 /* Pre-dismiss checklist (PR 40) — gates the chapter intro popup CTA. Each
@@ -3102,6 +3175,23 @@ body {
   padding: 10px 16px;
   background: color-mix(in srgb, var(--brand-soft, #eef2ff) 35%, #ffffff);
   border-left-width: 4px;
+}
+/* PR 41: peek mode — heading + truncated body + "See more". Tighter than
+   the full expanded layout but more substantive than PR 40's single-line
+   pill. */
+.cine-intro-banner-peek .cine-intro-banner-body {
+  padding: 14px 18px 14px;
+}
+.cine-intro-banner-peek .cine-intro-banner-heading {
+  font-size: 16px;
+  margin-bottom: 4px;
+}
+.cine-intro-banner-peek-text {
+  font-family: var(--font-body, system-ui);
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--cin-text-muted, #4b5563);
+  margin: 0 0 6px;
 }
 @media (max-width: 720px) {
   .cine-intro-banner {

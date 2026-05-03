@@ -837,12 +837,14 @@ async function seedChapterIntros(brandId: string, code: BrandCode) {
 
   // PR 40: shared pre-booking checklist for both brands' Chapter 2 intro.
   // Gates the popup CTA until the candidate confirms each commitment.
+  // PR 41: dropped the partner item — that nudge moved into the
+  // partner_callout_text block (rendered as a glowing brand-bordered
+  // callout above the checklist), so duplicating it here was redundant.
   const FIRST_CHAT_CHECKLIST = {
     heading: "Before you book — quick check",
     items: [
       "I can be on a 60-minute video call (and not in my car 🚗)",
       "I'll be somewhere I can see a slide deck",
-      "If I have a spouse, partner, or co-investor, I'll bring them",
       "I'm ready for a real conversation, not a quick check-in",
     ],
   };
