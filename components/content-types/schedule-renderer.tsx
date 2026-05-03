@@ -445,7 +445,6 @@ function BookedView({
   advisorName,
   brandShortName,
   onReschedule,
-  onContinue,
 }: {
   booking: ExistingBooking;
   timezone: string;
@@ -453,6 +452,9 @@ function BookedView({
   advisorName: string | null;
   brandShortName: string;
   onReschedule: () => Promise<void>;
+  /** Retained in the parent's call site for back-compat with PR 39's
+   *  step-advance plumbing, but no longer rendered as a button. The
+   *  portal effectively ends at booking for now (PR 43). */
   onContinue: () => void;
 }) {
   const [rescheduling, startReschedule] = useTransition();
@@ -507,16 +509,6 @@ function BookedView({
         A calendar invite with the Google Meet link is on its way to your
         inbox.
       </p>
-      {booking.meeting_url && (
-        <a
-          href={booking.meeting_url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="schedule-booked-link"
-        >
-          Open Google Meet link ↗
-        </a>
-      )}
       <div className="schedule-booked-actions">
         <button
           type="button"
@@ -543,13 +535,17 @@ function BookedView({
         >
           {rescheduling ? "Cancelling…" : "Reschedule"}
         </button>
-        <button
-          type="button"
-          className="slide-nav-btn primary"
-          onClick={onContinue}
-        >
-          Continue →
-        </button>
+      </div>
+
+      {/* PR 43: closing card replaces the old "Continue →" button. The
+          portal effectively ends at booking — there's no next step yet,
+          and pretending there is read as broken UX. */}
+      <div className="schedule-booked-closing">
+        <h4>You&apos;re all set.</h4>
+        <p>
+          Your Growth Director will be in touch after the call to discuss
+          next steps.
+        </p>
       </div>
     </div>
   );

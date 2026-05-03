@@ -38,6 +38,7 @@ import {
   StepTransitionPopup,
   type StepTransitionPopupConfig,
 } from "@/components/portal/step-transition-popup";
+import { JourneyTimeline } from "@/components/portal/journey-timeline";
 
 // Default logo height for all brands. Per-brand overrides below.
 const DEFAULT_LOGO_HEIGHT = 60;
@@ -566,6 +567,9 @@ export function CinematicShell({
                 step={selectedStep}
                 stepsInChapter={steps}
                 chapterNumber={selectedChapterIdx + 1}
+                currentChapterKey={
+                  chapters[currentChapterIdx]?.chapter_key ?? null
+                }
                 onTourComplete={handleTourComplete}
                 onStepAdvance={handleStepAdvance}
                 tourPending={pending}
@@ -617,6 +621,7 @@ function StepRenderer({
   step,
   stepsInChapter,
   chapterNumber,
+  currentChapterKey,
   onTourComplete,
   onStepAdvance,
   tourPending,
@@ -644,6 +649,9 @@ function StepRenderer({
   step: Step;
   stepsInChapter: Step[];
   chapterNumber: number;
+  /** Used by the slides step (PR 43) to highlight the candidate's
+   *  current stage on the journey timeline rendered below the deck. */
+  currentChapterKey: string | null;
   onTourComplete: () => void;
   onStepAdvance: () => void;
   tourPending: boolean;
@@ -695,13 +703,25 @@ function StepRenderer({
     // candidate is heading.
     const nextStep = stepsInChapter[step.position + 1] ?? null;
     return (
-      <SlidesRenderer
-        slides={slides}
-        onComplete={onTourComplete}
-        disabled={tourPending}
-        nextStepLabel={nextStep?.label ?? null}
-        nextStepIsApplication={nextStep?.content_type === "application"}
-      />
+      <>
+        <SlidesRenderer
+          slides={slides}
+          onComplete={onTourComplete}
+          disabled={tourPending}
+          nextStepLabel={nextStep?.label ?? null}
+          nextStepIsApplication={nextStep?.content_type === "application"}
+        />
+        {/* PR 43: 8-stage discovery roadmap shown beneath Chapter 1's
+            brand tour. Brand-themed (paws / waves), highlights the
+            candidate's current stage. Other slide steps don't get the
+            timeline — it's chapter-1-specific framing. */}
+        {step.chapter_key === "explore" && (
+          <JourneyTimeline
+            brandSlug={brandSlug}
+            currentChapterKey={currentChapterKey}
+          />
+        )}
+      </>
     );
   }
   if (step.content_type === "application") {

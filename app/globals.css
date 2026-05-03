@@ -993,17 +993,31 @@ body {
   line-height: 1.55;
   margin: 0 0 16px;
 }
-.schedule-booked-link {
-  display: inline-block;
-  font-family: var(--font-body);
-  font-size: 13px;
-  color: var(--brand-primary);
-  text-decoration: none;
-  font-weight: 600;
-  margin-bottom: 16px;
+/* PR 43: closing card sits below the Add to calendar / Reschedule
+   buttons. Soft gray surface so the candidate reads the call-to-action
+   buttons first, then drops into the "you're all set" message. */
+.schedule-booked-closing {
+  margin: 28px auto 0;
+  max-width: 480px;
+  padding: 18px 22px;
+  background: var(--surface-subtle, #faf9f5);
+  border: 1px solid var(--cin-border, #e5e7eb);
+  border-radius: 12px;
+  text-align: left;
 }
-.schedule-booked-link:hover {
-  text-decoration: underline;
+.schedule-booked-closing h4 {
+  font-family: var(--font-heading, var(--font-body));
+  font-weight: var(--heading-weight, 600);
+  font-size: 16px;
+  margin: 0 0 6px;
+  color: var(--cin-text, #111827);
+}
+.schedule-booked-closing p {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--cin-text-muted, #4b5563);
 }
 .schedule-booked-actions {
   display: flex;
@@ -3796,3 +3810,217 @@ body {
   }
 }
 
+/* =========================================================================
+   Journey timeline (PR 43)
+   8-stage discovery roadmap below the brand tour. Serpentine zigzag on
+   desktop (rows of 4 alternating direction); vertical stack on mobile.
+   Brand decoration via per-brand emoji in each stage card's marker.
+   ========================================================================= */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+.journey-timeline {
+  margin-top: 36px;
+  padding: 28px 4px 8px;
+  position: relative;
+  font-family: var(--font-body, system-ui), system-ui, sans-serif;
+}
+.journey-timeline-header {
+  margin-bottom: 22px;
+  text-align: left;
+}
+.journey-timeline-title {
+  font-family: var(--font-heading, var(--font-body, system-ui));
+  font-weight: var(--heading-weight, 600);
+  font-size: 22px;
+  line-height: 1.2;
+  margin: 0 0 4px;
+  color: var(--cin-text, #111827);
+}
+.journey-timeline-sub {
+  font-size: 14px;
+  color: var(--cin-text-muted, #4b5563);
+  margin: 0;
+}
+
+/* Track is a CSS grid: 4 columns, two rows. The second row reverses
+   visually via grid-auto-flow so the path zigzags 1→4 then 8→5. */
+.journey-timeline-track {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  column-gap: 18px;
+  row-gap: 32px;
+  position: relative;
+}
+/* Stages 5..8 fill the second row right-to-left to create the zigzag. */
+.journey-stage:nth-child(5) { grid-column: 4; }
+.journey-stage:nth-child(6) { grid-column: 3; }
+.journey-stage:nth-child(7) { grid-column: 2; }
+.journey-stage:nth-child(8) { grid-column: 1; }
+
+.journey-stage {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  position: relative;
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 380ms ease-out, transform 380ms ease-out;
+}
+.journey-timeline.is-revealed .journey-stage {
+  opacity: 1;
+  transform: translateY(0);
+}
+/* Sequential reveal — staircase the entrance per stage. */
+.journey-timeline.is-revealed .journey-stage:nth-child(1) { transition-delay: 0ms; }
+.journey-timeline.is-revealed .journey-stage:nth-child(2) { transition-delay: 80ms; }
+.journey-timeline.is-revealed .journey-stage:nth-child(3) { transition-delay: 160ms; }
+.journey-timeline.is-revealed .journey-stage:nth-child(4) { transition-delay: 240ms; }
+.journey-timeline.is-revealed .journey-stage:nth-child(5) { transition-delay: 320ms; }
+.journey-timeline.is-revealed .journey-stage:nth-child(6) { transition-delay: 400ms; }
+.journey-timeline.is-revealed .journey-stage:nth-child(7) { transition-delay: 480ms; }
+.journey-timeline.is-revealed .journey-stage:nth-child(8) { transition-delay: 560ms; }
+
+.journey-stage-marker {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.journey-stage-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  background: #ffffff;
+  border: 2px solid var(--cin-border, #e5e7eb);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--cin-text-muted, #6b7280);
+}
+.journey-stage-decor {
+  font-size: 16px;
+  opacity: 0.7;
+}
+.journey-stage-card {
+  background: #ffffff;
+  border: 1px solid var(--cin-border, #e5e7eb);
+  border-radius: 12px;
+  padding: 14px 16px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 130px;
+  transition: background 0.2s, border-color 0.2s, box-shadow 0.2s;
+}
+.journey-stage-weeks {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--cin-text-muted, #6b7280);
+}
+.journey-stage-heading {
+  font-family: var(--font-heading, var(--font-body, system-ui));
+  font-weight: var(--heading-weight, 600);
+  font-size: 15px;
+  line-height: 1.25;
+  margin: 0;
+  color: var(--cin-text, #111827);
+}
+.journey-stage-body {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--cin-text-muted, #4b5563);
+}
+
+/* Past stages fade back so the eye lands on present + future. */
+.journey-stage.is-past .journey-stage-card {
+  background: var(--surface-subtle, #faf9f5);
+  opacity: 0.85;
+}
+.journey-stage.is-past .journey-stage-num {
+  background: color-mix(in srgb, var(--brand-primary, #2563eb) 12%, #ffffff);
+  border-color: color-mix(in srgb, var(--brand-primary, #2563eb) 28%, #d1d5db);
+  color: var(--brand-dark, var(--brand-primary, #2563eb));
+}
+
+/* Current stage gets the spotlight: brand-tinted card, brand border,
+   pulsing number marker. */
+.journey-stage.is-current .journey-stage-card {
+  background: color-mix(in srgb, var(--brand-soft, #eef2ff) 50%, #ffffff);
+  border-color: var(--brand-primary, #2563eb);
+  box-shadow: 0 0 0 1px var(--brand-primary, #2563eb);
+}
+.journey-stage.is-current .journey-stage-num {
+  background: var(--brand-primary, #2563eb);
+  border-color: var(--brand-primary, #2563eb);
+  color: #ffffff;
+  animation: journey-stage-pulse 2.4s ease-in-out infinite;
+}
+.journey-stage.is-current .journey-stage-decor {
+  opacity: 1;
+}
+
+/* Future stages stay outlined + light so they read as "coming up". */
+.journey-stage.is-future .journey-stage-card {
+  background: #ffffff;
+  border-style: dashed;
+}
+
+@keyframes journey-stage-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand-primary, #2563eb) 40%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 8px color-mix(in srgb, var(--brand-primary, #2563eb) 0%, transparent);
+  }
+}
+
+/* Mobile: collapse the zigzag into a single vertical column with a
+   left-edge connector implied by the marker column. */
+@media (max-width: 720px) {
+  .journey-timeline-track {
+    grid-template-columns: 1fr;
+    row-gap: 18px;
+  }
+  .journey-stage,
+  .journey-stage:nth-child(5),
+  .journey-stage:nth-child(6),
+  .journey-stage:nth-child(7),
+  .journey-stage:nth-child(8) {
+    grid-column: 1;
+  }
+  .journey-stage-marker {
+    margin-bottom: 2px;
+  }
+  .journey-stage-card {
+    min-height: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .journey-stage,
+  .journey-timeline.is-revealed .journey-stage {
+    transition: none;
+    opacity: 1;
+    transform: none;
+  }
+  .journey-stage.is-current .journey-stage-num {
+    animation: none;
+  }
+}

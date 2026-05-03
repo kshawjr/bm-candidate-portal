@@ -46,7 +46,7 @@ const STAGE_CONTENT: Record<string, Record<string, string>> = {
   first_chat: {
     badge: "Current · First chat",
     headline: "Book your first chat",
-    body: "30 minutes with our franchise team. No decks, no hard sell — just a real conversation about what you're looking for and whether we're a fit.",
+    body: "60 minutes with our franchise team. We'll walk through a short deck together — but mostly it's a real conversation about what you're looking for and whether we're a fit.",
     button: "Find a time →",
     meta: "Most candidates pick a weekday morning",
     completedTitle: "First chat complete",
@@ -122,7 +122,7 @@ const CHAPTER_STEPS: Record<string, Array<{ key: string; label: string; type: Co
   // pre-call prep content moved into Chapter 2's intro popup + banner;
   // the brand-level transition video covers the gear-shift moment.
   first_chat: [
-    { key: "book",     label: "Book your call",     type: "schedule",    desc: "Pick a time that works — Google Meet, 30 minutes" },
+    { key: "book",     label: "Book your call",     type: "schedule",    desc: "Pick a time that works — Google Meet, 60 minutes" },
   ],
   deep_dive: [
     { key: "register", label: "Register",           type: "schedule",    desc: "Tuesday 2pm ET, or watch on demand" },
@@ -858,7 +858,7 @@ async function seedChapterIntros(brandId: string, code: BrandCode) {
     ht: {
       heading: "Before your Discovery Call",
       body_md: [
-        "30 minutes with your franchise growth leader. No decks, no hard sell — just a real conversation about what you're looking for and whether we're the right fit.",
+        "60 minutes with your franchise growth leader. We'll walk through a short deck together — but mostly it's a real conversation about what you're looking for and whether we're the right fit.",
         "",
         "## What we'll cover",
         "",
@@ -881,7 +881,7 @@ async function seedChapterIntros(brandId: string, code: BrandCode) {
     ct: {
       heading: "Before your Discovery Call",
       body_md: [
-        "30 minutes with your franchise growth leader. No decks, no hard sell — just a real conversation about what you're looking for and whether we're a fit.",
+        "60 minutes with your franchise growth leader. We'll walk through a short deck together — but mostly it's a real conversation about what you're looking for and whether we're a fit.",
         "",
         "## What we'll cover",
         "",
