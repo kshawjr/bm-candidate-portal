@@ -361,7 +361,9 @@ const BRAND_TOUR_SLIDES: Record<BrandCode, Slide[]> = {
 
 // Stable dev tokens. One per brand. PR 37 added prefilledZip — HT seeds a
 // real ZIP so the application location step skips the cold flow; CT leaves
-// it null so the cold-input flow stays exercised.
+// it null so the cold-input flow stays exercised. PR 42 added
+// prefilledPhone with realistic-looking 555 numbers so the application's
+// phone field exercises the prefill UI on both brands.
 const DEV_TOKENS: Record<
   BrandCode,
   {
@@ -369,6 +371,7 @@ const DEV_TOKENS: Record<
     firstName: string;
     email: string;
     prefilledZip: string | null;
+    prefilledPhone: string | null;
   }
 > = {
   ht: {
@@ -376,12 +379,14 @@ const DEV_TOKENS: Record<
     firstName: "Jamie",
     email: "test-candidate-ht@example.com",
     prefilledZip: "11237",
+    prefilledPhone: "919-555-0123",
   },
   ct: {
     token: "test-token-456",
     firstName: "Jamie",
     email: "test-candidate-ct@example.com",
     prefilledZip: null,
+    prefilledPhone: "305-555-0456",
   },
 };
 
@@ -1050,7 +1055,8 @@ async function seedDevCandidate(
   code: BrandCode,
   repId: string,
 ) {
-  const { token, firstName, email, prefilledZip } = DEV_TOKENS[code];
+  const { token, firstName, email, prefilledZip, prefilledPhone } =
+    DEV_TOKENS[code];
 
   // Upsert candidate identity in bmave-core — includes the assigned rep
   // so scheduling knows whose calendar to query.
@@ -1088,6 +1094,9 @@ async function seedDevCandidate(
     // PR 37: stamp prefilled_zip on every reseed so flipping the per-brand
     // value above immediately reflects in the test candidate's flow.
     prefilled_zip: prefilledZip,
+    // PR 42: same pattern for prefilled_phone — application's verification
+    // screen pre-populates and shows a "Prefilled from your record" hint.
+    prefilled_phone: prefilledPhone,
   };
 
   const { error: pErr } = await app

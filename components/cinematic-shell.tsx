@@ -153,6 +153,10 @@ export interface ShellProps {
    *  application's location step skips the cold ZIP input and lands on
    *  the confirmation card. */
   prefilledZip: string | null;
+  /** Phone number prefilled at candidate creation time (PR 42). Mirrors
+   *  prefilledZip — application's verification screen pre-populates and
+   *  shows a "Prefilled from your record" hint. */
+  prefilledPhone: string | null;
   // Schedule content-type inputs
   bookingsByStepId: Record<string, ExistingBooking>;
   hasAssignedRep: boolean;
@@ -215,6 +219,7 @@ export function CinematicShell({
   initialApplicationAnswers,
   isApplicationSubmitted,
   prefilledZip,
+  prefilledPhone,
   bookingsByStepId,
   hasAssignedRep,
   advisorName,
@@ -570,6 +575,7 @@ export function CinematicShell({
                 initialApplicationAnswers={initialApplicationAnswers}
                 isApplicationSubmitted={isApplicationSubmitted}
                 prefilledZip={prefilledZip}
+                prefilledPhone={prefilledPhone}
                 brandSlug={brandSlug}
                 onSaveApplicationAnswer={onSaveApplicationAnswer}
                 onSubmitApplication={onSubmitApplication}
@@ -620,6 +626,7 @@ function StepRenderer({
   initialApplicationAnswers,
   isApplicationSubmitted,
   prefilledZip,
+  prefilledPhone,
   brandSlug,
   onSaveApplicationAnswer,
   onSubmitApplication,
@@ -646,6 +653,7 @@ function StepRenderer({
   initialApplicationAnswers: Record<string, unknown>;
   isApplicationSubmitted: boolean;
   prefilledZip: string | null;
+  prefilledPhone: string | null;
   brandSlug: string;
   onSaveApplicationAnswer: (
     fieldKey: string,
@@ -703,6 +711,7 @@ function StepRenderer({
         leaderName={leaderName}
         brandSlug={brandSlug}
         prefilledZip={prefilledZip}
+        prefilledPhone={prefilledPhone}
         initialAnswers={initialApplicationAnswers}
         isAlreadySubmitted={isApplicationSubmitted}
         onSaveAnswer={onSaveApplicationAnswer}
