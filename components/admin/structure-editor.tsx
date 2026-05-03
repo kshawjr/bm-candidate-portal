@@ -40,6 +40,10 @@ export interface ChapterIntroInitial {
   isActive: boolean;
   showAsBanner: boolean;
   partnerCalloutText: string | null;
+  preDismissChecklist: {
+    heading: string;
+    items: string[];
+  } | null;
 }
 
 export interface ChapterVideoInitial {
@@ -653,6 +657,16 @@ function ChapterIntroDrawer({
     isActive: initial?.isActive ?? true,
     showAsBanner: initial?.showAsBanner ?? true,
     partnerCalloutText: initial?.partnerCalloutText ?? "",
+    preDismissChecklist:
+      initial?.preDismissChecklist &&
+      initial.preDismissChecklist.items.length > 0
+        ? {
+            heading:
+              initial.preDismissChecklist.heading ||
+              "Before you continue",
+            items: initial.preDismissChecklist.items,
+          }
+        : null,
   }));
   const [pending, startTransition] = useTransition();
   const [uploading, setUploading] = useState(false);
@@ -741,6 +755,18 @@ function ChapterIntroDrawer({
 
   const cleanedBullets = form.bullets.filter((b) => b.text.trim());
   const partnerCalloutPreview = form.partnerCalloutText?.trim() || null;
+  const cleanedChecklistPreview = (() => {
+    if (!form.preDismissChecklist) return null;
+    const items = form.preDismissChecklist.items
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+    if (items.length === 0) return null;
+    return {
+      heading:
+        form.preDismissChecklist.heading.trim() || "Before you continue",
+      items,
+    };
+  })();
   const popupPreviewConfig: ChapterIntroPopupConfig = {
     chapterKey: chapter.chapter_key,
     heading: form.heading.trim() || "Untitled",
@@ -749,6 +775,7 @@ function ChapterIntroDrawer({
     bullets: cleanedBullets,
     ctaDismissLabel: form.ctaDismissLabel.trim() || "Let's go",
     partnerCalloutText: partnerCalloutPreview,
+    preDismissChecklist: cleanedChecklistPreview,
   };
   const bannerPreviewConfig: ChapterIntroBannerConfig = {
     chapterKey: chapter.chapter_key,
@@ -939,6 +966,132 @@ function ChapterIntroDrawer({
               Leave blank to skip.
             </span>
           </label>
+
+          {/* PR 40: pre-dismiss checklist editor. When ON, the popup CTA is
+              gated until every item is checked. Toggling OFF clears items
+              on save (saveChapterIntroAction drops empty arrays to null). */}
+          <div className="adm-field">
+            <span className="adm-form-label">Pre-dismiss checklist</span>
+            <span className="adm-form-hint">
+              When set, the popup&apos;s dismiss CTA is disabled until every
+              item is checked. Use for chapters that need a commitment
+              moment (e.g., booking a real call).
+            </span>
+            {form.preDismissChecklist ? (
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 8,
+                  marginTop: 6,
+                }}
+              >
+                <input
+                  type="text"
+                  className="adm-input"
+                  value={form.preDismissChecklist.heading}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      preDismissChecklist: {
+                        ...form.preDismissChecklist!,
+                        heading: e.target.value,
+                      },
+                    })
+                  }
+                  placeholder="Checklist heading (e.g., Before you book — quick check)"
+                />
+                {form.preDismissChecklist.items.map((item, i) => (
+                  <div
+                    key={i}
+                    style={{ display: "flex", gap: 8, alignItems: "center" }}
+                  >
+                    <input
+                      type="text"
+                      className="adm-input"
+                      value={item}
+                      onChange={(e) => {
+                        const next = [...form.preDismissChecklist!.items];
+                        next[i] = e.target.value;
+                        setForm({
+                          ...form,
+                          preDismissChecklist: {
+                            ...form.preDismissChecklist!,
+                            items: next,
+                          },
+                        });
+                      }}
+                      placeholder="Checklist item"
+                      style={{ flex: 1 }}
+                    />
+                    <button
+                      type="button"
+                      className="adm-icon-btn"
+                      onClick={() => {
+                        const next = form.preDismissChecklist!.items.filter(
+                          (_, idx) => idx !== i,
+                        );
+                        setForm({
+                          ...form,
+                          preDismissChecklist: {
+                            ...form.preDismissChecklist!,
+                            items: next,
+                          },
+                        });
+                      }}
+                      aria-label="Remove item"
+                      title="Remove"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button
+                    type="button"
+                    className="adm-btn-ghost"
+                    onClick={() =>
+                      setForm({
+                        ...form,
+                        preDismissChecklist: {
+                          ...form.preDismissChecklist!,
+                          items: [...form.preDismissChecklist!.items, ""],
+                        },
+                      })
+                    }
+                  >
+                    + Add item
+                  </button>
+                  <button
+                    type="button"
+                    className="adm-btn-ghost adm-btn-danger"
+                    onClick={() =>
+                      setForm({ ...form, preDismissChecklist: null })
+                    }
+                  >
+                    Remove checklist
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                type="button"
+                className="adm-btn-ghost"
+                onClick={() =>
+                  setForm({
+                    ...form,
+                    preDismissChecklist: {
+                      heading: "Before you continue",
+                      items: [""],
+                    },
+                  })
+                }
+                style={{ alignSelf: "flex-start", marginTop: 6 }}
+              >
+                + Add a checklist
+              </button>
+            )}
+          </div>
 
           <label className="adm-field">
             <span className="adm-form-label">Dismiss button label</span>

@@ -11,6 +11,7 @@ import {
   type ScheduleConfig,
   type Slot,
 } from "@/lib/schedule-shared";
+import { CantScheduleForm } from "@/components/portal/cant-schedule-form";
 
 const WEEKDAY_HEADERS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -31,6 +32,8 @@ interface Props {
   advisorName?: string | null;
   isGCalConfigured: boolean;
   hasAssignedRep: boolean;
+  /** PR 40: prefill the "none of these times work" form. */
+  candidateEmail: string;
   onGetSlots: (
     stepId: string,
   ) => Promise<{
@@ -48,6 +51,13 @@ interface Props {
     meeting_url: string | null;
   }>;
   onCancel: (bookingId: string) => Promise<void>;
+  /** PR 40: scheduling escape hatch action, bound by the parent. Stores
+   *  a pending row in booking_unavailable_requests. */
+  onSubmitUnavailable: (
+    email: string,
+    availableTimes: string,
+    notes: string,
+  ) => Promise<{ success: boolean; error?: string }>;
   onComplete: () => void;
 }
 
@@ -60,9 +70,11 @@ export function ScheduleRenderer({
   advisorName,
   isGCalConfigured,
   hasAssignedRep,
+  candidateEmail,
   onGetSlots,
   onBook,
   onCancel,
+  onSubmitUnavailable,
   onComplete,
 }: Props) {
   const router = useRouter();
@@ -131,8 +143,10 @@ export function ScheduleRenderer({
       brandName={brandName}
       brandShortName={brandShortName}
       advisorName={advisorName ?? null}
+      candidateEmail={candidateEmail}
       onGetSlots={onGetSlots}
       onBook={onBook}
+      onSubmitUnavailable={onSubmitUnavailable}
       onBooked={(result) => {
         setLocalBooking({
           id: result.id,
@@ -155,8 +169,10 @@ function PickerView({
   brandName,
   brandShortName,
   advisorName,
+  candidateEmail,
   onGetSlots,
   onBook,
+  onSubmitUnavailable,
   onBooked,
 }: {
   stepId: string;
@@ -164,8 +180,10 @@ function PickerView({
   brandName: string;
   brandShortName: string;
   advisorName: string | null;
+  candidateEmail: string;
   onGetSlots: Props["onGetSlots"];
   onBook: Props["onBook"];
+  onSubmitUnavailable: Props["onSubmitUnavailable"];
   onBooked: (result: {
     id: string;
     start_time: string;
@@ -408,6 +426,12 @@ function PickerView({
           </div>
         </div>
       )}
+
+      <CantScheduleForm
+        candidateEmail={candidateEmail}
+        onSubmit={onSubmitUnavailable}
+        advisorName={advisorName}
+      />
     </div>
   );
 }

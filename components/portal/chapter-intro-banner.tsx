@@ -26,18 +26,20 @@ interface Props {
  * content area (independent of whether the popup itself was dismissed).
  *
  * Local state only — collapse + read-more reset on page refresh. Each instance
- * is keyed by chapter_key so navigating between chapters resets state to a
- * sensible default (expanded, body collapsed) rather than showing the previous
- * chapter's collapsed state.
+ * is keyed by chapter_key so navigating between chapters resets state.
+ *
+ * PR 40: defaults to COLLAPSED. The popup already delivered the chapter's
+ * intro content; the banner exists for refresher access, not headline space.
+ * Candidates click "Need a refresher?" to expand on demand.
  */
 export function ChapterIntroBanner({ config }: Props) {
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
   const [bodyExpanded, setBodyExpanded] = useState(false);
 
   // Reset to defaults whenever the chapter changes — the parent re-keys the
   // component but this is belt-and-suspenders if React reuses the instance.
   useEffect(() => {
-    setCollapsed(false);
+    setCollapsed(true);
     setBodyExpanded(false);
   }, [config.chapterKey]);
 

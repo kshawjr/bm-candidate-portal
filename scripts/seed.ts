@@ -832,7 +832,20 @@ async function seedChapterIntros(brandId: string, code: BrandCode) {
     bullets: Array<{ icon: string; text: string }>;
     cta: string;
     partner_callout_text: string | null;
+    pre_dismiss_checklist: { heading: string; items: string[] } | null;
   }
+
+  // PR 40: shared pre-booking checklist for both brands' Chapter 2 intro.
+  // Gates the popup CTA until the candidate confirms each commitment.
+  const FIRST_CHAT_CHECKLIST = {
+    heading: "Before you book — quick check",
+    items: [
+      "I can be on a 60-minute video call (and not in my car 🚗)",
+      "I'll be somewhere I can see a slide deck",
+      "If I have a spouse, partner, or co-investor, I'll bring them",
+      "I'm ready for a real conversation, not a quick check-in",
+    ],
+  };
 
   const FIRST_CHAT_BY_BRAND: Record<BrandCode, IntroEntry> = {
     ht: {
@@ -856,6 +869,7 @@ async function seedChapterIntros(brandId: string, code: BrandCode) {
       cta: "Schedule the call",
       partner_callout_text:
         "If you have a spouse, partner, or co-investor — bring them along. These conversations are way better with the whole team. (Especially if that person is the one who'll make you write the check.)",
+      pre_dismiss_checklist: FIRST_CHAT_CHECKLIST,
     },
     ct: {
       heading: "Before your Discovery Call",
@@ -878,6 +892,7 @@ async function seedChapterIntros(brandId: string, code: BrandCode) {
       cta: "Schedule the call",
       partner_callout_text:
         "If you have a spouse, partner, or co-investor — bring them along. These conversations are way better with the whole team. (Especially if that person is the one who'll make you write the check.)",
+      pre_dismiss_checklist: FIRST_CHAT_CHECKLIST,
     },
   };
 
@@ -893,6 +908,7 @@ async function seedChapterIntros(brandId: string, code: BrandCode) {
       ],
       cta: "Show me around",
       partner_callout_text: null,
+      pre_dismiss_checklist: null,
     },
     first_chat: FIRST_CHAT_BY_BRAND[code],
     deep_dive: {
@@ -906,6 +922,7 @@ async function seedChapterIntros(brandId: string, code: BrandCode) {
       ],
       cta: "Watch the deep dive",
       partner_callout_text: null,
+      pre_dismiss_checklist: null,
     },
     playbook: {
       heading: "Under the hood",
@@ -918,6 +935,7 @@ async function seedChapterIntros(brandId: string, code: BrandCode) {
       ],
       cta: "Open the playbook",
       partner_callout_text: null,
+      pre_dismiss_checklist: null,
     },
     verify: {
       heading: "The verification round",
@@ -930,6 +948,7 @@ async function seedChapterIntros(brandId: string, code: BrandCode) {
       ],
       cta: "Let's verify",
       partner_callout_text: null,
+      pre_dismiss_checklist: null,
     },
     visit: {
       heading: "Come see us in person",
@@ -942,6 +961,7 @@ async function seedChapterIntros(brandId: string, code: BrandCode) {
       ],
       cta: "Plan my visit",
       partner_callout_text: null,
+      pre_dismiss_checklist: null,
     },
     award: {
       heading: "Ready to make it official?",
@@ -954,6 +974,7 @@ async function seedChapterIntros(brandId: string, code: BrandCode) {
       ],
       cta: "Make it official",
       partner_callout_text: null,
+      pre_dismiss_checklist: null,
     },
   };
 
@@ -970,6 +991,7 @@ async function seedChapterIntros(brandId: string, code: BrandCode) {
     // off per-chapter via /admin/structure → "Intro popup".
     show_as_banner: true,
     partner_callout_text: intro.partner_callout_text,
+    pre_dismiss_checklist: intro.pre_dismiss_checklist,
   }));
 
   const { error } = await app

@@ -137,6 +137,14 @@ export interface ShellProps {
     meeting_url: string | null;
   }>;
   onCancelBooking: (bookingId: string) => Promise<void>;
+  /** PR 40: scheduling escape hatch action — bound by the page with the
+   *  candidate's token. Stores a pending row in
+   *  booking_unavailable_requests. */
+  onSubmitBookingUnavailable: (
+    email: string,
+    availableTimes: string,
+    notes: string,
+  ) => Promise<{ success: boolean; error?: string }>;
   // Application runtime inputs
   candidate: ApplicationCandidate;
   initialApplicationAnswers: Record<string, unknown>;
@@ -202,6 +210,7 @@ export function CinematicShell({
   onGetSlots,
   onBookSlot,
   onCancelBooking,
+  onSubmitBookingUnavailable,
   candidate,
   initialApplicationAnswers,
   isApplicationSubmitted,
@@ -573,6 +582,7 @@ export function CinematicShell({
                 onGetSlots={onGetSlots}
                 onBookSlot={onBookSlot}
                 onCancelBooking={onCancelBooking}
+                onSubmitBookingUnavailable={onSubmitBookingUnavailable}
               />
               <ContentCardStrip cards={selectedStep.content_cards} />
             </>
@@ -622,6 +632,7 @@ function StepRenderer({
   onGetSlots,
   onBookSlot,
   onCancelBooking,
+  onSubmitBookingUnavailable,
 }: {
   step: Step;
   stepsInChapter: Step[];
@@ -662,6 +673,11 @@ function StepRenderer({
     meeting_url: string | null;
   }>;
   onCancelBooking: (bookingId: string) => Promise<void>;
+  onSubmitBookingUnavailable: (
+    email: string,
+    availableTimes: string,
+    notes: string,
+  ) => Promise<{ success: boolean; error?: string }>;
 }) {
   if (step.content_type === "slides") {
     const raw = step.config?.slides;
@@ -718,9 +734,11 @@ function StepRenderer({
         advisorName={advisorName}
         isGCalConfigured={isGCalConfigured}
         hasAssignedRep={hasAssignedRep}
+        candidateEmail={candidate.email}
         onGetSlots={onGetSlots}
         onBook={onBookSlot}
         onCancel={onCancelBooking}
+        onSubmitUnavailable={onSubmitBookingUnavailable}
         onComplete={onStepAdvance}
       />
     );

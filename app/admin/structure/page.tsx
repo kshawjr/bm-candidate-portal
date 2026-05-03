@@ -82,7 +82,7 @@ export default async function StructurePage({ searchParams }: Props) {
     app
       .from("chapter_intro_popups")
       .select(
-        "chapter_key, heading, body_md, hero_image_url, bullets, cta_dismiss_label, is_active, show_as_banner, partner_callout_text",
+        "chapter_key, heading, body_md, hero_image_url, bullets, cta_dismiss_label, is_active, show_as_banner, partner_callout_text, pre_dismiss_checklist",
       )
       .eq("brand_id", brand.id),
     app
@@ -136,6 +136,22 @@ export default async function StructurePage({ searchParams }: Props) {
       partnerCalloutText:
         (row as { partner_callout_text?: string | null })
           .partner_callout_text ?? null,
+      preDismissChecklist: (() => {
+        const raw = (row as { pre_dismiss_checklist?: unknown })
+          .pre_dismiss_checklist;
+        if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+        const obj = raw as { heading?: unknown; items?: unknown };
+        const items = Array.isArray(obj.items)
+          ? (obj.items as unknown[]).filter(
+              (v): v is string => typeof v === "string",
+            )
+          : [];
+        return {
+          heading:
+            typeof obj.heading === "string" ? obj.heading : "",
+          items,
+        };
+      })(),
     };
   }
 

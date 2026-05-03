@@ -144,6 +144,15 @@ export async function resetCandidateAction(params: {
     };
   }
 
+  // PR 40: scheduling escape-hatch requests get marked resolved on reset
+  // so they stop showing the badge but stay in the audit trail. (Hard
+  // delete would lose the history of who asked for help when.)
+  await app
+    .from("booking_unavailable_requests")
+    .update({ status: "resolved" })
+    .eq("candidate_in_portal_id", portalId)
+    .eq("status", "pending");
+
   const { error: updErr } = await app
     .from("candidates_in_portal")
     .update({
