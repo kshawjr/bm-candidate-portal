@@ -24,7 +24,12 @@ import {
 } from "@/components/content-types/schedule-renderer";
 import { ContentCardStrip } from "@/components/content-cards/content-card-strip";
 import type { ContentCard } from "@/components/content-cards/types";
-import type { ScheduleConfig, Slot } from "@/lib/schedule-shared";
+import {
+  formatDayLabel,
+  formatTimeLabel,
+  type ScheduleConfig,
+  type Slot,
+} from "@/lib/schedule-shared";
 import {
   JourneyCard,
   ChapterProgress,
@@ -39,6 +44,7 @@ import {
   type StepTransitionPopupConfig,
 } from "@/components/portal/step-transition-popup";
 import { JourneyTimeline } from "@/components/portal/journey-timeline";
+import { YoureCurrentScreen } from "@/components/portal/youre-current-screen";
 
 // Default logo height for all brands. Per-brand overrides below.
 const DEFAULT_LOGO_HEIGHT = 60;
@@ -428,6 +434,14 @@ export function CinematicShell({
             const isLocked = i > currentChapterIdx;
             const isActive = selectedChapterIdx === i;
             const clickable = isDone || isCurrent;
+            // PR 44: even the candidate's CURRENT chapter is rendered as
+            // "locked" in the sidebar when it has no active steps yet.
+            // Tells the candidate "you're here but the next part is
+            // still coming together" — matches the YoureCurrentScreen
+            // they see in the main content area.
+            const noActiveSteps =
+              (stepsByChapter[chapter.chapter_key]?.length ?? 0) === 0;
+            const showLockIcon = isLocked || (isCurrent && noActiveSteps);
 
             const cls = [
               "cine-chapter",
@@ -435,6 +449,7 @@ export function CinematicShell({
               isCurrent && "current",
               isLocked && "locked",
               isActive && "active",
+              isCurrent && noActiveSteps && "locked-current",
             ]
               .filter(Boolean)
               .join(" ");
@@ -456,10 +471,10 @@ export function CinematicShell({
                 <span className="cine-chapter-status">
                   {isDone ? (
                     <CheckIcon />
-                  ) : isCurrent ? (
-                    <DotIcon />
-                  ) : (
+                  ) : showLockIcon ? (
                     <LockIcon />
+                  ) : (
+                    <DotIcon />
                   )}
                 </span>
               </button>
@@ -597,7 +612,45 @@ export function CinematicShell({
               <ContentCardStrip cards={selectedStep.content_cards} />
             </>
           ) : (
-            <p>No steps configured for this chapter yet.</p>
+            (() => {
+              // PR 44: empty chapter (no active steps) renders the
+              // YoureCurrentScreen — celebrates the previous chapter,
+              // surfaces any recent booking, and frames this chapter as
+              // "coming soon" so the holding state reads intentional.
+              const previousChapterIdx = selectedChapterIdx - 1;
+              const previousChapter =
+                previousChapterIdx >= 0 ? chapters[previousChapterIdx] : null;
+              // Most-recent confirmed booking across all steps. The shell
+              // doesn't know which step belongs to which chapter without
+              // looking it up, so we just surface the latest booking
+              // overall — for the Chapter 2 → 3 jump there's exactly one.
+              const allBookings = Object.values(bookingsByStepId)
+                .filter((b) => b.status === "confirmed")
+                .sort(
+                  (a, b) =>
+                    Date.parse(b.start_time) - Date.parse(a.start_time),
+                );
+              const recent = allBookings[0] ?? null;
+              const tz = "America/New_York"; // matches the schedule defaults
+              return (
+                <YoureCurrentScreen
+                  currentChapter={selectedChapter}
+                  currentChapterNumber={selectedChapterIdx + 1}
+                  previousChapter={previousChapter ?? null}
+                  previousChapterNumber={
+                    previousChapter ? previousChapterIdx + 1 : null
+                  }
+                  booking={recent}
+                  bookingDayLabel={
+                    recent ? formatDayLabel(recent.start_time, tz) : null
+                  }
+                  bookingTimeLabel={
+                    recent ? formatTimeLabel(recent.start_time, tz) : null
+                  }
+                  advisorName={advisorName ?? null}
+                />
+              );
+            })()
           )}
         </div>
       </section>
