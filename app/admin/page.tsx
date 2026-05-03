@@ -1,6 +1,4 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
-import { getAdminUser } from "@/lib/supabase-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -15,14 +13,7 @@ interface Props {
 // CTA that bounces the user into the content editor with whatever brand the
 // switcher has currently selected (or the first brand if nothing's picked).
 export default async function AdminDashboard({ searchParams }: Props) {
-  const user = await getAdminUser();
-  if (!user) redirect("/admin/sign-in");
-
-  const displayName =
-    (user.user_metadata?.full_name as string | undefined) ??
-    user.email ??
-    "there";
-  const firstName = displayName.split(" ")[0] || "there";
+  const firstName = "Admin";
 
   const brandParam = searchParams?.brand;
   const editorHref = brandParam
