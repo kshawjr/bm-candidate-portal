@@ -82,3 +82,54 @@ export async function dismissChapterIntro(
   revalidatePath(`/portal/${token}`);
   return { success: true };
 }
+
+/**
+ * Append a step_id to the candidate's dismissed_step_transitions array.
+ * Mirrors dismissChapterIntro: read-modify-write with dedupe. No
+ * revalidation here — transition popups are high-frequency and we don't
+ * want to thrash the page on every dismissal. The next page navigation
+ * picks up the fresh array.
+ */
+export async function dismissStepTransition(
+  token: string,
+  stepId: string,
+): Promise<{ success: boolean }> {
+  if (!stepId || typeof stepId !== "string") {
+    return { success: false };
+  }
+
+  const app = createAppServiceClient();
+  const { data: row, error: readErr } = await app
+    .from("candidates_in_portal")
+    .select("id, dismissed_step_transitions")
+    .eq("token", token)
+    .maybeSingle();
+  if (readErr || !row) {
+    return { success: false };
+  }
+
+  const existing: unknown = row.dismissed_step_transitions;
+  const list: string[] = Array.isArray(existing)
+    ? (existing as unknown[]).filter((v): v is string => typeof v === "string")
+    : [];
+
+  if (list.includes(stepId)) {
+    await app
+      .from("candidates_in_portal")
+      .update({ last_activity_at: new Date().toISOString() })
+      .eq("id", row.id);
+    return { success: true };
+  }
+
+  const { error: updErr } = await app
+    .from("candidates_in_portal")
+    .update({
+      dismissed_step_transitions: [...list, stepId],
+      last_activity_at: new Date().toISOString(),
+    })
+    .eq("id", row.id);
+  if (updErr) {
+    return { success: false };
+  }
+  return { success: true };
+}

@@ -26,6 +26,10 @@ import {
   reorderStepsAction,
   updateStepAction,
 } from "@/app/admin/structure/actions";
+import {
+  saveStepTransitionAction,
+  deleteStepTransitionAction,
+} from "./transition-actions";
 import { isGCalConfigured } from "@/lib/google-calendar";
 
 export const dynamic = "force-dynamic";
@@ -70,21 +74,39 @@ export default async function ContentEditorPage({ searchParams }: Props) {
     brands.find((b) => b.slug === requestedSlug) ?? brands[0]!;
 
   const app = createAppServiceClient();
-  const [{ data: chaptersRows }, { data: stepsRows }] = await Promise.all([
-    app
-      .from("chapters_config")
-      .select("id, chapter_key, position, label, name, is_archived")
-      .eq("brand_id", brand.id)
-      .order("position"),
-    app
-      .from("steps_config")
-      .select(
-        "id, chapter_key, position, step_key, label, description, content_type, content_cards, config, is_archived",
-      )
-      .eq("brand_id", brand.id)
-      .order("chapter_key")
-      .order("position"),
-  ]);
+  const [{ data: chaptersRows }, { data: stepsRows }, { data: transitionRows }] =
+    await Promise.all([
+      app
+        .from("chapters_config")
+        .select("id, chapter_key, position, label, name, is_archived")
+        .eq("brand_id", brand.id)
+        .order("position"),
+      app
+        .from("steps_config")
+        .select(
+          "id, chapter_key, position, step_key, label, description, content_type, content_cards, config, is_archived",
+        )
+        .eq("brand_id", brand.id)
+        .order("chapter_key")
+        .order("position"),
+      app
+        .from("step_transition_popups")
+        .select("step_id, heading, body_md, cta_label, is_active")
+        .eq("brand_id", brand.id),
+    ]);
+
+  const transitionByStepId: Record<
+    string,
+    { heading: string; bodyMd: string | null; ctaLabel: string; isActive: boolean }
+  > = {};
+  for (const row of transitionRows ?? []) {
+    transitionByStepId[row.step_id as string] = {
+      heading: (row.heading as string) ?? "",
+      bodyMd: (row.body_md as string | null) ?? null,
+      ctaLabel: (row.cta_label as string | null) ?? "Continue",
+      isActive: Boolean(row.is_active),
+    };
+  }
 
   const chapters: AdminChapter[] = (chaptersRows ?? []).map((s) => ({
     id: s.id,
@@ -118,6 +140,7 @@ export default async function ContentEditorPage({ searchParams }: Props) {
       slides,
       config,
       is_archived: !!row.is_archived,
+      transition_popup: transitionByStepId[row.id] ?? null,
     };
     (stepsByChapter[row.chapter_key] ??= []).push(step);
   }
@@ -167,6 +190,8 @@ export default async function ContentEditorPage({ searchParams }: Props) {
       deleteStep={deleteStepAction}
       archiveStep={archiveStepAction}
       reorderSteps={reorderStepsAction}
+      saveStepTransition={saveStepTransitionAction}
+      deleteStepTransition={deleteStepTransitionAction}
     />
   );
 }

@@ -14,9 +14,14 @@ import {
   CallPrepEditor,
   type AvailableScheduleStep,
 } from "./call-prep-editor";
+import {
+  TransitionPopupEditor,
+  type TransitionPopupInitial,
+} from "./transition-popup-editor";
 import type { VideoConfig } from "@/components/content-types/video-renderer";
 import type { ScheduleConfig } from "@/lib/schedule-shared";
 import type { CallPrepConfig } from "@/components/content-types/call-prep-renderer";
+import type { StepTransitionFormData } from "@/app/admin/content/transition-actions";
 
 type UploadFn = (
   brandSlug: string,
@@ -44,6 +49,7 @@ export interface AdminStep {
   slides: Slide[];
   config: Record<string, unknown>;
   is_archived: boolean;
+  transition_popup: TransitionPopupInitial | null;
 }
 
 interface Props {
@@ -85,6 +91,13 @@ interface Props {
     chapterKey: string,
     orderedStepIds: string[],
   ) => Promise<void>;
+  saveStepTransition: (
+    stepId: string,
+    data: StepTransitionFormData,
+  ) => Promise<{ success: boolean; error?: string }>;
+  deleteStepTransition: (
+    stepId: string,
+  ) => Promise<{ success: boolean; error?: string }>;
 }
 
 const CARD_TYPES: Array<{ type: ContentCard["type"]; label: string }> = [
@@ -126,6 +139,8 @@ export function ContentEditor({
   deleteStep,
   archiveStep,
   reorderSteps,
+  saveStepTransition,
+  deleteStepTransition,
 }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -518,6 +533,15 @@ export function ContentEditor({
                 </div>
               </div>
             )}
+
+            <TransitionPopupEditor
+              key={selectedStep.id}
+              stepId={selectedStep.id}
+              stepLabel={selectedStep.label}
+              initial={selectedStep.transition_popup}
+              onSave={saveStepTransition}
+              onDelete={deleteStepTransition}
+            />
           </>
         ) : selectedChapter ? (
           <StepsManager
