@@ -29,18 +29,28 @@ const PORTAL_HOST_BY_BRAND_SLUG: Record<string, string> = {
   "cruisin-tikis": "cruisintikisdiscovery.bmave.com",
 };
 
+// Zoho Deluge's zoho.encryption.hmacSha256 returns base64; manually-built
+// signatures (Make.com, Postman) often send hex. Try both encodings so the
+// webhook works no matter which side generates the signature.
 function verifySignature(rawBody: string, header: string | null, secret: string): boolean {
   if (!header) return false;
-  const expected = createHmac("sha256", secret).update(rawBody).digest("hex");
-  const expectedBuf = Buffer.from(expected, "hex");
-  let providedBuf: Buffer;
+  const expected = createHmac("sha256", secret).update(rawBody).digest();
+
   try {
-    providedBuf = Buffer.from(header, "hex");
-  } catch {
-    return false;
-  }
-  if (providedBuf.length !== expectedBuf.length) return false;
-  return timingSafeEqual(providedBuf, expectedBuf);
+    const providedBuf = Buffer.from(header, "hex");
+    if (providedBuf.length === expected.length && timingSafeEqual(providedBuf, expected)) {
+      return true;
+    }
+  } catch {}
+
+  try {
+    const providedBuf = Buffer.from(header, "base64");
+    if (providedBuf.length === expected.length && timingSafeEqual(providedBuf, expected)) {
+      return true;
+    }
+  } catch {}
+
+  return false;
 }
 
 export async function POST(request: Request) {
