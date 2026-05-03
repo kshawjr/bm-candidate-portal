@@ -21,49 +21,84 @@ interface Props {
 }
 
 /**
+ * Pull the first 1-2 sentences out of the body for the peek state. Splits
+ * on sentence boundaries (period + whitespace). If the first sentence alone
+ * already runs long (> 150 chars), hard-truncate at 150 with an ellipsis
+ * so the peek stays compact.
+ */
+function bodyPeek(body: string): string {
+  const trimmed = body.trim();
+  if (!trimmed) return "";
+  const sentences = trimmed.split(/(?<=\.)\s+/);
+  let out = sentences[0] ?? "";
+  if (out.length < 80 && sentences[1]) {
+    out = `${out} ${sentences[1]}`;
+  }
+  if (out.length > 160) {
+    out = out.slice(0, 150).trimEnd() + "…";
+  }
+  // Avoid showing peek text that's identical to the full body — pointless
+  // "See more" affordance.
+  return out;
+}
+
+/**
  * Persistent chapter overview banner. Reads from the same chapter_intro_popups
- * row as the welcome popup, but is always visible at the top of the chapter
- * content area (independent of whether the popup itself was dismissed).
+ * row as the popup, but is always visible at the top of the chapter content
+ * area (independent of whether the popup itself was dismissed).
  *
- * Local state only — collapse + read-more reset on page refresh. Each instance
- * is keyed by chapter_key so navigating between chapters resets state.
+ * Local state only — peek/expanded reset on page refresh. Each instance is
+ * keyed by chapter_key so navigating between chapters resets state.
  *
- * PR 40: defaults to COLLAPSED. The popup already delivered the chapter's
- * intro content; the banner exists for refresher access, not headline space.
- * Candidates click "Need a refresher?" to expand on demand.
+ * PR 41: defaults to PEEK mode — heading + first 1-2 sentences + "See more"
+ * link. Click "See more" to expand to the full content (bullets, partner
+ * callout, etc.). Replaces PR 40's fully-collapsed default, which read as
+ * dismissive of the chapter context.
  */
 export function ChapterIntroBanner({ config }: Props) {
-  const [collapsed, setCollapsed] = useState(true);
-  const [bodyExpanded, setBodyExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(false);
 
-  // Reset to defaults whenever the chapter changes — the parent re-keys the
-  // component but this is belt-and-suspenders if React reuses the instance.
+  // Reset to defaults whenever the chapter changes — the parent re-keys
+  // the component but this is belt-and-suspenders if React reuses the
+  // instance.
   useEffect(() => {
-    setCollapsed(true);
-    setBodyExpanded(false);
+    setExpanded(false);
   }, [config.chapterKey]);
 
-  const bodyHtml = renderMiniMarkdown(config.bodyMd);
-  // "Long" body gets the read-more affordance. ~280 chars is roughly two
-  // lines of body copy at the banner width — anything beyond starts to
-  // dominate the page above the step content.
-  const isLongBody = config.bodyMd.length > 280;
+  const fullBodyHtml = renderMiniMarkdown(config.bodyMd);
+  const peek = bodyPeek(config.bodyMd);
+  const peekIsTruncated = peek.length < config.bodyMd.trim().length;
+  // Even when the peek text covers the full body, we still want "See more"
+  // if there's bullets / partner callout / hero image hidden in expanded.
+  const hasMoreToShow =
+    peekIsTruncated ||
+    config.bullets.length > 0 ||
+    Boolean(config.partnerCalloutText) ||
+    Boolean(config.heroImageUrl);
 
-  if (collapsed) {
+  if (!expanded) {
     return (
       <div
-        className="cine-intro-banner cine-intro-banner-collapsed"
+        className="cine-intro-banner cine-intro-banner-peek"
         role="region"
         aria-label="Chapter overview"
       >
-        <button
-          type="button"
-          className="cine-intro-banner-refresh"
-          onClick={() => setCollapsed(false)}
-          aria-expanded={false}
-        >
-          Need a refresher? <span aria-hidden="true">↓</span>
-        </button>
+        <div className="cine-intro-banner-body">
+          <h2 className="cine-intro-banner-heading">{config.heading}</h2>
+          {peek && (
+            <p className="cine-intro-banner-peek-text">{peek}</p>
+          )}
+          {hasMoreToShow && (
+            <button
+              type="button"
+              className="cine-intro-banner-readmore"
+              onClick={() => setExpanded(true)}
+              aria-expanded={false}
+            >
+              See more <span aria-hidden="true">→</span>
+            </button>
+          )}
+        </div>
       </div>
     );
   }
@@ -92,33 +127,20 @@ export function ChapterIntroBanner({ config }: Props) {
           <button
             type="button"
             className="cine-intro-banner-collapse"
-            onClick={() => setCollapsed(true)}
+            onClick={() => setExpanded(false)}
             aria-expanded={true}
-            aria-label="Collapse chapter overview"
-            title="Collapse"
+            aria-label="Show less"
+            title="Show less"
           >
-            <span aria-hidden="true">×</span>
+            <span aria-hidden="true">↑</span>
           </button>
         </div>
 
-        {bodyHtml && (
+        {fullBodyHtml && (
           <div
-            className={`cine-intro-banner-prose${
-              isLongBody && !bodyExpanded ? " is-clamped" : ""
-            }`}
-            dangerouslySetInnerHTML={{ __html: bodyHtml }}
+            className="cine-intro-banner-prose"
+            dangerouslySetInnerHTML={{ __html: fullBodyHtml }}
           />
-        )}
-
-        {isLongBody && (
-          <button
-            type="button"
-            className="cine-intro-banner-readmore"
-            onClick={() => setBodyExpanded((v) => !v)}
-            aria-expanded={bodyExpanded}
-          >
-            {bodyExpanded ? "Read less" : "Read more"}
-          </button>
         )}
 
         {config.bullets.length > 0 && (
@@ -150,6 +172,15 @@ export function ChapterIntroBanner({ config }: Props) {
             </p>
           </div>
         )}
+
+        <button
+          type="button"
+          className="cine-intro-banner-readmore"
+          onClick={() => setExpanded(false)}
+          aria-expanded={true}
+        >
+          See less <span aria-hidden="true">↑</span>
+        </button>
       </div>
     </div>
   );

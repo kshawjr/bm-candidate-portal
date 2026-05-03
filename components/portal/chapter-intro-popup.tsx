@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { renderMiniMarkdown } from "@/lib/mini-markdown";
 
 export interface ChapterIntroBullet {
@@ -57,6 +57,16 @@ export function ChapterIntroPopup({ config, onDismiss, onDismissed }: Props) {
     checklistItems.length === 0 ||
     checkedFlags.length === checklistItems.length &&
       checkedFlags.every(Boolean);
+
+  // PR 41: scarcity framing on the Chapter 2 intro popup. Random integer
+  // 2..5 inclusive, stable per mount via useMemo so the number doesn't
+  // shift on every re-render. Other chapters don't get this treatment —
+  // it's specifically for the Discovery Call booking moment.
+  const isFirstChat = config.chapterKey === "first_chat";
+  const slotsRemaining = useMemo(
+    () => (isFirstChat ? Math.floor(Math.random() * 4) + 2 : 0),
+    [isFirstChat],
+  );
 
   // Lock page scroll while open. Restored on unmount.
   useEffect(() => {
@@ -130,6 +140,22 @@ export function ChapterIntroPopup({ config, onDismiss, onDismissed }: Props) {
         )}
 
         <div className="pp-popup-body">
+          {isFirstChat && (
+            <div className="pp-popup-scarcity" aria-live="polite">
+              <span className="pp-popup-scarcity-pill">By invitation only</span>
+              <h2 className="pp-popup-scarcity-headline">
+                Only{" "}
+                <span className="pp-popup-scarcity-num">
+                  {slotsRemaining}
+                </span>{" "}
+                discovery call slot{slotsRemaining === 1 ? "" : "s"} remaining
+                this month.
+              </h2>
+              <p className="pp-popup-scarcity-sub">
+                Limited slots. Serious candidates only.
+              </p>
+            </div>
+          )}
           <h2 id="chapter-intro-heading" className="pp-popup-title">
             {config.heading}
           </h2>
