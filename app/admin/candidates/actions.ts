@@ -4,6 +4,12 @@ import { revalidatePath } from "next/cache";
 import { createAppServiceClient } from "@/lib/supabase-app";
 import { createCoreClient } from "@/lib/core-client";
 import { cancelSlot, isGCalConfigured } from "@/lib/google-calendar";
+import {
+  createOrResetTestCandidate,
+  getTestCandidatesStatus,
+  type TestCandidateResult,
+  type TestCandidateStatus,
+} from "@/lib/seed-test-candidate";
 
 export interface ResetCounts {
   responses_deleted: number;
@@ -54,7 +60,12 @@ export async function resetCandidateAction(params: {
     return { success: false, error: `Lookup failed: ${sessErr.message}` };
   }
   if (!session) {
-    return { success: false, error: "Candidate not found" };
+    // Test tokens get a directed hint — the test-candidate panel on
+    // /admin/candidates can re-create them, the regular reset can't.
+    const hint = params.token.startsWith("test-")
+      ? " Use the Test Candidates panel on /admin/candidates to recreate it."
+      : "";
+    return { success: false, error: `Candidate not found.${hint}` };
   }
   const portalId = session.id as string;
   const candidateId = (session.candidate_id as string | null) ?? null;
@@ -214,4 +225,27 @@ export async function resetCandidateAction(params: {
       events_deleted: eventsDeleted,
     },
   };
+}
+
+/**
+ * Idempotent: creates the test candidate if it doesn't exist, resets it
+ * (back to Chapter 1 · Step 1, all derived rows wiped) if it does. Used by
+ * the Test Candidates panel on /admin/candidates so admins can restore the
+ * preview-as-candidate flow after a DB wipe without re-running the seed.
+ */
+export async function createOrResetTestCandidateAction(
+  token: string,
+): Promise<TestCandidateResult> {
+  const result = await createOrResetTestCandidate(token);
+  revalidatePath("/admin/candidates");
+  if (result.success) {
+    revalidatePath(`/portal/${token}`);
+  }
+  return result;
+}
+
+export async function getTestCandidatesStatusAction(): Promise<
+  TestCandidateStatus[]
+> {
+  return getTestCandidatesStatus();
 }
