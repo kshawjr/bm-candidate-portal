@@ -174,6 +174,53 @@ class ZohoApiClient {
       throw new Error(`Zoho addTags ${response.status}: ${body}`);
     }
   }
+
+  /**
+   * Read a Lead's fields. Used after writes to verify the field
+   * actually took on Zoho's side — Zoho occasionally returns 200 to a
+   * PUT but silently drops the change (API-name mismatch, layout
+   * permission, type mismatch on a custom field, workflow rule that
+   * wipes the value, etc.). The PUT alone isn't proof of effect.
+   *
+   * Pass `fields` to scope the response. Omitting it returns all
+   * fields, which is wasteful but supported.
+   *
+   * Returns null on 204 / 304 (Zoho's "no content" / "not modified"
+   * responses), which can happen when the lead is recently converted
+   * or the server has nothing fresh to send. Throws on other non-2xx.
+   */
+  async getLead(
+    leadId: string,
+    fields?: string[],
+  ): Promise<Record<string, unknown> | null> {
+    const id = String(leadId);
+    const token = await this.getAccessToken();
+    const qs =
+      fields && fields.length > 0
+        ? `?fields=${fields.map(encodeURIComponent).join(",")}`
+        : "";
+    const response = await fetch(
+      `${API_DOMAIN}/crm/v3/Leads/${encodeURIComponent(id)}${qs}`,
+      {
+        method: "GET",
+        headers: {
+          Authorization: `Zoho-oauthtoken ${token}`,
+        },
+      },
+    );
+
+    if (response.status === 204 || response.status === 304) {
+      return null;
+    }
+    if (!response.ok) {
+      const body = await response.text();
+      throw new Error(`Zoho getLead ${response.status}: ${body}`);
+    }
+    const data = (await response.json()) as {
+      data?: Record<string, unknown>[];
+    };
+    return data.data?.[0] ?? null;
+  }
 }
 
 export const zohoApi = new ZohoApiClient();
