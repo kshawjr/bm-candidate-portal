@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { createOrResetTestCandidateAction } from "@/app/admin/candidates/actions";
+import { getCorrectPortalUrl } from "@/lib/brand-from-hostname";
 import type { TestCandidateStatus } from "@/lib/seed-test-candidate";
 
 interface Props {
@@ -77,7 +78,7 @@ function TestCandidateCard({ candidate }: { candidate: TestCandidateStatus }) {
           {pending ? `${actionLabel.slice(0, -1)}ing…` : actionLabel}
         </button>
         <a
-          href={`/portal/${candidate.token}`}
+          href={getCorrectPortalUrl(candidate.token, candidate.brandSlug)}
           target="_blank"
           rel="noopener noreferrer"
           className="adm-btn-ghost"
