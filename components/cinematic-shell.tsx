@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import {
+  useCallback,
   useEffect,
   useRef,
   useState,
@@ -306,14 +307,12 @@ export function CinematicShell({
   // application_started, but the milestone Zoho update is idempotent
   // (Portal_Status set to "Application Started" twice = same end state).
   //
-  // PR 59: `education_completed` (milestone) also fires here, gated on
-  // explore-chapter application steps. Previously fired from
-  // completeTourAction on the slide handoff CTA — that path proved
-  // unreliable in production (no clear repro, no event row, no log
-  // surface visible to ops). Reaching the application step is a
-  // strictly stronger signal than clicking the handoff CTA: the only
-  // way to land on it is by leaving the tour. Same per-mount dedup +
-  // Zoho idempotency reasoning applies.
+  // PR 60: `education_completed` is a separate signal — "watched the
+  // whole brand pitch" — and fires from the slides renderer when the
+  // candidate views the last slide of explore/tour. Keeping the two
+  // milestones distinct lets sales see the gap between them as a
+  // stalled-after-education signal. See `handleEducationCompleted`
+  // below.
   const lastTrackedStepIdRef = useRef<string | null>(null);
   const startedApplicationStepIdsRef = useRef<Set<string>>(new Set());
   const firedEducationCompletedRef = useRef(false);
@@ -344,21 +343,25 @@ export function CinematicShell({
         eventKey: selectedStep.step_key,
         metadata: { chapter_key: selectedStep.chapter_key },
       });
-
-      if (
-        selectedStep.chapter_key === "explore" &&
-        !firedEducationCompletedRef.current
-      ) {
-        firedEducationCompletedRef.current = true;
-        void onLogEvent({
-          category: "milestone",
-          eventType: "education_completed",
-          eventKey: selectedStep.chapter_key,
-          metadata: { trigger: "app_step_first_view" },
-        });
-      }
     }
   }, [selectedStep, onLogEvent]);
+
+  // PR 60: invoked by the slides renderer when the candidate views the
+  // last slide of the explore/tour deck. Per-mount dedup via the ref;
+  // the Zoho Portal_Status write is idempotent on subsequent fires
+  // (same end state), and the Blueprint transition fails benignly when
+  // the lead is already past New, so this matches the
+  // application_started reliability model.
+  const handleEducationCompleted = useCallback(() => {
+    if (firedEducationCompletedRef.current) return;
+    firedEducationCompletedRef.current = true;
+    void onLogEvent({
+      category: "milestone",
+      eventType: "education_completed",
+      eventKey: "explore",
+      metadata: { trigger: "tour_last_slide_viewed" },
+    });
+  }, [onLogEvent]);
 
   // Sync the user's view to the server's current chapter when it advances.
   // PR 36: completing a chapter via the chapter complete popup bumps
@@ -670,6 +673,7 @@ export function CinematicShell({
                 onTourComplete={handleTourComplete}
                 onStepAdvance={handleStepAdvance}
                 onLogEvent={onLogEvent}
+                onEducationCompleted={handleEducationCompleted}
                 tourPending={pending}
                 candidate={candidate}
                 leaderName={leader.name}
@@ -761,6 +765,7 @@ function StepRenderer({
   onTourComplete,
   onStepAdvance,
   onLogEvent,
+  onEducationCompleted,
   tourPending,
   candidate,
   leaderName,
@@ -792,6 +797,10 @@ function StepRenderer({
   onTourComplete: () => void;
   onStepAdvance: () => void;
   onLogEvent: (args: ClientLogEventArgs) => Promise<void>;
+  /** PR 60: invoked when the candidate views the last slide of the
+   *  explore/tour deck. Owner of the per-mount dedup lives in the
+   *  parent CinematicShell — this prop is fire-and-forget. */
+  onEducationCompleted: () => void;
   tourPending: boolean;
   candidate: ApplicationCandidate;
   leaderName: string;
@@ -860,6 +869,19 @@ function StepRenderer({
                 step_id: step.id,
               },
             });
+            // PR 60: education_completed = "watched the whole brand
+            // pitch". Fires on the last slide of explore/tour
+            // specifically, independent of whether the candidate
+            // continues into the application step. The gap between
+            // this event and application_started is the sales-team
+            // signal for stalled-after-education leads.
+            if (
+              slideIndex === slides.length - 1 &&
+              step.chapter_key === "explore" &&
+              step.step_key === "tour"
+            ) {
+              onEducationCompleted();
+            }
           }}
         />
         {/* PR 43: 8-stage discovery roadmap shown beneath Chapter 1's
