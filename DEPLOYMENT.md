@@ -216,3 +216,54 @@ they're marked `'skipped'` (same pattern as
 
 **Migration.** Apply `20260503_candidate_events_app_submitted_extras.sql`
 against the `bm-candidate-portal` Supabase project.
+
+## Application PDF + flightdeck mirror (PR 63)
+
+When a candidate clicks Submit on the application, the portal
+fans out to four destinations:
+
+1. **`bm-candidate-portal.application_responses`** — final batch
+   upsert (existing behaviour).
+2. **`flightdeck.candidate_applications`** — new flat row with
+   identity + answer fields. flightdeck consumes this directly;
+   it does NOT cross-project read from `bm-candidate-portal`.
+3. **`flightdeck.storage.application-pdfs`** — generated PDF.
+4. **Zoho Lead `Application_PDF_URL`** — the signed URL from (3).
+
+**One-time setup:**
+
+- **Vercel env vars** (Production + Preview):
+  - `NEXT_PUBLIC_FLIGHTDECK_URL` — flightdeck Supabase project URL
+  - `FLIGHTDECK_SERVICE_ROLE_KEY` — flightdeck service-role key
+    (server-only; never to the browser)
+- **Flightdeck Supabase migrations** (run against the flightdeck
+  project, NOT bm-candidate-portal):
+  - `20260504_candidate_applications_flightdeck.sql`
+  - `20260504_application_pdf_storage_flightdeck.sql`
+- **Zoho custom field** on the Leads module:
+  - `Application_PDF_URL` (URL field)
+
+**Failure model.** The flow is best-effort and wrapped in a
+top-level try/catch — if anything inside fails the candidate's
+submit still succeeds (they already see the success screen).
+Failure modes:
+
+- flightdeck row insert fails → no row, no PDF, no Zoho URL.
+  Logs `[submit-pdf] flightdeck/PDF/Zoho flow failed`.
+- PDF generation fails → flightdeck row exists with `pdf_url=null`.
+  A backfill job can regenerate from the row's saved fields.
+- Storage upload fails → same as above.
+- Zoho field update fails → PDF stored in flightdeck, signed URL
+  reachable, but the Zoho lead doesn't link to it.
+
+**Signed URL TTL.** 1 year. Sales may not act on a lead for weeks;
+shorter TTLs would dead-link the URL on the Zoho record. Long
+enough that the URL is effectively permanent for the lead's
+useful lifetime; flightdeck can regenerate fresh URLs on demand
+for older records.
+
+**PDF text encoding.** Uses Helvetica (WinAnsi). Non-Latin
+characters in candidate names get diacritic-stripped or
+replaced with `?`. Embedding a Unicode TTF would solve this but
+adds ~300KB to the function bundle — revisit if a candidate
+gets a `?` stamped on their PDF.
