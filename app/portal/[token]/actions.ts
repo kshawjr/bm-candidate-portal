@@ -466,10 +466,17 @@ async function generateAndStoreApplicationDocument(
     })
     .eq("id", appRow.id as string);
 
+  // PR 64: Zoho's URL fields cap at ~255 chars and the raw signed URL
+  // runs ~600. Send a short redirect URL instead — /api/pdf/{id}
+  // resolves the row + mints a fresh 1-hour signed URL on each click.
+  // The full long-lived signedUrl stays on the flightdeck row's
+  // pdf_url column so the flightdeck UI can use it directly without
+  // round-tripping through this redirect.
   if (candidate.zoho_lead_id) {
+    const shortPdfUrl = `https://cpflightdeck.bmave.com/api/pdf/${appRow.id as string}`;
     try {
       await zohoApi.updateLead(candidate.zoho_lead_id as string, {
-        Application_PDF_URL: signedUrl,
+        Application_PDF_URL: shortPdfUrl,
       });
     } catch (err) {
       console.warn(
