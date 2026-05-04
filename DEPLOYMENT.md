@@ -186,3 +186,33 @@ against the `bm-candidate-portal` Supabase project:
 - `20260503_candidate_events.sql` (table + indexes)
 - `20260503_candidate_events_blueprint.sql` (transition status
   columns)
+
+## Application-submitted extras (PR 61)
+
+The `application_submitted` milestone fires two extra Zoho writes
+beyond the standard Portal_Status field update:
+
+1. **`CQ_Received`** (DateTime field on the Lead). Sales filters on
+   this for "leads who finished the application" reports.
+2. **`Application Submitted`** tag attached to the lead. Sales also
+   uses tags for at-a-glance filtering.
+
+**One-time Zoho setup:**
+
+- Setup → Customization → Modules and Fields → Leads → +Field →
+  DateTime → name `CQ_Received`. Save.
+- The tag is created on first attach — no upfront work needed.
+
+**Sync mechanics.** Both writes are best-effort and tracked
+independently of the Portal_Status update on the event row:
+
+- `cq_sync_status` / `cq_sync_error` track the CQ_Received write
+- `tag_sync_status` / `tag_sync_error` track the tag attach
+
+For non-`application_submitted` milestones, these columns stay
+null. For app_submitted on a candidate without a `zoho_lead_id`,
+they're marked `'skipped'` (same pattern as
+`blueprint_transition_status`).
+
+**Migration.** Apply `20260503_candidate_events_app_submitted_extras.sql`
+against the `bm-candidate-portal` Supabase project.

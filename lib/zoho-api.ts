@@ -143,6 +143,37 @@ class ZohoApiClient {
       throw new Error(`Zoho transitionLead ${response.status}: ${body}`);
     }
   }
+
+  /**
+   * Attach one or more tags to a Lead. Used by milestone sync to mark
+   * leads that hit specific journey events (e.g. "Application Submitted")
+   * — sales filters and reports on tags in addition to Portal_Status.
+   *
+   * Zoho's `add_tags` action is idempotent: re-attaching an existing
+   * tag returns success rather than 4xx, so retried fires are safe.
+   */
+  async addTags(leadId: string, tags: string[]): Promise<void> {
+    const id = String(leadId);
+    const tagPayload = tags.map((name) => ({ name }));
+
+    const token = await this.getAccessToken();
+    const response = await fetch(
+      `${API_DOMAIN}/crm/v3/Leads/${encodeURIComponent(id)}/actions/add_tags`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Zoho-oauthtoken ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ tags: tagPayload }),
+      },
+    );
+
+    if (!response.ok) {
+      const body = await response.text();
+      throw new Error(`Zoho addTags ${response.status}: ${body}`);
+    }
+  }
 }
 
 export const zohoApi = new ZohoApiClient();
