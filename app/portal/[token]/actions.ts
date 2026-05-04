@@ -287,7 +287,7 @@ async function generateAndStoreApplicationDocument(
 
   const { data: brand } = await core
     .from("brands")
-    .select("slug, name")
+    .select("slug, name, logo_url")
     .eq("id", candidate.brand_id as string)
     .maybeSingle();
   if (!brand) {
@@ -428,6 +428,8 @@ async function generateAndStoreApplicationDocument(
     candidateId,
     brandSlug: brand.slug as string,
     brandName: brand.name as string,
+    brandLogoUrl: (brand.logo_url as string | null) ?? null,
+    zohoLeadId: (candidate.zoho_lead_id as string | null) ?? null,
     submittedAt,
     legalFirstName: firstName ?? "",
     legalLastName: lastName ?? "",
