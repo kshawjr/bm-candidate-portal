@@ -123,7 +123,7 @@ export interface ShellProps {
   initialChapterIdx: number;
   initialStepIdx: number;
   // Bound server actions — page binds the candidate's token into each.
-  onTourComplete: (nextStepIdx: number) => Promise<void>;
+  onTourComplete: (nextStepIdx: number, chapterKey: string) => Promise<void>;
   onStepAdvance: (nextStepIdx: number) => Promise<void>;
   onSaveApplicationAnswer: (
     fieldKey: string,
@@ -366,8 +366,11 @@ export function CinematicShell({
     // step behind the popup.
     const nextIdx = Math.min(selectedStepIdx + 1, steps.length);
     setSelectedStepIdx(nextIdx);
+    // chapterKey is what the server uses to scope the
+    // 'education_completed' milestone to the Explore chapter (PR 57).
+    const chapterKey = selectedChapter.chapter_key;
     startTransition(async () => {
-      await onTourComplete(nextIdx);
+      await onTourComplete(nextIdx, chapterKey);
       router.refresh();
     });
   };
