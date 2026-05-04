@@ -3,7 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { createAppServiceClient } from "@/lib/supabase-app";
 import { createCoreClient } from "@/lib/core-client";
+import { createFlightdeckClient } from "@/lib/flightdeck-client";
 import { logEvent } from "@/lib/log-event";
+import { generateApplicationPdf } from "@/lib/generate-application-pdf";
+import { uploadApplicationPdf } from "@/lib/upload-application-pdf";
+import { zohoApi } from "@/lib/zoho-api";
 import {
   bookSlot,
   cancelSlot,
@@ -224,7 +228,256 @@ export async function submitApplicationAction(
     });
   }
 
+  // PR 63: PDF generation + flightdeck mirror + Zoho link.
+  // Best-effort. If anything in this flow fails the candidate's
+  // submit still succeeds — they already saw the success screen.
+  // Worst case is a missing pdf_url on the flightdeck row or the
+  // Zoho lead, both of which a future backfill job can patch.
+  try {
+    await generateAndStoreApplicationDocument(token, portalId);
+  } catch (err) {
+    console.error(
+      "[submit-pdf] flightdeck/PDF/Zoho flow failed:",
+      err instanceof Error ? err.message : err,
+    );
+  }
+
   revalidatePath(`/portal/${token}`);
+}
+
+// ----- PR 63: application PDF + flightdeck row + Zoho link -----
+
+/**
+ * Build the flightdeck `candidate_applications` row from the now-
+ * fully-saved `application_responses` set, generate a PDF, upload it
+ * to flightdeck storage, patch the row with the signed URL, and
+ * push the same URL to the Zoho lead's `Application_PDF_URL` field.
+ *
+ * Throws on flightdeck-side or PDF-side failures so the outer caller
+ * can log them. The Zoho leg is wrapped locally so a Zoho hiccup
+ * doesn't strand a successfully-uploaded PDF.
+ */
+async function generateAndStoreApplicationDocument(
+  token: string,
+  portalId: string,
+): Promise<void> {
+  const app = createAppServiceClient();
+  const core = createCoreClient();
+
+  const { data: session } = await app
+    .from("candidates_in_portal")
+    .select("candidate_id")
+    .eq("id", portalId)
+    .maybeSingle();
+  if (!session?.candidate_id) {
+    console.warn("[submit-pdf] no portal session for", portalId);
+    return;
+  }
+  const candidateId = session.candidate_id as string;
+
+  const { data: candidate } = await core
+    .from("candidates")
+    .select("first_name, last_name, email, phone, zoho_lead_id, brand_id")
+    .eq("id", candidateId)
+    .maybeSingle();
+  if (!candidate?.brand_id) {
+    console.warn("[submit-pdf] no candidate / brand for", candidateId);
+    return;
+  }
+
+  const { data: brand } = await core
+    .from("brands")
+    .select("slug, name")
+    .eq("id", candidate.brand_id as string)
+    .maybeSingle();
+  if (!brand) {
+    console.warn("[submit-pdf] no brand row for", candidate.brand_id);
+    return;
+  }
+
+  // Read the complete answer set keyed by field_key. The submit's
+  // own batch upsert already landed by the time we get here.
+  const { data: responses } = await app
+    .from("application_responses")
+    .select("field_key, field_value")
+    .eq("candidate_in_portal_id", portalId);
+
+  const answers = new Map<string, unknown>();
+  for (const r of responses ?? []) {
+    answers.set(r.field_key as string, r.field_value);
+  }
+
+  const str = (k: string): string | null => {
+    const v = answers.get(k);
+    return typeof v === "string" && v.trim() ? v.trim() : null;
+  };
+  const bool = (k: string): boolean | null => {
+    const v = answers.get(k);
+    return typeof v === "boolean" ? v : null;
+  };
+  const strArr = (k: string): string[] => {
+    const v = answers.get(k);
+    if (!Array.isArray(v)) return [];
+    return v.filter((x): x is string => typeof x === "string" && x.trim().length > 0);
+  };
+  // Single-select questions allow "other" + a separate text field.
+  // Resolve to display string ("Other: <free text>") so flightdeck
+  // and the PDF both render the candidate's actual answer rather
+  // than the literal "other" enum.
+  const resolveOther = (mainKey: string, otherKey: string): string | null => {
+    const main = str(mainKey);
+    if (main === null) return null;
+    if (main === "other") {
+      const other = str(otherKey);
+      return other ? `Other: ${other}` : "Other";
+    }
+    return main;
+  };
+
+  const motivationChipsRaw = strArr("motivation");
+  const motivationOther = str("motivation_other_text");
+  const motivationChips = motivationOther
+    ? [
+        ...motivationChipsRaw.filter((c) => c !== "other"),
+        `Other: ${motivationOther}`,
+      ]
+    : motivationChipsRaw;
+
+  const openingTimeline = resolveOther(
+    "opening_timeline",
+    "opening_timeline_other_text",
+  );
+  const involvementLevel = resolveOther(
+    "involvement_level",
+    "involvement_level_other_text",
+  );
+  const growthPlan = resolveOther("growth_plan", "growth_plan_other_text");
+
+  const brandClosing = str("brand_closing_response");
+  const brandClosingOther = str("brand_closing_response_other");
+  let closingPayload: Record<string, string> | null = null;
+  let closingDisplay: string | null = null;
+  if (brandClosing) {
+    if (brandClosing === "other") {
+      closingPayload = brandClosingOther
+        ? { value: "other", other_text: brandClosingOther }
+        : { value: "other" };
+      closingDisplay = brandClosingOther ? `Other: ${brandClosingOther}` : "Other";
+    } else {
+      closingPayload = { value: brandClosing };
+      closingDisplay = brandClosing;
+    }
+  }
+
+  const firstName = (candidate.first_name as string | null) ?? null;
+  const lastName = (candidate.last_name as string | null) ?? null;
+  const email =
+    str("verified_email") ?? (candidate.email as string | null) ?? null;
+  const phone =
+    str("verified_phone") ?? (candidate.phone as string | null) ?? null;
+  const city = str("derived_city");
+  const state = str("derived_state");
+  const zipCode = str("zip_code");
+  const liquidCapital = str("liquid_capital_range");
+  const netWorth = str("net_worth_range");
+  const creditScore = str("credit_score_range");
+  const hasBankruptcy = bool("has_filed_bankruptcy");
+  const bankruptcyExplanation = str("bankruptcy_explanation");
+  const hasFelony = bool("has_felony");
+  const felonyExplanation = str("felony_explanation");
+  const motivationElaboration = str("motivation_elaboration");
+
+  const flightdeck = createFlightdeckClient();
+  const { data: appRow, error: insErr } = await flightdeck
+    .from("candidate_applications")
+    .insert({
+      token,
+      zoho_lead_id: (candidate.zoho_lead_id as string | null) ?? null,
+      brand_id: candidate.brand_id as string,
+      brand_slug: brand.slug as string,
+      legal_first_name: firstName,
+      legal_last_name: lastName,
+      email,
+      phone,
+      city,
+      state,
+      zip_code: zipCode,
+      has_bankruptcy: hasBankruptcy,
+      bankruptcy_explanation: bankruptcyExplanation,
+      has_felony: hasFelony,
+      felony_explanation: felonyExplanation,
+      liquid_capital: liquidCapital,
+      net_worth: netWorth,
+      opening_timeline: openingTimeline,
+      involvement_level: involvementLevel,
+      growth_plan: growthPlan,
+      motivation_chips: motivationChips,
+      motivation_elaboration: motivationElaboration,
+      closing_question_response: closingPayload,
+    })
+    .select("id")
+    .single();
+  if (insErr || !appRow) {
+    throw new Error(
+      `flightdeck.candidate_applications insert failed: ${insErr?.message ?? "no row"}`,
+    );
+  }
+
+  const submittedAt = new Date();
+  const pdfBytes = await generateApplicationPdf({
+    candidateId,
+    brandSlug: brand.slug as string,
+    brandName: brand.name as string,
+    submittedAt,
+    legalFirstName: firstName ?? "",
+    legalLastName: lastName ?? "",
+    email: email ?? "",
+    phone,
+    city,
+    state,
+    zipCode,
+    hasBankruptcy,
+    bankruptcyExplanation,
+    hasFelony,
+    felonyExplanation,
+    liquidCapital,
+    netWorth,
+    creditScore,
+    openingTimeline,
+    involvementLevel,
+    growthPlan,
+    motivationChips,
+    motivationElaboration,
+    closingQuestion: closingDisplay,
+  });
+
+  const { signedUrl, filename } = await uploadApplicationPdf(
+    pdfBytes,
+    candidateId,
+    (candidate.zoho_lead_id as string | null) ?? null,
+  );
+
+  await flightdeck
+    .from("candidate_applications")
+    .update({
+      pdf_url: signedUrl,
+      pdf_filename: filename,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", appRow.id as string);
+
+  if (candidate.zoho_lead_id) {
+    try {
+      await zohoApi.updateLead(candidate.zoho_lead_id as string, {
+        Application_PDF_URL: signedUrl,
+      });
+    } catch (err) {
+      console.warn(
+        "[submit-pdf] Zoho Application_PDF_URL update failed:",
+        err instanceof Error ? err.message : err,
+      );
+    }
+  }
 }
 
 // ======================================================================
