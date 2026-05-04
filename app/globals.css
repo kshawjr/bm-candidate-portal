@@ -113,6 +113,17 @@ body {
   font-weight: 500;
   margin-bottom: 3px;
 }
+/* PR 59: persistent candidate greeting. Sits below the eyebrow
+   subtitle, in the brand-primary color so it reads as personal
+   without dominating the brand mark above it. */
+.cine-greeting {
+  font-size: 13px;
+  color: var(--brand-primary);
+  font-weight: 500;
+  margin: 12px 0 0;
+  font-family: var(--font-body);
+  line-height: 1.3;
+}
 
 .cine-progress {
   padding: 18px 22px;

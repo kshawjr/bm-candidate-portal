@@ -305,8 +305,18 @@ export function CinematicShell({
   // Dedup is per-shell-mount: a full page reload may re-fire
   // application_started, but the milestone Zoho update is idempotent
   // (Portal_Status set to "Application Started" twice = same end state).
+  //
+  // PR 59: `education_completed` (milestone) also fires here, gated on
+  // explore-chapter application steps. Previously fired from
+  // completeTourAction on the slide handoff CTA — that path proved
+  // unreliable in production (no clear repro, no event row, no log
+  // surface visible to ops). Reaching the application step is a
+  // strictly stronger signal than clicking the handoff CTA: the only
+  // way to land on it is by leaving the tour. Same per-mount dedup +
+  // Zoho idempotency reasoning applies.
   const lastTrackedStepIdRef = useRef<string | null>(null);
   const startedApplicationStepIdsRef = useRef<Set<string>>(new Set());
+  const firedEducationCompletedRef = useRef(false);
   useEffect(() => {
     if (!selectedStep) return;
     if (lastTrackedStepIdRef.current === selectedStep.id) return;
@@ -334,6 +344,19 @@ export function CinematicShell({
         eventKey: selectedStep.step_key,
         metadata: { chapter_key: selectedStep.chapter_key },
       });
+
+      if (
+        selectedStep.chapter_key === "explore" &&
+        !firedEducationCompletedRef.current
+      ) {
+        firedEducationCompletedRef.current = true;
+        void onLogEvent({
+          category: "milestone",
+          eventType: "education_completed",
+          eventKey: selectedStep.chapter_key,
+          metadata: { trigger: "app_step_first_view" },
+        });
+      }
     }
   }, [selectedStep, onLogEvent]);
 
@@ -438,6 +461,15 @@ export function CinematicShell({
             />
           )}
           <p className="cine-brand-sub">Franchise Discovery Portal</p>
+          {/* PR 59: persistent greeting addressed to the candidate.
+              Renders on every page since it lives in the always-visible
+              sidebar. Falls back to "Hi there" so an unnamed candidate
+              still gets a warm hello rather than an empty greeting. */}
+          <p className="cine-greeting">
+            {candidate.first_name?.trim()
+              ? `Hi, ${candidate.first_name.trim()}`
+              : "Hi there"}
+          </p>
         </div>
 
         <div className="cine-progress">
