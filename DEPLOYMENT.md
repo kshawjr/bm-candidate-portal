@@ -147,3 +147,42 @@ in CRM.
    'failed'` + `zoho_sync_error`) for a future retry worker.
    Candidates without a `zoho_lead_id` (test seeds, manual rows) are
    marked `'skipped'` rather than retried.
+
+## Zoho Blueprint transitions (PR 56)
+
+Some milestones also fire a Lead Blueprint transition so the lead
+advances through the formal sales pipeline in addition to having its
+custom fields updated.
+
+| Milestone | Blueprint transition |
+|---|---|
+| `education_completed` | New → Engaged |
+| `discovery_scheduled` | Engaged → Discovery Call Booked |
+
+Transition IDs live in `lib/zoho-blueprint-transitions.ts`. Both
+brands share the same Lead Blueprint, so the IDs aren't
+brand-specific.
+
+**Finding new transition IDs.** Setup → Process Management →
+Blueprint → click the Lead Blueprint → click each transition arrow.
+The transition ID shows in the side panel.
+
+**Failure model.** Field updates and Blueprint transitions run as
+two independent calls. Either can fail without the other:
+
+- `zoho_sync_status` tracks the field-update outcome
+- `blueprint_transition_status` tracks the transition outcome —
+  `'skipped'` when the milestone has no transition mapped
+  (e.g., `portal_first_visit`)
+
+A failed transition is non-fatal: Portal_Status still updates, the
+event row records `blueprint_transition_status = 'failed'` with the
+error in `blueprint_transition_error`. Common cause: the lead is
+already in the target state. Re-fire by manually moving the lead in
+Zoho or re-triggering the milestone in test mode.
+
+**Migrations.** Both PR 54 and PR 56 ship a migration; apply both
+against the `bm-candidate-portal` Supabase project:
+- `20260503_candidate_events.sql` (table + indexes)
+- `20260503_candidate_events_blueprint.sql` (transition status
+  columns)

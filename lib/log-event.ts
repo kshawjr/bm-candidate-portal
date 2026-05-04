@@ -6,7 +6,9 @@ import {
   isMilestone,
   ZOHO_STATUS_BY_MILESTONE,
   type EventCategory,
+  type MilestoneEvent,
 } from "@/lib/candidate-events";
+import { getTransitionIdForMilestone } from "@/lib/zoho-blueprint-transitions";
 import { zohoApi } from "@/lib/zoho-api";
 
 // Zoho's DateTime fields reject the `Z` suffix and millisecond precision
@@ -76,55 +78,88 @@ async function syncMilestoneToZoho(
 ): Promise<void> {
   const supabase = createAppServiceClient();
   const core = createCoreClient();
+  const nowIso = () => new Date().toISOString();
 
+  const { data: candidate } = await core
+    .from("candidates")
+    .select("zoho_lead_id")
+    .eq("id", args.candidateId)
+    .maybeSingle();
+
+  if (!candidate?.zoho_lead_id) {
+    // Candidate exists in Supabase but never came in via the Zoho
+    // webhook (test seeds, manual rows). Mark both pipelines skipped
+    // so we don't keep retrying.
+    await supabase
+      .from("candidate_events")
+      .update({
+        zoho_sync_status: "skipped",
+        blueprint_transition_status: "skipped",
+        zoho_synced_at: nowIso(),
+      })
+      .eq("id", eventId);
+    return;
+  }
+
+  // The field-update sync and the Blueprint transition are independent
+  // — a transition failure (e.g., lead already in target state) doesn't
+  // mean the Portal_Status update failed. Track the two outcomes
+  // separately and write both in a single trailing update.
+
+  let zohoSyncStatus: "success" | "failed" = "success";
+  let zohoSyncError: string | null = null;
   try {
-    const { data: candidate } = await core
-      .from("candidates")
-      .select("zoho_lead_id")
-      .eq("id", args.candidateId)
-      .maybeSingle();
-
-    if (!candidate?.zoho_lead_id) {
-      // Candidate exists in Supabase but never came in via the Zoho
-      // webhook (test seeds, manual rows). Mark as skipped so we don't
-      // keep retrying.
-      await supabase
-        .from("candidate_events")
-        .update({
-          zoho_sync_status: "skipped",
-          zoho_synced_at: new Date().toISOString(),
-        })
-        .eq("id", eventId);
-      return;
-    }
-
     const status =
       ZOHO_STATUS_BY_MILESTONE[
         args.eventType as keyof typeof ZOHO_STATUS_BY_MILESTONE
       ];
-
     await zohoApi.updateLead(candidate.zoho_lead_id, {
       Portal_Status: status,
       Last_Active_Date: formatZohoDateTime(new Date()),
     });
-
-    await supabase
-      .from("candidate_events")
-      .update({
-        zoho_sync_status: "success",
-        zoho_synced_at: new Date().toISOString(),
-      })
-      .eq("id", eventId);
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error(`[log-event] Zoho sync failed for event ${eventId}:`, err);
-    await supabase
-      .from("candidate_events")
-      .update({
-        zoho_sync_status: "failed",
-        zoho_synced_at: new Date().toISOString(),
-        zoho_sync_error: message,
-      })
-      .eq("id", eventId);
+    zohoSyncStatus = "failed";
+    zohoSyncError = err instanceof Error ? err.message : String(err);
+    console.error(
+      `[log-event] Zoho field update failed for event ${eventId}:`,
+      err,
+    );
   }
+
+  // Blueprint transition runs only for milestones explicitly mapped in
+  // TRANSITION_ID_BY_MILESTONE. Unmapped milestones (e.g.,
+  // portal_first_visit, application_submitted) record 'skipped' so the
+  // null state is unambiguous in dashboards.
+  let transitionStatus: "success" | "failed" | "skipped" = "skipped";
+  let transitionError: string | null = null;
+  const transitionId = getTransitionIdForMilestone(
+    args.eventType as MilestoneEvent,
+  );
+  if (transitionId) {
+    try {
+      await zohoApi.transitionLead(candidate.zoho_lead_id, transitionId);
+      transitionStatus = "success";
+    } catch (err) {
+      transitionStatus = "failed";
+      transitionError = err instanceof Error ? err.message : String(err);
+      // Common cause: the lead is already in the target state, or the
+      // transition is gated on data the lead doesn't have. Field updates
+      // already landed, so we log a warning rather than escalating.
+      console.warn(
+        `[log-event] Blueprint transition failed for ${args.eventType} (event ${eventId}):`,
+        transitionError,
+      );
+    }
+  }
+
+  await supabase
+    .from("candidate_events")
+    .update({
+      zoho_sync_status: zohoSyncStatus,
+      zoho_sync_error: zohoSyncError,
+      blueprint_transition_status: transitionStatus,
+      blueprint_transition_error: transitionError,
+      zoho_synced_at: nowIso(),
+    })
+    .eq("id", eventId);
 }
