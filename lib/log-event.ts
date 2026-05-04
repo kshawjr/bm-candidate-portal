@@ -101,13 +101,18 @@ async function syncMilestoneToZoho(
 
   if (!candidate?.zoho_lead_id) {
     // Candidate exists in Supabase but never came in via the Zoho
-    // webhook (test seeds, manual rows). Mark both pipelines skipped
-    // so we don't keep retrying.
+    // webhook (test seeds, manual rows). Mark every pipeline skipped
+    // so we don't keep retrying. For application_submitted, that
+    // includes the PR 61 cq + tag legs; for other milestones those
+    // columns stay null since they were never applicable.
+    const isAppSubmitted = args.eventType === "application_submitted";
     await supabase
       .from("candidate_events")
       .update({
         zoho_sync_status: "skipped",
         blueprint_transition_status: "skipped",
+        cq_sync_status: isAppSubmitted ? "skipped" : null,
+        tag_sync_status: isAppSubmitted ? "skipped" : null,
         zoho_synced_at: nowIso(),
       })
       .eq("id", eventId);
@@ -137,6 +142,44 @@ async function syncMilestoneToZoho(
       `[log-event] Zoho field update failed for event ${eventId}:`,
       err,
     );
+  }
+
+  // PR 61: application_submitted carries two extra Zoho writes —
+  // CQ_Received (DateTime field that the sales team filters on for
+  // "leads who finished the application") and an "Application
+  // Submitted" tag. Both are best-effort: they fire after the main
+  // Portal_Status update succeeded or failed, share none of its
+  // status, and are tracked separately on the row so we can tell
+  // which leg failed without parsing combined error text.
+  let cqSyncStatus: "success" | "failed" | null = null;
+  let cqSyncError: string | null = null;
+  let tagSyncStatus: "success" | "failed" | null = null;
+  let tagSyncError: string | null = null;
+  if (args.eventType === "application_submitted") {
+    try {
+      await zohoApi.updateLead(candidate.zoho_lead_id, {
+        CQ_Received: formatZohoDateTime(new Date()),
+      });
+      cqSyncStatus = "success";
+    } catch (err) {
+      cqSyncStatus = "failed";
+      cqSyncError = err instanceof Error ? err.message : String(err);
+      console.warn(
+        `[log-event] CQ_Received update failed for event ${eventId}:`,
+        cqSyncError,
+      );
+    }
+    try {
+      await zohoApi.addTags(candidate.zoho_lead_id, ["Application Submitted"]);
+      tagSyncStatus = "success";
+    } catch (err) {
+      tagSyncStatus = "failed";
+      tagSyncError = err instanceof Error ? err.message : String(err);
+      console.warn(
+        `[log-event] addTags failed for event ${eventId}:`,
+        tagSyncError,
+      );
+    }
   }
 
   // Blueprint transition runs only for milestones explicitly mapped in
@@ -172,6 +215,13 @@ async function syncMilestoneToZoho(
       zoho_sync_error: zohoSyncError,
       blueprint_transition_status: transitionStatus,
       blueprint_transition_error: transitionError,
+      // PR 61: only populated for application_submitted; null on every
+      // other milestone so the column reads as "not applicable" rather
+      // than "skipped".
+      cq_sync_status: cqSyncStatus,
+      cq_sync_error: cqSyncError,
+      tag_sync_status: tagSyncStatus,
+      tag_sync_error: tagSyncError,
       zoho_synced_at: nowIso(),
     })
     .eq("id", eventId);
