@@ -262,7 +262,14 @@ function normalizeSlides(input: unknown): Slide[] {
       typeof s.caption === "string" && s.caption.trim().length > 0
         ? s.caption
         : null;
-    return { id, image_url, alt, caption };
+    // PR 58: preserve heading so the welcome migration's value isn't
+    // wiped the next time an admin saves the slide deck. Same shape as
+    // caption: trimmed string or null.
+    const heading =
+      typeof s.heading === "string" && s.heading.trim().length > 0
+        ? s.heading
+        : null;
+    return { id, image_url, alt, caption, heading };
   });
 }
 

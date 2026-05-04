@@ -1,5 +1,4 @@
 import "server-only";
-import { waitUntil } from "@vercel/functions";
 import { createAppServiceClient } from "@/lib/supabase-app";
 import { createCoreClient } from "@/lib/core-client";
 import {
@@ -34,12 +33,13 @@ export interface LogEventArgs {
  * but never thrown, since tracking should never break the user-visible
  * action that produced the event.
  *
- * For milestone events, the Zoho sync runs via Vercel's `waitUntil`
- * so it doesn't block the response. `waitUntil` extends the function's
- * lifetime past the response (unlike a bare promise, which Vercel will
- * kill once the response is sent), so the sync actually completes in
- * serverless. We use `@vercel/functions` rather than Next 15's `after()`
- * because the project is on 14.2 — same semantics, different package.
+ * PR 58: milestone Zoho sync now runs INLINE (awaited) rather than via
+ * `waitUntil`. Production showed milestone events stuck at
+ * `zoho_sync_status='pending'` — `waitUntil` wasn't reliably keeping
+ * the function alive past the response (likely cold-start /
+ * fluid-compute interaction). The 1-2s latency hit on milestone
+ * actions is worth more than silently lost syncs. Non-milestone events
+ * stay fast — they never call out to Zoho.
  */
 export async function logEvent(args: LogEventArgs): Promise<void> {
   const supabase = createAppServiceClient();
@@ -68,7 +68,20 @@ export async function logEvent(args: LogEventArgs): Promise<void> {
   }
 
   if (milestone) {
-    waitUntil(syncMilestoneToZoho(event.id, args));
+    // Inline await: blocks the calling action by 1-2s for milestone
+    // events but guarantees the row leaves 'pending' before the
+    // function returns. Outer catch keeps logEvent best-effort even
+    // if the sync hits an unexpected runtime failure (network drop,
+    // Supabase outage) outside the per-call try/catches inside
+    // syncMilestoneToZoho.
+    try {
+      await syncMilestoneToZoho(event.id, args);
+    } catch (err) {
+      console.error(
+        `[log-event] syncMilestoneToZoho threw for event ${event.id}:`,
+        err,
+      );
+    }
   }
 }
 

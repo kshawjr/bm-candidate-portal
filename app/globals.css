@@ -588,6 +588,16 @@ body {
 .slides-renderer {
   max-width: 900px;
 }
+.slide-heading {
+  font-family: var(--font-heading);
+  font-size: 28px;
+  font-weight: var(--heading-weight, 600);
+  text-transform: var(--heading-transform, none);
+  color: var(--brand-dark, var(--cin-text));
+  text-align: center;
+  margin: 0 0 18px;
+  letter-spacing: -0.01em;
+}
 .slide-canvas {
   aspect-ratio: 16 / 9;
   background: var(--surface-subtle);
