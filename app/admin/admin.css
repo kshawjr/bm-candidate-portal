@@ -1505,3 +1505,94 @@
   line-height: 1.5;
   color: #374151;
 }
+
+/* ---- test candidates panel (top of /admin/candidates) ---- */
+.adm-test-candidates {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 18px 20px;
+  margin-bottom: 24px;
+}
+.adm-test-candidates-h2 {
+  font-size: 14px;
+  font-weight: 600;
+  color: #111827;
+  margin: 0 0 4px;
+  letter-spacing: -0.01em;
+}
+.adm-test-candidates-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+.adm-test-candidate-card {
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.adm-test-candidate-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.adm-test-candidate-head strong {
+  font-size: 14px;
+  color: #111827;
+}
+.adm-test-candidate-brand {
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-weight: 600;
+  background: #e0e7ff;
+  color: #3730a3;
+  padding: 2px 7px;
+  border-radius: 4px;
+}
+.adm-test-candidate-token {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  color: #374151;
+  background: #f3f4f6;
+  padding: 2px 6px;
+  border-radius: 4px;
+  align-self: flex-start;
+}
+.adm-test-candidate-status {
+  font-size: 12px;
+  font-weight: 500;
+}
+.adm-test-candidate-status.exists {
+  color: #047857;
+}
+.adm-test-candidate-status.missing {
+  color: #b45309;
+}
+.adm-test-candidate-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.adm-test-candidate-feedback {
+  font-size: 12px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  line-height: 1.4;
+}
+.adm-test-candidate-feedback.ok {
+  background: #ecfdf5;
+  color: #065f46;
+  border: 1px solid #a7f3d0;
+}
+.adm-test-candidate-feedback.err {
+  background: #fef2f2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+}

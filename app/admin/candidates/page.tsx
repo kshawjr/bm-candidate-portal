@@ -4,6 +4,7 @@ import {
   CandidatesTable,
   type CandidateRow,
 } from "@/components/admin/candidates-table";
+import { TestCandidatesPanel } from "@/components/admin/test-candidates-panel";
 import {
   LIQUID_CAPITAL_RANGES,
   NET_WORTH_RANGES,
@@ -12,6 +13,7 @@ import {
   humanizeOption,
 } from "@/lib/application-options";
 import { brandClosingQuestion } from "@/lib/brand-closing-questions";
+import { getTestCandidatesStatus } from "@/lib/seed-test-candidate";
 
 export const dynamic = "force-dynamic";
 
@@ -50,6 +52,8 @@ export default async function AdminCandidatesPage() {
 
   const app = createAppServiceClient();
   const core = createCoreClient();
+
+  const testCandidates = await getTestCandidatesStatus();
 
   const { data: sessions } = await app
     .from("candidates_in_portal")
@@ -293,6 +297,7 @@ export default async function AdminCandidatesPage() {
         All portal sessions. Reset wipes a candidate&apos;s progress back to
         Chapter 1 · Step 1.
       </p>
+      <TestCandidatesPanel candidates={testCandidates} />
       <CandidatesTable rows={rows} />
     </div>
   );
