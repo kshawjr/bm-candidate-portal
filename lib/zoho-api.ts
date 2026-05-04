@@ -97,6 +97,52 @@ class ZohoApiClient {
       throw new Error(`Zoho updateLead ${response.status}: ${body}`);
     }
   }
+
+  /**
+   * Fire a Zoho Blueprint state transition on a Lead. Used by the
+   * milestone sync to advance the lead through the formal sales
+   * pipeline (e.g., "New" → "Engaged"). Distinct from `updateLead`,
+   * which sets custom fields without touching Blueprint state.
+   *
+   * Zoho returns non-2xx for transitions that don't apply (e.g., the
+   * lead is already in the target state, or the transition is gated
+   * on data the lead doesn't have). Callers should catch and decide
+   * whether to surface or swallow — for milestone sync, a failed
+   * transition is non-fatal because the field updates already landed.
+   */
+  async transitionLead(
+    leadId: string,
+    transitionId: string,
+    data: Record<string, unknown> = {},
+  ): Promise<void> {
+    const id = String(leadId);
+    const tid = String(transitionId);
+
+    const token = await this.getAccessToken();
+    const response = await fetch(
+      `${API_DOMAIN}/crm/v3/Leads/${encodeURIComponent(id)}/actions/blueprint`,
+      {
+        method: "PUT",
+        headers: {
+          Authorization: `Zoho-oauthtoken ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          blueprint: [
+            {
+              transition_id: tid,
+              data,
+            },
+          ],
+        }),
+      },
+    );
+
+    if (!response.ok) {
+      const body = await response.text();
+      throw new Error(`Zoho transitionLead ${response.status}: ${body}`);
+    }
+  }
 }
 
 export const zohoApi = new ZohoApiClient();
