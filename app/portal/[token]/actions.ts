@@ -93,8 +93,20 @@ export async function completeTourAction(
     throw new Error(`completeTourAction failed: ${error.message}`);
   }
 
+  // Diagnostic logging left in place after PR 58 — the events table
+  // showed this trigger never fired in production, and the fix turned
+  // out to be elsewhere (resetCandidateAction wasn't clearing
+  // candidate_events, so the dedup blocked every test rerun). The logs
+  // stay so future "milestone X isn't firing" debugging is one log
+  // search away rather than a code archeology project.
+  console.log(
+    `[completeTourAction] token=${token} chapterKey=${chapterKey} nextStepIdx=${nextStepIdx}`,
+  );
   if (chapterKey === "explore") {
     const ctx = await resolveCandidateAndBrand(token);
+    console.log(
+      `[completeTourAction] resolved ctx: ${ctx ? `candidate=${ctx.candidateId} brand=${ctx.brandId}` : "null"}`,
+    );
     if (ctx) {
       // Dedup against the events table itself rather than a flag on
       // candidates_in_portal so a reset flow can't unintentionally
@@ -107,7 +119,11 @@ export async function completeTourAction(
         .eq("event_type", "education_completed")
         .limit(1)
         .maybeSingle();
+      console.log(
+        `[completeTourAction] existing education_completed: ${existing ? `id=${existing.id}` : "none"}`,
+      );
       if (!existing) {
+        console.log("[completeTourAction] firing education_completed");
         await logEvent({
           candidateId: ctx.candidateId,
           brandId: ctx.brandId,
@@ -116,6 +132,9 @@ export async function completeTourAction(
           eventKey: chapterKey,
           metadata: { trigger: "tour_advance" },
         });
+        console.log("[completeTourAction] education_completed fire complete");
+      } else {
+        console.log("[completeTourAction] skipped — existing event blocks dedup");
       }
     }
   }

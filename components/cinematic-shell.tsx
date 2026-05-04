@@ -816,6 +816,7 @@ function StepRenderer({
           disabled={tourPending}
           nextStepLabel={nextStep?.label ?? null}
           nextStepIsApplication={nextStep?.content_type === "application"}
+          candidate={candidate}
           onSlideViewed={(slideId, slideIndex) => {
             void onLogEvent({
               category: "engagement",

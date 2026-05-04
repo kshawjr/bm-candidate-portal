@@ -37,6 +37,11 @@ function summarizeCounts(c: ResetCounts): string {
       }`,
     );
   }
+  if (c.events_deleted > 0) {
+    parts.push(
+      `${c.events_deleted} tracking event${c.events_deleted === 1 ? "" : "s"}`,
+    );
+  }
   return `Reset complete: ${parts.join(", ")} deleted.`;
 }
 

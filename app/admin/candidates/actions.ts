@@ -10,6 +10,7 @@ export interface ResetCounts {
   progress_deleted: number;
   bookings_deleted: number;
   calendar_events_deleted: number;
+  events_deleted: number;
 }
 
 export type ResetResult =
@@ -46,7 +47,7 @@ export async function resetCandidateAction(params: {
 
   const { data: session, error: sessErr } = await app
     .from("candidates_in_portal")
-    .select("id")
+    .select("id, candidate_id")
     .eq("token", params.token)
     .maybeSingle();
   if (sessErr) {
@@ -56,6 +57,7 @@ export async function resetCandidateAction(params: {
     return { success: false, error: "Candidate not found" };
   }
   const portalId = session.id as string;
+  const candidateId = (session.candidate_id as string | null) ?? null;
 
   let calendarDeleted = 0;
 
@@ -150,6 +152,30 @@ export async function resetCandidateAction(params: {
     .eq("candidate_in_portal_id", portalId)
     .eq("status", "pending");
 
+  // PR 58: clear candidate_events too. The events table is keyed by
+  // bmave-core candidate_id (cross-project), not portal_id, so we
+  // delete in a separate query. Without this, the dedup checks on
+  // milestone fires (portal_first_visit, education_completed) would
+  // skip every retried test run because the old events still exist.
+  let eventsDeleted = 0;
+  if (candidateId) {
+    const { count: eventsCount, error: evErr } = await app
+      .from("candidate_events")
+      .delete({ count: "exact" })
+      .eq("candidate_id", candidateId);
+    if (evErr) {
+      // Best-effort — surface the count failure but don't block the
+      // rest of the reset. The events table is large and individual
+      // failures shouldn't strand the candidate in a half-reset state.
+      console.warn(
+        `[reset] candidate_events delete failed for ${candidateId}:`,
+        evErr,
+      );
+    } else {
+      eventsDeleted = eventsCount ?? 0;
+    }
+  }
+
   const { error: updErr } = await app
     .from("candidates_in_portal")
     .update({
@@ -185,6 +211,7 @@ export async function resetCandidateAction(params: {
       progress_deleted: progressCount ?? 0,
       bookings_deleted: bookingsCount ?? 0,
       calendar_events_deleted: calendarDeleted,
+      events_deleted: eventsDeleted,
     },
   };
 }

@@ -8,6 +8,25 @@ export interface Slide {
   image_url: string;
   alt?: string | null;
   caption?: string | null;
+  /** PR 58: optional heading rendered above the image. Greets the
+   *  candidate ("Welcome to Hounds Town") when set. Supports the
+   *  `{{first_name}}` template variable, replaced at render time with
+   *  the candidate's name (falls back to "there"). */
+  heading?: string | null;
+}
+
+/**
+ * Replace template variables in slide content. Currently only
+ * `{{first_name}}` is supported — admins can use it in heading or
+ * caption text and it gets resolved at render time. Defaults to "there"
+ * when the candidate has no first_name on file.
+ */
+export function applySlideTemplate(
+  content: string,
+  candidate: { first_name?: string | null },
+): string {
+  const name = candidate.first_name?.trim() || "there";
+  return content.replace(/\{\{first_name\}\}/g, name);
 }
 
 interface Props {
@@ -25,6 +44,9 @@ interface Props {
    *  on a real image slide (not the virtual handoff card at the end).
    *  Wired by CinematicShell to logEventByTokenAction. */
   onSlideViewed?: (slideId: string, slideIndex: number) => void;
+  /** PR 58: candidate context used by `applySlideTemplate` to resolve
+   *  `{{first_name}}` in heading/caption text. */
+  candidate?: { first_name?: string | null };
 }
 
 const HANDOFF_LOADING_MS = 700;
@@ -36,6 +58,7 @@ export function SlidesRenderer({
   nextStepLabel = null,
   nextStepIsApplication = false,
   onSlideViewed,
+  candidate,
 }: Props) {
   const [idx, setIdx] = useState(0);
 
@@ -133,6 +156,11 @@ export function SlidesRenderer({
         </div>
       ) : (
         <>
+          {slide!.heading && (
+            <h2 className="slide-heading">
+              {applySlideTemplate(slide!.heading, candidate ?? {})}
+            </h2>
+          )}
           <div className="slide-canvas">
             <Image
               key={slide!.id}
@@ -150,7 +178,9 @@ export function SlidesRenderer({
           </div>
 
           {slide!.caption && (
-            <p className="slide-caption">{slide!.caption}</p>
+            <p className="slide-caption">
+              {applySlideTemplate(slide!.caption, candidate ?? {})}
+            </p>
           )}
         </>
       )}
