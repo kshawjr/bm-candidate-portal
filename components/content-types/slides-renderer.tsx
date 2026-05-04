@@ -16,17 +16,32 @@ export interface Slide {
 }
 
 /**
- * Replace template variables in slide content. Currently only
- * `{{first_name}}` is supported — admins can use it in heading or
- * caption text and it gets resolved at render time. Defaults to "there"
- * when the candidate has no first_name on file.
+ * Replace template variables in slide content. Resolved at render time
+ * against the candidate already in scope.
+ *
+ * Supported variables:
+ *   {{first_name}}            — bare name; falls back to "there"
+ *   {{first_name_greeting}}   — full greeting prefix that vanishes
+ *                               cleanly when the name is unknown.
+ *                               "Hi Jane, " when set, "" when not.
+ *
+ * The greeting variant exists so admins can write headings like
+ * "{{first_name_greeting}}Welcome to Hounds Town" — which renders as
+ * "Hi Jane, Welcome to Hounds Town" with a name and just
+ * "Welcome to Hounds Town" without one, instead of the awkward
+ * "Welcome, there, to Hounds Town" the bare {{first_name}} fallback
+ * would produce inside a sentence.
  */
 export function applySlideTemplate(
   content: string,
   candidate: { first_name?: string | null },
 ): string {
-  const name = candidate.first_name?.trim() || "there";
-  return content.replace(/\{\{first_name\}\}/g, name);
+  const trimmed = candidate.first_name?.trim() ?? "";
+  const name = trimmed || "there";
+  const greeting = trimmed ? `Hi ${trimmed}, ` : "";
+  return content
+    .replace(/\{\{first_name_greeting\}\}/g, greeting)
+    .replace(/\{\{first_name\}\}/g, name);
 }
 
 interface Props {

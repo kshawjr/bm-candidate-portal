@@ -68,18 +68,21 @@ export async function advanceStepAction(
  * nextStepIdx based on how many steps exist in the current chapter, so this
  * action doesn't need to re-derive it.
  *
- * PR 57: also fires the `education_completed` milestone when the tour
- * being completed lives in the Explore chapter. This is the natural
- * sales-team handoff point ("watched the tour, now considering the
- * application"), and the trigger moved here from the chapter-complete
- * popup dismiss so the milestone fires at the moment intent is shown,
- * not several screens later. Idempotent — only fires once per candidate.
+ * The `education_completed` milestone trigger used to live here (PR 57)
+ * but moved to a client-side useEffect in `cinematic-shell.tsx` (PR 59).
+ * Reaching the application step is a strictly stronger signal than the
+ * tour-handoff CTA click chain (which never reliably reached this
+ * action in production); see the cinematic-shell comment for context.
+ * `chapterKey` stays in the signature so existing call sites keep
+ * working — it's unused here but cheap and removing it would churn
+ * cinematic-shell.
  */
 export async function completeTourAction(
   token: string,
   nextStepIdx: number,
   chapterKey: string,
 ): Promise<void> {
+  void chapterKey;
   const app = createAppServiceClient();
   const { error } = await app
     .from("candidates_in_portal")
@@ -91,52 +94,6 @@ export async function completeTourAction(
     .eq("token", token);
   if (error) {
     throw new Error(`completeTourAction failed: ${error.message}`);
-  }
-
-  // Diagnostic logging left in place after PR 58 — the events table
-  // showed this trigger never fired in production, and the fix turned
-  // out to be elsewhere (resetCandidateAction wasn't clearing
-  // candidate_events, so the dedup blocked every test rerun). The logs
-  // stay so future "milestone X isn't firing" debugging is one log
-  // search away rather than a code archeology project.
-  console.log(
-    `[completeTourAction] token=${token} chapterKey=${chapterKey} nextStepIdx=${nextStepIdx}`,
-  );
-  if (chapterKey === "explore") {
-    const ctx = await resolveCandidateAndBrand(token);
-    console.log(
-      `[completeTourAction] resolved ctx: ${ctx ? `candidate=${ctx.candidateId} brand=${ctx.brandId}` : "null"}`,
-    );
-    if (ctx) {
-      // Dedup against the events table itself rather than a flag on
-      // candidates_in_portal so a reset flow can't unintentionally
-      // re-fire the Blueprint transition. Race-safe enough: this fires
-      // from a single user click, never in parallel.
-      const { data: existing } = await app
-        .from("candidate_events")
-        .select("id")
-        .eq("candidate_id", ctx.candidateId)
-        .eq("event_type", "education_completed")
-        .limit(1)
-        .maybeSingle();
-      console.log(
-        `[completeTourAction] existing education_completed: ${existing ? `id=${existing.id}` : "none"}`,
-      );
-      if (!existing) {
-        console.log("[completeTourAction] firing education_completed");
-        await logEvent({
-          candidateId: ctx.candidateId,
-          brandId: ctx.brandId,
-          category: "milestone",
-          eventType: "education_completed",
-          eventKey: chapterKey,
-          metadata: { trigger: "tour_advance" },
-        });
-        console.log("[completeTourAction] education_completed fire complete");
-      } else {
-        console.log("[completeTourAction] skipped — existing event blocks dedup");
-      }
-    }
   }
 
   revalidatePath(`/portal/${token}`);
