@@ -156,19 +156,83 @@ async function syncMilestoneToZoho(
   let tagSyncStatus: "success" | "failed" | null = null;
   let tagSyncError: string | null = null;
   if (args.eventType === "application_submitted") {
-    try {
-      await zohoApi.updateLead(candidate.zoho_lead_id, {
-        CQ_Received: formatZohoDateTime(new Date()),
-      });
-      cqSyncStatus = "success";
-    } catch (err) {
-      cqSyncStatus = "failed";
-      cqSyncError = err instanceof Error ? err.message : String(err);
+    // PR 62: in production the DateTime PUT to CQ_Received returns 200
+    // but the field stays empty — Last_Active_Date works fine with the
+    // exact same formatZohoDateTime() value, so the format itself is
+    // not the problem (likely API-name mismatch, layout permission,
+    // or workflow side-effect). To localize the cause, write +
+    // verify-via-GET. If the DateTime form doesn't take, fall back to
+    // a date-only string (Zoho DateTime fields often accept a bare
+    // date and convert internally) and verify again. The fetch-back
+    // is permanent for now since this milestone is currently broken;
+    // a follow-up PR can drop it once the root cause is fixed.
+    const now = new Date();
+    const attempts: { format: "datetime" | "date"; value: string }[] = [
+      { format: "datetime", value: formatZohoDateTime(now) },
+      { format: "date", value: now.toISOString().slice(0, 10) },
+    ];
+
+    let cqApplied = false;
+    let cqLastError: string | null = null;
+    for (const attempt of attempts) {
+      console.log(
+        `[log-event] CQ_Received attempt event=${eventId} format=${attempt.format} value=${attempt.value}`,
+      );
+      try {
+        await zohoApi.updateLead(candidate.zoho_lead_id, {
+          CQ_Received: attempt.value,
+        });
+      } catch (err) {
+        cqLastError = err instanceof Error ? err.message : String(err);
+        console.warn(
+          `[log-event] CQ_Received PUT threw event=${eventId} format=${attempt.format}:`,
+          cqLastError,
+        );
+        continue;
+      }
+
+      // Read it back and check whether the value actually landed.
+      // A null/empty stored value with a 200 PUT is the signature of
+      // a silent rejection — log enough to diagnose without flooding.
+      try {
+        const verify = await zohoApi.getLead(candidate.zoho_lead_id, [
+          "CQ_Received",
+        ]);
+        const stored = (verify?.CQ_Received ?? null) as unknown;
+        console.log(
+          `[log-event] CQ_Received verify event=${eventId} format=${attempt.format} stored=${JSON.stringify(stored)}`,
+        );
+        if (
+          stored !== null &&
+          stored !== undefined &&
+          stored !== "" &&
+          !(typeof stored === "string" && stored.trim() === "")
+        ) {
+          cqApplied = true;
+          break;
+        }
+        cqLastError = `200 OK but field stayed empty after format=${attempt.format}`;
+      } catch (err) {
+        cqLastError = err instanceof Error ? err.message : String(err);
+        console.warn(
+          `[log-event] CQ_Received verify GET failed event=${eventId} format=${attempt.format}:`,
+          cqLastError,
+        );
+      }
+    }
+
+    cqSyncStatus = cqApplied ? "success" : "failed";
+    cqSyncError = cqApplied ? null : cqLastError;
+    if (!cqApplied) {
       console.warn(
-        `[log-event] CQ_Received update failed for event ${eventId}:`,
-        cqSyncError,
+        `[log-event] CQ_Received never took for event ${eventId} ` +
+          `(zoho_lead_id=${candidate.zoho_lead_id}). Both formats wrote ` +
+          `200 OK but the field stayed empty on read-back. Likely cause: ` +
+          `field API name mismatch, layout-level permission, or a ` +
+          `workflow rule that wipes the value — not the date format.`,
       );
     }
+
     try {
       await zohoApi.addTags(candidate.zoho_lead_id, ["Application Submitted"]);
       tagSyncStatus = "success";
