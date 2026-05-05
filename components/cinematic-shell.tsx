@@ -44,7 +44,6 @@ import {
   StepTransitionPopup,
   type StepTransitionPopupConfig,
 } from "@/components/portal/step-transition-popup";
-import { JourneyTimeline } from "@/components/portal/journey-timeline";
 import { YoureCurrentScreen } from "@/components/portal/youre-current-screen";
 import type { ClientLogEventArgs } from "@/app/portal/[token]/event-actions";
 
@@ -696,7 +695,13 @@ export function CinematicShell({
                 onCancelBooking={onCancelBooking}
                 onSubmitBookingUnavailable={onSubmitBookingUnavailable}
               />
-              <ContentCardStrip cards={selectedStep.content_cards} />
+              <ContentCardStrip
+                cards={selectedStep.content_cards}
+                brandSlug={brandSlug}
+                currentChapterKey={
+                  chapters[currentChapterIdx]?.chapter_key ?? null
+                }
+              />
             </>
           ) : (
             (() => {
@@ -884,16 +889,6 @@ function StepRenderer({
             }
           }}
         />
-        {/* PR 43: 8-stage discovery roadmap shown beneath Chapter 1's
-            brand tour. Brand-themed (paws / waves), highlights the
-            candidate's current stage. Other slide steps don't get the
-            timeline — it's chapter-1-specific framing. */}
-        {step.chapter_key === "explore" && (
-          <JourneyTimeline
-            brandSlug={brandSlug}
-            currentChapterKey={currentChapterKey}
-          />
-        )}
       </>
     );
   }

@@ -21,17 +21,20 @@ function PersonIcon() {
 }
 
 export function PersonasCard({ card }: { card: PersonasCardData }) {
+  const count = card.items.length;
+  const gridModifier =
+    count === 1 ? " cc-personas-grid--one" : count === 2 ? " cc-personas-grid--two" : "";
   return (
     <article className="cc-card cc-personas">
       <div className="cc-card-section-label">Who they serve</div>
-      <div className="cc-personas-grid">
+      <div className={`cc-personas-grid${gridModifier}`}>
         {card.items.map((p, i) => (
           <div key={i} className="cc-persona">
             <div className="cc-persona-photo">
               {p.photo_url ? (
                 <Image
                   src={p.photo_url}
-                  alt={p.name}
+                  alt={p.name ?? ""}
                   width={240}
                   height={240}
                   unoptimized
@@ -42,7 +45,7 @@ export function PersonasCard({ card }: { card: PersonasCardData }) {
                 </div>
               )}
             </div>
-            <div className="cc-persona-name">{p.name}</div>
+            {p.name && <div className="cc-persona-name">{p.name}</div>}
             {p.caption && <div className="cc-persona-caption">{p.caption}</div>}
           </div>
         ))}

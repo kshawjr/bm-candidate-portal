@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { Slide } from "@/components/content-types/slides-renderer";
 import { ImageUpload } from "./image-upload";
@@ -16,6 +16,7 @@ interface Props {
   initialSlides: Slide[];
   saveSlides: (stepId: string, slides: Slide[]) => Promise<void>;
   upload: UploadFn;
+  uploadVideo: UploadFn;
 }
 
 type DrawerState =
@@ -23,10 +24,15 @@ type DrawerState =
   | { mode: "create" }
   | { mode: "edit"; index: number };
 
+const SLIDE_VIDEO_MAX_MB = 50;
+
 function newSlide(): Slide {
   return {
     id: `slide-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    media_type: "image",
     image_url: "",
+    video_url: null,
+    poster_url: null,
     alt: null,
     caption: null,
   };
@@ -38,6 +44,7 @@ export function SlideEditor({
   initialSlides,
   saveSlides,
   upload,
+  uploadVideo,
 }: Props) {
   const router = useRouter();
   const [slides, setSlides] = useState<Slide[]>(initialSlides);
@@ -111,73 +118,85 @@ export function SlideEditor({
         </div>
       ) : (
         <ul className="adm-slidelist">
-          {slides.map((slide, i) => (
-            <li key={slide.id} className="adm-sliderow">
-              <span className="adm-sliderow-num">{i + 1}</span>
-              <div className="adm-sliderow-thumb">
-                {slide.image_url ? (
-                  /* eslint-disable-next-line @next/next/no-img-element */
-                  <img src={slide.image_url} alt={slide.alt ?? ""} />
-                ) : (
-                  <div className="adm-sliderow-thumb-empty">—</div>
-                )}
-              </div>
-              <div className="adm-sliderow-meta">
-                <div className="adm-sliderow-alt">
-                  {slide.alt || <span className="adm-muted">No alt text</span>}
+          {slides.map((slide, i) => {
+            const isVideo = slide.media_type === "video";
+            const thumbSrc = isVideo ? slide.poster_url : slide.image_url;
+            return (
+              <li key={slide.id} className="adm-sliderow">
+                <span className="adm-sliderow-num">{i + 1}</span>
+                <div className="adm-sliderow-thumb">
+                  {thumbSrc ? (
+                    /* eslint-disable-next-line @next/next/no-img-element */
+                    <img src={thumbSrc} alt={slide.alt ?? ""} />
+                  ) : (
+                    <div className="adm-sliderow-thumb-empty">
+                      {isVideo ? "▶" : "—"}
+                    </div>
+                  )}
                 </div>
-                {slide.caption && (
-                  <div className="adm-sliderow-caption">{slide.caption}</div>
-                )}
-              </div>
-              <div className="adm-sliderow-reorder">
-                <button
-                  type="button"
-                  className="adm-icon-btn"
-                  onClick={() => handleMove(i, -1)}
-                  disabled={i === 0 || pending}
-                  aria-label="Move slide up"
-                  title="Move up"
-                >
-                  ↑
-                </button>
-                <button
-                  type="button"
-                  className="adm-icon-btn"
-                  onClick={() => handleMove(i, 1)}
-                  disabled={i === slides.length - 1 || pending}
-                  aria-label="Move slide down"
-                  title="Move down"
-                >
-                  ↓
-                </button>
-              </div>
-              <div className="adm-sliderow-actions">
-                <button
-                  type="button"
-                  className="adm-btn-ghost"
-                  onClick={() => setDrawer({ mode: "edit", index: i })}
-                  disabled={pending}
-                >
-                  Edit
-                </button>
-                <button
-                  type="button"
-                  className="adm-btn-ghost adm-btn-danger"
-                  onClick={() => handleDelete(i)}
-                  disabled={pending || slides.length <= 1}
-                  title={
-                    slides.length <= 1
-                      ? "Can't delete the last slide"
-                      : "Delete slide"
-                  }
-                  aria-label="Delete slide"
-                >
-                  🗑
-                </button>
-              </div>
-            </li>
-          ))}
+                <div className="adm-sliderow-meta">
+                  <div className="adm-sliderow-alt">
+                    {isVideo ? (
+                      <span>Video · MP4</span>
+                    ) : slide.alt ? (
+                      slide.alt
+                    ) : (
+                      <span className="adm-muted">No alt text</span>
+                    )}
+                  </div>
+                  {slide.caption && (
+                    <div className="adm-sliderow-caption">{slide.caption}</div>
+                  )}
+                </div>
+                <div className="adm-sliderow-reorder">
+                  <button
+                    type="button"
+                    className="adm-icon-btn"
+                    onClick={() => handleMove(i, -1)}
+                    disabled={i === 0 || pending}
+                    aria-label="Move slide up"
+                    title="Move up"
+                  >
+                    ↑
+                  </button>
+                  <button
+                    type="button"
+                    className="adm-icon-btn"
+                    onClick={() => handleMove(i, 1)}
+                    disabled={i === slides.length - 1 || pending}
+                    aria-label="Move slide down"
+                    title="Move down"
+                  >
+                    ↓
+                  </button>
+                </div>
+                <div className="adm-sliderow-actions">
+                  <button
+                    type="button"
+                    className="adm-btn-ghost"
+                    onClick={() => setDrawer({ mode: "edit", index: i })}
+                    disabled={pending}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    className="adm-btn-ghost adm-btn-danger"
+                    onClick={() => handleDelete(i)}
+                    disabled={pending || slides.length <= 1}
+                    title={
+                      slides.length <= 1
+                        ? "Can't delete the last slide"
+                        : "Delete slide"
+                    }
+                    aria-label="Delete slide"
+                  >
+                    🗑
+                  </button>
+                </div>
+              </li>
+            );
+          })}
         </ul>
       )}
 
@@ -198,6 +217,7 @@ export function SlideEditor({
         <SlideDrawer
           brandSlug={brandSlug}
           upload={upload}
+          uploadVideo={uploadVideo}
           initial={
             drawer.mode === "edit" ? slides[drawer.index] : newSlide()
           }
@@ -218,6 +238,7 @@ export function SlideEditor({
 interface DrawerProps {
   brandSlug: string;
   upload: UploadFn;
+  uploadVideo: UploadFn;
   initial: Slide;
   indexForEdit: number | null;
   onCancel: () => void;
@@ -228,15 +249,22 @@ interface DrawerProps {
 function SlideDrawer({
   brandSlug,
   upload,
+  uploadVideo,
   initial,
   indexForEdit,
   onCancel,
   onSave,
   saving,
 }: DrawerProps) {
-  const [slide, setSlide] = useState<Slide>(initial);
+  const [slide, setSlide] = useState<Slide>({
+    ...initial,
+    media_type: initial.media_type ?? "image",
+  });
   const isEdit = indexForEdit !== null;
-  const valid = slide.image_url.trim().length > 0;
+  const isVideo = slide.media_type === "video";
+  const valid = isVideo
+    ? !!(slide.video_url && slide.video_url.trim().length > 0)
+    : slide.image_url.trim().length > 0;
 
   return (
     <div className="adm-drawer-backdrop" role="dialog" aria-modal="true">
@@ -261,32 +289,90 @@ function SlideDrawer({
         </header>
 
         <div className="adm-drawer-body">
-          <ImageUpload
-            label="Image *"
-            value={slide.image_url || null}
-            onChange={(url) =>
-              setSlide({ ...slide, image_url: url ?? "" })
-            }
-            brandSlug={brandSlug}
-            onUpload={upload}
-            purpose="Brand tour slide"
-            recommendedSize="1600 × 900 px (16:9)"
-            recommendedFormat="JPG or PNG"
-            maxSizeMB={5}
-          />
+          <fieldset className="adm-field">
+            <legend className="adm-form-label">Media type</legend>
+            <div className="adm-radio-row">
+              <label className="adm-radio">
+                <input
+                  type="radio"
+                  name="media_type"
+                  checked={!isVideo}
+                  onChange={() =>
+                    setSlide({ ...slide, media_type: "image" })
+                  }
+                />
+                <span>Image</span>
+              </label>
+              <label className="adm-radio">
+                <input
+                  type="radio"
+                  name="media_type"
+                  checked={isVideo}
+                  onChange={() =>
+                    setSlide({ ...slide, media_type: "video" })
+                  }
+                />
+                <span>Video</span>
+              </label>
+            </div>
+          </fieldset>
 
-          <label className="adm-field">
-            <span className="adm-form-label">Alt text</span>
-            <input
-              type="text"
-              className="adm-input"
-              value={slide.alt ?? ""}
-              onChange={(e) =>
-                setSlide({ ...slide, alt: e.target.value || null })
+          {isVideo ? (
+            <>
+              <VideoUpload
+                label="Video (MP4) *"
+                value={slide.video_url ?? null}
+                onChange={(url) =>
+                  setSlide({ ...slide, video_url: url ?? null })
+                }
+                brandSlug={brandSlug}
+                onUpload={uploadVideo}
+                maxSizeMB={SLIDE_VIDEO_MAX_MB}
+              />
+              <ImageUpload
+                label="Poster image (optional)"
+                value={slide.poster_url ?? null}
+                onChange={(url) =>
+                  setSlide({ ...slide, poster_url: url ?? null })
+                }
+                brandSlug={brandSlug}
+                onUpload={upload}
+                purpose="Shown as a still frame before the video plays"
+                recommendedSize="1600 × 900 px (16:9)"
+                recommendedFormat="JPG or PNG"
+                maxSizeMB={2}
+              />
+            </>
+          ) : (
+            <ImageUpload
+              label="Image *"
+              value={slide.image_url || null}
+              onChange={(url) =>
+                setSlide({ ...slide, image_url: url ?? "" })
               }
-              placeholder="Describe the slide for screen readers"
+              brandSlug={brandSlug}
+              onUpload={upload}
+              purpose="Brand tour slide"
+              recommendedSize="1600 × 900 px (16:9)"
+              recommendedFormat="JPG or PNG"
+              maxSizeMB={5}
             />
-          </label>
+          )}
+
+          {!isVideo && (
+            <label className="adm-field">
+              <span className="adm-form-label">Alt text</span>
+              <input
+                type="text"
+                className="adm-input"
+                value={slide.alt ?? ""}
+                onChange={(e) =>
+                  setSlide({ ...slide, alt: e.target.value || null })
+                }
+                placeholder="Describe the slide for screen readers"
+              />
+            </label>
+          )}
 
           <label className="adm-field">
             <span className="adm-form-label">Caption</span>
@@ -321,6 +407,114 @@ function SlideDrawer({
           </button>
         </footer>
       </div>
+    </div>
+  );
+}
+
+// ---- video upload (MP4-only, 50 MB cap, no preview thumbnail) ----
+
+interface VideoUploadProps {
+  value: string | null;
+  onChange: (url: string | null) => void;
+  brandSlug: string;
+  onUpload: UploadFn;
+  label: string;
+  maxSizeMB: number;
+}
+
+function VideoUpload({
+  value,
+  onChange,
+  brandSlug,
+  onUpload,
+  label,
+  maxSizeMB,
+}: VideoUploadProps) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+  const maxBytes = Math.round(maxSizeMB * 1024 * 1024);
+
+  const handleSelect = (file: File) => {
+    setError(null);
+    if (file.type !== "video/mp4") {
+      setError("MP4 only");
+      return;
+    }
+    if (file.size > maxBytes) {
+      setError(`Video must be under ${maxSizeMB} MB`);
+      return;
+    }
+    const fd = new FormData();
+    fd.append("file", file);
+    startTransition(async () => {
+      const result = await onUpload(brandSlug, fd);
+      if ("url" in result) {
+        onChange(result.url);
+      } else {
+        setError(result.error || "Upload failed");
+      }
+    });
+  };
+
+  return (
+    <div className="adm-upload">
+      <label className="adm-form-label">{label}</label>
+      <div className="adm-upload-reco">
+        <span>Format: MP4 · Max {maxSizeMB} MB</span>
+      </div>
+      {value ? (
+        <div className="adm-upload-preview">
+          <video src={value} controls width={320} preload="metadata" />
+          <div className="adm-upload-preview-body">
+            <div className="adm-upload-preview-actions">
+              <button
+                type="button"
+                className="adm-btn-ghost"
+                onClick={() => inputRef.current?.click()}
+                disabled={pending}
+              >
+                {pending ? "Uploading…" : "Replace"}
+              </button>
+              <button
+                type="button"
+                className="adm-btn-ghost adm-btn-danger"
+                onClick={() => {
+                  onChange(null);
+                  setError(null);
+                }}
+                disabled={pending}
+              >
+                Remove
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <button
+          type="button"
+          className="adm-upload-zone"
+          onClick={() => inputRef.current?.click()}
+          disabled={pending}
+        >
+          {pending ? "Uploading…" : "Click to upload"}
+          <span className="adm-upload-hint">
+            MP4 · up to {maxSizeMB} MB
+          </span>
+        </button>
+      )}
+      <input
+        ref={inputRef}
+        type="file"
+        accept="video/mp4"
+        className="adm-upload-file"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) handleSelect(file);
+          e.target.value = "";
+        }}
+      />
+      {error && <div className="adm-form-error">{error}</div>}
     </div>
   );
 }

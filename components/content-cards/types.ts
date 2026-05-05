@@ -24,7 +24,7 @@ export interface AwardsCardData {
 
 export interface PersonasCardData {
   type: "personas";
-  items: Array<{ name: string; photo_url?: string; caption?: string }>;
+  items: Array<{ name?: string; photo_url?: string; caption?: string }>;
 }
 
 export interface PhotoCardData {
@@ -33,9 +33,17 @@ export interface PhotoCardData {
   caption?: string;
 }
 
+// Marker card — the journey-ahead roadmap renders automatically from
+// brand + candidate context, so no per-instance config. Existing once per
+// brand on the explore tour step. Hidden from the "Add card" picker.
+export interface JourneyAheadCardData {
+  type: "journey_ahead";
+}
+
 export type ContentCard =
   | FactCardData
   | QuoteCardData
   | AwardsCardData
   | PersonasCardData
-  | PhotoCardData;
+  | PhotoCardData
+  | JourneyAheadCardData;

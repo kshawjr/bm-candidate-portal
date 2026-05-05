@@ -391,6 +391,16 @@
   font-weight: 600;
   color: #111827;
 }
+.adm-rail-brand-studio {
+  display: inline-block;
+  margin-top: 8px;
+  font-size: 12px;
+  color: #2563eb;
+  text-decoration: none;
+}
+.adm-rail-brand-studio:hover {
+  text-decoration: underline;
+}
 .adm-rail-chapters {
   display: flex;
   flex-direction: column;

@@ -5,7 +5,18 @@ import { useEffect, useState } from "react";
 
 export interface Slide {
   id: string;
+  /** Defaults to "image" when omitted (existing slides). The video case
+   *  swaps the <Image> for a <video controls> with the same canvas
+   *  dimensions; image-specific fields (alt) are unused for video. */
+  media_type?: "image" | "video";
   image_url: string;
+  /** Required when `media_type === "video"`. Points at an MP4 served
+   *  from the same brand-assets bucket as slide images. */
+  video_url?: string | null;
+  /** Optional poster frame shown before the video plays — without it,
+   *  the browser shows a black frame, which feels off in a "light and
+   *  fluffy" portal. */
+  poster_url?: string | null;
   alt?: string | null;
   caption?: string | null;
   /** PR 58: optional heading rendered above the image. Greets the
@@ -177,19 +188,32 @@ export function SlidesRenderer({
             </h2>
           )}
           <div className="slide-canvas">
-            <Image
-              key={slide!.id}
-              src={slide!.image_url}
-              alt={slide!.alt ?? ""}
-              width={1280}
-              height={720}
-              priority
-              sizes="(max-width: 960px) 100vw, 900px"
-              // Slide images are web-ready exports (PNG from Canva, SVG from
-              // placeholder services). Skip Next's image optimizer so SVGs
-              // work too — the source is already sized appropriately.
-              unoptimized
-            />
+            {slide!.media_type === "video" && slide!.video_url ? (
+              <video
+                key={slide!.id}
+                src={slide!.video_url}
+                poster={slide!.poster_url ?? undefined}
+                controls
+                playsInline
+                preload="metadata"
+                width={1280}
+                height={720}
+              />
+            ) : (
+              <Image
+                key={slide!.id}
+                src={slide!.image_url}
+                alt={slide!.alt ?? ""}
+                width={1280}
+                height={720}
+                priority
+                sizes="(max-width: 960px) 100vw, 900px"
+                // Slide images are web-ready exports (PNG from Canva, SVG from
+                // placeholder services). Skip Next's image optimizer so SVGs
+                // work too — the source is already sized appropriately.
+                unoptimized
+              />
+            )}
           </div>
 
           {slide!.caption && (

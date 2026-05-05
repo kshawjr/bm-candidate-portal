@@ -5,6 +5,7 @@ import type { ContentCard } from "@/components/content-cards/types";
 import {
   AwardsForm,
   FactForm,
+  JourneyAheadForm,
   PersonasForm,
   PhotoForm,
   QuoteForm,
@@ -30,9 +31,10 @@ interface Props {
 const TYPE_LABEL: Record<ContentCard["type"], string> = {
   fact: "Fact",
   quote: "Quote",
-  awards: "Awards",
-  personas: "Personas",
+  awards: "Small Picture Card",
+  personas: "Large Picture Card",
   photo: "Photo",
+  journey_ahead: "Your Journey Ahead",
 };
 
 export function CardEditor({
@@ -78,6 +80,8 @@ export function CardEditor({
         return <PersonasForm value={card} onChange={setCard} {...common} />;
       case "photo":
         return <PhotoForm value={card} onChange={setCard} {...common} />;
+      case "journey_ahead":
+        return <JourneyAheadForm />;
     }
   };
 

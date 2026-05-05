@@ -10,10 +10,12 @@ import type { Slide } from "@/components/content-types/slides-renderer";
 import {
   saveContentCardAction,
   deleteContentCardAction,
+  reorderContentCardsAction,
   saveSlidesAction,
   saveStepConfigAction,
   uploadCardImageAction,
   uploadSlideImageAction,
+  uploadSlideVideoAction,
   uploadStepVideoAction,
 } from "./actions";
 import {
@@ -176,10 +178,12 @@ export default async function ContentEditorPage({ searchParams }: Props) {
       initialChapterKey={initialChapterKey}
       saveCard={saveContentCardAction}
       deleteCard={deleteContentCardAction}
+      reorderCards={reorderContentCardsAction}
       saveSlides={saveSlidesAction}
       saveStepConfig={saveStepConfigAction}
       upload={uploadCardImageAction}
       uploadSlide={uploadSlideImageAction}
+      uploadSlideVideo={uploadSlideVideoAction}
       uploadVideo={uploadStepVideoAction}
       candidateTokenForPreview={PREVIEW_TOKEN[brand.slug] ?? null}
       isGCalConfigured={isGCalConfigured()}
