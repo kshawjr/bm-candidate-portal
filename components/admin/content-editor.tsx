@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import type { ContentCard } from "@/components/content-cards/types";
 import type { Slide } from "@/components/content-types/slides-renderer";
 import type { StepFormData } from "@/app/admin/structure/actions";
+import { ApplicationNotice } from "./application-notice";
 import { CardEditor } from "./card-editor";
 import { SlideEditor } from "./slide-editor";
 import { StepsManager, type AdminStepRow } from "./steps-manager";
@@ -470,15 +471,7 @@ export function ContentEditor({
             )}
 
             {selectedStep.content_type === "application" && (
-              <div className="adm-notice">
-                <div className="adm-notice-eyebrow">Not user-editable</div>
-                <p>
-                  Application content is managed in code — the 22-question
-                  flow, chapters, and field mappings live in the portal
-                  repo so changes can be versioned alongside the Zoho field
-                  map.
-                </p>
-              </div>
+              <ApplicationNotice />
             )}
 
             {(selectedStep.content_type === "slides" ||
