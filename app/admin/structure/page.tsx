@@ -82,7 +82,7 @@ export default async function StructurePage({ searchParams }: Props) {
     app
       .from("chapter_intro_popups")
       .select(
-        "chapter_key, heading, body_md, hero_image_url, bullets, cta_dismiss_label, is_active, show_as_banner, partner_callout_text, pre_dismiss_checklist",
+        "chapter_key, heading, body_md, hero_image_url, bullets, cta_dismiss_label, is_active, show_as_banner, partner_callout_text, pre_dismiss_checklist, scarcity_framing, slots_remaining, continue_hint",
       )
       .eq("brand_id", brand.id),
     app
@@ -152,6 +152,26 @@ export default async function StructurePage({ searchParams }: Props) {
           items,
         };
       })(),
+      scarcityFraming: (() => {
+        const raw = (row as { scarcity_framing?: unknown }).scarcity_framing;
+        if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+        const obj = raw as { heading?: unknown; body?: unknown };
+        return {
+          heading: typeof obj.heading === "string" ? obj.heading : "",
+          body: typeof obj.body === "string" ? obj.body : "",
+        };
+      })(),
+      slotsRemaining: (() => {
+        const raw = (row as { slots_remaining?: unknown }).slots_remaining;
+        if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+        const obj = raw as { min?: unknown; max?: unknown };
+        const min = typeof obj.min === "number" ? obj.min : null;
+        const max = typeof obj.max === "number" ? obj.max : null;
+        if (min === null || max === null) return null;
+        return { min, max };
+      })(),
+      continueHint:
+        (row as { continue_hint?: string | null }).continue_hint ?? null,
     };
   }
 

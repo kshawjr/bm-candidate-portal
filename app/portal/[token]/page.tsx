@@ -269,7 +269,7 @@ export default async function PortalTokenPage({
     app
       .from("chapter_intro_popups")
       .select(
-        "chapter_key, heading, body_md, hero_image_url, bullets, cta_dismiss_label, is_active, show_as_banner, partner_callout_text, pre_dismiss_checklist",
+        "chapter_key, heading, body_md, hero_image_url, bullets, cta_dismiss_label, is_active, show_as_banner, partner_callout_text, pre_dismiss_checklist, scarcity_framing, slots_remaining, continue_hint",
       )
       .eq("brand_id", brand.id)
       .eq("is_active", true),
@@ -482,6 +482,9 @@ export default async function PortalTokenPage({
     showAsBanner: boolean;
     partnerCalloutText: string | null;
     preDismissChecklist: PreDismissChecklist | null;
+    scarcityFraming: { heading: string; body: string } | null;
+    slotsRemaining: { min: number; max: number } | null;
+    continueHint: string | null;
   }
   const parsedIntroByKey: Record<string, ParsedIntroRow> = {};
   for (const introRow of chapterIntroRows ?? []) {
@@ -537,6 +540,28 @@ export default async function PortalTokenPage({
           items,
         };
       })(),
+      scarcityFraming: (() => {
+        const raw = (introRow as { scarcity_framing?: unknown })
+          .scarcity_framing;
+        if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+        const obj = raw as { heading?: unknown; body?: unknown };
+        const heading = typeof obj.heading === "string" ? obj.heading : "";
+        const body = typeof obj.body === "string" ? obj.body : "";
+        if (!heading.trim() && !body.trim()) return null;
+        return { heading, body };
+      })(),
+      slotsRemaining: (() => {
+        const raw = (introRow as { slots_remaining?: unknown })
+          .slots_remaining;
+        if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+        const obj = raw as { min?: unknown; max?: unknown };
+        const min = typeof obj.min === "number" ? obj.min : null;
+        const max = typeof obj.max === "number" ? obj.max : null;
+        if (min === null || max === null) return null;
+        return { min, max };
+      })(),
+      continueHint:
+        (introRow as { continue_hint?: string | null }).continue_hint ?? null,
     };
   }
 
@@ -567,6 +592,9 @@ export default async function PortalTokenPage({
         ctaDismissLabel: parsed.ctaDismissLabel,
         partnerCalloutText: parsed.partnerCalloutText,
         preDismissChecklist: parsed.preDismissChecklist,
+        scarcityFraming: parsed.scarcityFraming,
+        slotsRemaining: parsed.slotsRemaining,
+        continueHint: parsed.continueHint,
       };
     }
   }

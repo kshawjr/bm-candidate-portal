@@ -44,6 +44,9 @@ export interface ChapterIntroInitial {
     heading: string;
     items: string[];
   } | null;
+  scarcityFraming: { heading: string; body: string } | null;
+  slotsRemaining: { min: number; max: number } | null;
+  continueHint: string | null;
 }
 
 export interface ChapterVideoInitial {
@@ -667,6 +670,9 @@ function ChapterIntroDrawer({
             items: initial.preDismissChecklist.items,
           }
         : null,
+    scarcityFraming: initial?.scarcityFraming ?? null,
+    slotsRemaining: initial?.slotsRemaining ?? null,
+    continueHint: initial?.continueHint ?? null,
   }));
   const [pending, startTransition] = useTransition();
   const [uploading, setUploading] = useState(false);
@@ -776,6 +782,9 @@ function ChapterIntroDrawer({
     ctaDismissLabel: form.ctaDismissLabel.trim() || "Let's go",
     partnerCalloutText: partnerCalloutPreview,
     preDismissChecklist: cleanedChecklistPreview,
+    scarcityFraming: form.scarcityFraming,
+    slotsRemaining: form.slotsRemaining,
+    continueHint: form.continueHint,
   };
   const bannerPreviewConfig: ChapterIntroBannerConfig = {
     chapterKey: chapter.chapter_key,
@@ -967,6 +976,163 @@ function ChapterIntroDrawer({
             </span>
           </label>
 
+          {/* F2 follow-up: first_chat-only scarcity controls. The
+              scarcity block in the popup renderer is gated on
+              chapterKey === "first_chat" — surfacing this editor on
+              other chapters would be misleading. */}
+          {chapter.chapter_key === "first_chat" && (
+            <>
+              <div className="adm-field">
+                <span className="adm-form-label">
+                  Scarcity framing (first chat only)
+                </span>
+                <span className="adm-form-hint">
+                  The &quot;By invitation only&quot; block above the body.
+                  Leave both fields blank to fall back to the default copy.
+                  Use <code>{"{slots}"}</code> in the heading to drop in the
+                  random &quot;N more&quot; count.
+                </span>
+                <input
+                  type="text"
+                  className="adm-input"
+                  value={form.scarcityFraming?.heading ?? ""}
+                  onChange={(e) => {
+                    const heading = e.target.value;
+                    const body = form.scarcityFraming?.body ?? "";
+                    setForm({
+                      ...form,
+                      scarcityFraming:
+                        heading || body ? { heading, body } : null,
+                    });
+                  }}
+                  placeholder="We're only taking {slots} more candidates this month."
+                  style={{ marginTop: 6 }}
+                />
+                <textarea
+                  className="adm-textarea"
+                  rows={2}
+                  value={form.scarcityFraming?.body ?? ""}
+                  onChange={(e) => {
+                    const body = e.target.value;
+                    const heading = form.scarcityFraming?.heading ?? "";
+                    setForm({
+                      ...form,
+                      scarcityFraming:
+                        heading || body ? { heading, body } : null,
+                    });
+                  }}
+                  placeholder="Selective intake. Serious candidates only."
+                  style={{ marginTop: 8 }}
+                />
+              </div>
+
+              <div className="adm-field">
+                <label
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={form.slotsRemaining !== null}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        slotsRemaining: e.target.checked
+                          ? form.slotsRemaining ?? { min: 3, max: 8 }
+                          : null,
+                      })
+                    }
+                  />
+                  <span className="adm-form-label" style={{ margin: 0 }}>
+                    Show slots-remaining count
+                  </span>
+                </label>
+                <span className="adm-form-hint">
+                  When on, the renderer picks a random integer in this range
+                  on every popup mount and drops it into the{" "}
+                  <code>{"{slots}"}</code> token in the scarcity heading.
+                </span>
+                {form.slotsRemaining && (
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: 12,
+                      marginTop: 8,
+                      alignItems: "center",
+                    }}
+                  >
+                    <label
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 4,
+                        flex: 1,
+                      }}
+                    >
+                      <span className="adm-form-label" style={{ margin: 0 }}>
+                        Min
+                      </span>
+                      <input
+                        type="number"
+                        className="adm-input"
+                        min={1}
+                        value={form.slotsRemaining.min}
+                        onChange={(e) => {
+                          const min = Math.max(
+                            1,
+                            parseInt(e.target.value, 10) || 1,
+                          );
+                          setForm({
+                            ...form,
+                            slotsRemaining: {
+                              min,
+                              max: Math.max(min, form.slotsRemaining!.max),
+                            },
+                          });
+                        }}
+                      />
+                    </label>
+                    <label
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 4,
+                        flex: 1,
+                      }}
+                    >
+                      <span className="adm-form-label" style={{ margin: 0 }}>
+                        Max
+                      </span>
+                      <input
+                        type="number"
+                        className="adm-input"
+                        min={form.slotsRemaining.min}
+                        value={form.slotsRemaining.max}
+                        onChange={(e) => {
+                          const max = Math.max(
+                            form.slotsRemaining!.min,
+                            parseInt(e.target.value, 10) ||
+                              form.slotsRemaining!.min,
+                          );
+                          setForm({
+                            ...form,
+                            slotsRemaining: {
+                              min: form.slotsRemaining!.min,
+                              max,
+                            },
+                          });
+                        }}
+                      />
+                    </label>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+
           {/* PR 40: pre-dismiss checklist editor. When ON, the popup CTA is
               gated until every item is checked. Toggling OFF clears items
               on save (saveChapterIntroAction drops empty arrays to null). */}
@@ -1072,6 +1238,35 @@ function ChapterIntroDrawer({
                     Remove checklist
                   </button>
                 </div>
+                {/* F2 follow-up: helper text shown next to the dismiss CTA
+                    while items are still unchecked. Empty → renderer falls
+                    back to the legacy "Check the items above to continue"
+                    copy. Nested inside the checklist editor because that's
+                    the only flow this hint shows up in. */}
+                <label
+                  className="adm-field"
+                  style={{ marginTop: 8 }}
+                >
+                  <span className="adm-form-label">
+                    Continue hint (optional)
+                  </span>
+                  <input
+                    type="text"
+                    className="adm-input"
+                    value={form.continueHint ?? ""}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        continueHint: e.target.value || null,
+                      })
+                    }
+                    placeholder="Check the items above to continue"
+                  />
+                  <span className="adm-form-hint">
+                    Shown next to the dismiss CTA while the checklist
+                    isn&apos;t fully ticked.
+                  </span>
+                </label>
               </div>
             ) : (
               <button
