@@ -247,6 +247,11 @@ const BRAND_MARKETING: Record<BrandCode, BrandMarketing> = {
 type SeedContentCard = Record<string, unknown>;
 const BRAND_TOUR_CONTENT_CARDS: Record<BrandCode, SeedContentCard[]> = {
   ht: [
+    // Marker card — the journey-ahead roadmap. Sits at index 0 so the
+    // candidate sees the multi-stop preview before the supporting fact /
+    // persona / quote / awards cards. The 20260506 migration enforces
+    // the same ordering on existing brands.
+    { type: "journey_ahead" },
     {
       type: "fact",
       headline: "70% of US households have at least one pet",
@@ -291,6 +296,7 @@ const BRAND_TOUR_CONTENT_CARDS: Record<BrandCode, SeedContentCard[]> = {
     },
   ],
   ct: [
+    { type: "journey_ahead" },
     {
       type: "fact",
       headline: "$99K+ avg revenue per vessel",

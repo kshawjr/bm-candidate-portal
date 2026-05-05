@@ -41,6 +41,7 @@ export function ContentCardStrip({
               return (
                 <JourneyAheadCard
                   key={i}
+                  card={card}
                   brandSlug={brandSlug}
                   currentChapterKey={currentChapterKey}
                 />

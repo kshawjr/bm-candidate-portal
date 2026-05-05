@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { Slide } from "@/components/content-types/slides-renderer";
+import { CaptionEditor } from "./caption-editor";
 import { ImageUpload } from "./image-upload";
 
 type UploadFn = (
@@ -35,7 +36,19 @@ function newSlide(): Slide {
     poster_url: null,
     alt: null,
     caption: null,
+    caption_size: null,
   };
+}
+
+/**
+ * Caption preview shown in the admin slide-row list. The stored caption
+ * is HTML now — strip tags so the preview reads as plain text and we
+ * don't dump literal "<strong>..." into the row.
+ */
+function captionPreview(html: string | null | undefined): string | null {
+  if (!html) return null;
+  const text = html.replace(/<[^>]+>/g, "").trim();
+  return text || null;
 }
 
 export function SlideEditor({
@@ -144,8 +157,10 @@ export function SlideEditor({
                       <span className="adm-muted">No alt text</span>
                     )}
                   </div>
-                  {slide.caption && (
-                    <div className="adm-sliderow-caption">{slide.caption}</div>
+                  {captionPreview(slide.caption) && (
+                    <div className="adm-sliderow-caption">
+                      {captionPreview(slide.caption)}
+                    </div>
                   )}
                 </div>
                 <div className="adm-sliderow-reorder">
@@ -374,18 +389,24 @@ function SlideDrawer({
             </label>
           )}
 
-          <label className="adm-field">
+          <div className="adm-field">
             <span className="adm-form-label">Caption</span>
-            <input
-              type="text"
-              className="adm-input"
-              value={slide.caption ?? ""}
-              onChange={(e) =>
-                setSlide({ ...slide, caption: e.target.value || null })
+            <CaptionEditor
+              value={slide.caption ?? null}
+              size={slide.caption_size ?? null}
+              onChange={(html, size) =>
+                setSlide({
+                  ...slide,
+                  caption: html,
+                  caption_size: size,
+                })
               }
-              placeholder="Optional caption shown below the slide"
             />
-          </label>
+            <span className="adm-form-hint">
+              Bold, italic, and links are supported. Pick a size; font is
+              locked to the brand&apos;s typography.
+            </span>
+          </div>
         </div>
 
         <footer className="adm-drawer-foot">

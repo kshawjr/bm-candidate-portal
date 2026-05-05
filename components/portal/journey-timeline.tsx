@@ -127,6 +127,9 @@ interface Props {
   /** chapter_key the candidate is currently on — used to mark the
    *  matching stage as active. */
   currentChapterKey: string | null;
+  /** Optional override for the section heading. Falls back to "Your
+   *  journey ahead" when omitted. */
+  title?: string;
 }
 
 /**
@@ -144,7 +147,11 @@ interface Props {
  *   7. Numbered pins overlaid as HTML buttons (kept outside the SVG so
  *      tooltips can use absolute positioning + flex)
  */
-export function JourneyTimeline({ brandSlug, currentChapterKey }: Props) {
+export function JourneyTimeline({
+  brandSlug,
+  currentChapterKey,
+  title,
+}: Props) {
   const theme = BRAND_THEMES[brandSlug] ?? FALLBACK_THEME;
   const isHT = brandSlug === "hounds-town-usa";
   const isCT = brandSlug === "cruisin-tikis";
@@ -201,7 +208,9 @@ export function JourneyTimeline({ brandSlug, currentChapterKey }: Props) {
       data-brand-slug={brandSlug}
     >
       <header className="journey-roadmap-header">
-        <h2 className="journey-roadmap-title">Your journey ahead</h2>
+        <h2 className="journey-roadmap-title">
+          {title?.trim() || "Your journey ahead"}
+        </h2>
         <p className="journey-roadmap-sub">
           Here&apos;s how the next 6–8 weeks look.{" "}
           <span className="journey-roadmap-tap">

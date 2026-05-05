@@ -4,13 +4,15 @@
 // (or null for "new"), an onChange callback, and renders only its own
 // fields. The parent CardEditor handles Save/Cancel + validation gate.
 
-import type {
-  AwardsCardData,
-  ContentCard,
-  FactCardData,
-  PersonasCardData,
-  PhotoCardData,
-  QuoteCardData,
+import {
+  DEFAULT_CARD_TITLES,
+  type AwardsCardData,
+  type ContentCard,
+  type FactCardData,
+  type JourneyAheadCardData,
+  type PersonasCardData,
+  type PhotoCardData,
+  type QuoteCardData,
 } from "@/components/content-cards/types";
 import { ImageUpload } from "./image-upload";
 
@@ -26,6 +28,40 @@ interface CommonProps {
   upload: UploadFn;
 }
 
+/**
+ * Shared "Card title" input rendered at the top of every per-type form.
+ * Empty value persists as `undefined` so resolveCardTitle() falls back to
+ * the per-type default at render time.
+ */
+function CardTitleField({
+  cardType,
+  value,
+  onChange,
+}: {
+  cardType: ContentCard["type"];
+  value: string | undefined;
+  onChange: (next: string | undefined) => void;
+}) {
+  const fallback = DEFAULT_CARD_TITLES[cardType];
+  const placeholder = fallback ?? "e.g. Why this matters";
+  return (
+    <Field label="Card title (optional)">
+      <input
+        type="text"
+        className="adm-input"
+        value={value ?? ""}
+        onChange={(e) => onChange(e.target.value || undefined)}
+        placeholder={placeholder}
+      />
+      <span className="adm-form-hint">
+        {fallback
+          ? `Leave blank to use the default — "${fallback}".`
+          : "Leave blank to render no title above the card."}
+      </span>
+    </Field>
+  );
+}
+
 // --- Fact ---
 
 export function FactForm({
@@ -36,6 +72,11 @@ export function FactForm({
 }: { value: FactCardData; onChange: (v: FactCardData) => void } & CommonProps) {
   return (
     <>
+      <CardTitleField
+        cardType="fact"
+        value={value.title}
+        onChange={(title) => onChange({ ...value, title })}
+      />
       <Field label="Headline" required>
         <input
           type="text"
@@ -94,6 +135,11 @@ export function QuoteForm({
 }: { value: QuoteCardData; onChange: (v: QuoteCardData) => void } & CommonProps) {
   return (
     <>
+      <CardTitleField
+        cardType="quote"
+        value={value.title}
+        onChange={(title) => onChange({ ...value, title })}
+      />
       <Field label="Author" required>
         <input
           type="text"
@@ -166,6 +212,11 @@ export function AwardsForm({
 
   return (
     <>
+      <CardTitleField
+        cardType="awards"
+        value={value.title}
+        onChange={(title) => onChange({ ...value, title })}
+      />
       {items.map((item, i) => (
         <div key={i} className="adm-repeatable-row">
           <div className="adm-repeatable-head">
@@ -246,6 +297,11 @@ export function PersonasForm({
 
   return (
     <>
+      <CardTitleField
+        cardType="personas"
+        value={value.title}
+        onChange={(title) => onChange({ ...value, title })}
+      />
       <p className="adm-form-hint">1 to {PERSONAS_MAX} large pictures.</p>
       {items.map((item, i) => (
         <div key={i} className="adm-repeatable-row">
@@ -316,6 +372,11 @@ export function PhotoForm({
 }: { value: PhotoCardData; onChange: (v: PhotoCardData) => void } & CommonProps) {
   return (
     <>
+      <CardTitleField
+        cardType="photo"
+        value={value.title}
+        onChange={(title) => onChange({ ...value, title })}
+      />
       <ImageUpload
         label="Image (required)"
         value={value.image_url || null}
@@ -346,19 +407,33 @@ export function isPhotoValid(v: PhotoCardData): boolean {
 }
 
 // --- Journey ahead ---
-// Marker card with no editable fields. The roadmap renders from candidate
-// state + brand decoration; admins can only reorder it, never add a
-// duplicate (hidden from the picker) or delete it (the only-one invariant
-// is enforced in content-editor.tsx).
+// Marker card — the roadmap stages and brand scenery are not per-instance
+// configurable (they come from candidate state + brand slug). The only
+// admin-editable surface is the section title, defaulting to "Your
+// journey ahead". Reorder controls in the card list let admins move it
+// up or down within the step's content cards.
 
-export function JourneyAheadForm() {
+export function JourneyAheadForm({
+  value,
+  onChange,
+}: {
+  value: JourneyAheadCardData;
+  onChange: (v: JourneyAheadCardData) => void;
+}) {
   return (
-    <p className="adm-form-hint">
-      The journey roadmap renders automatically from the candidate&apos;s
-      progress and the brand&apos;s scenery (paws, waves, etc.). This card
-      has no editable fields — drag it up or down to change where it sits
-      in the step.
-    </p>
+    <>
+      <CardTitleField
+        cardType="journey_ahead"
+        value={value.title}
+        onChange={(title) => onChange({ ...value, title })}
+      />
+      <p className="adm-form-hint">
+        The roadmap stages and brand scenery (paws, waves, etc.) render
+        automatically from the candidate&apos;s progress — only the title
+        above is editable here. Drag the card up or down in the cards
+        list to change where it sits within the step.
+      </p>
+    </>
   );
 }
 

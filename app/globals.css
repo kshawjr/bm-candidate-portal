@@ -624,12 +624,47 @@ body {
   display: block;
   background: #000;
 }
+/* Caption type-scale tokens. These three sizes are the only options the
+   admin caption editor exposes — locking the size to a brand-aware token
+   prevents arbitrary pixel values from sneaking into per-slide HTML. */
+:root {
+  --caption-size-sm: 12px;
+  --caption-size-md: 13px;
+  --caption-size-lg: 16px;
+}
 .slide-caption {
-  font-size: 13px;
+  font-size: var(--caption-size-md);
   color: var(--cin-text-muted);
   text-align: center;
   margin: 14px 0 0;
   font-family: var(--font-body);
+}
+.slide-caption--sm {
+  font-size: var(--caption-size-sm);
+}
+.slide-caption--md {
+  font-size: var(--caption-size-md);
+}
+.slide-caption--lg {
+  font-size: var(--caption-size-lg);
+  /* Larger sizes use the heading face (Fraunces) — the body font reads
+     thin at this scale, and the caption becomes editorial enough to want
+     the serif accent. Stays on-brand because the font face comes from
+     the brand-controlled --font-heading var. */
+  font-family: var(--font-heading);
+  color: var(--cin-text);
+}
+/* Inline anchors inside captions adopt the brand primary so they read
+   as branded links instead of default browser blue. */
+.slide-caption a {
+  color: var(--brand-primary);
+  text-decoration: underline;
+}
+.slide-caption strong {
+  font-weight: 600;
+}
+.slide-caption em {
+  font-style: italic;
 }
 .slide-controls {
   display: grid;
@@ -1801,6 +1836,12 @@ body {
   grid-template-columns: 220px 1fr;
   gap: 40px;
   align-items: start;
+}
+/* When the admin sets a `title` on a fact-split card, the resolved label
+   needs to span both grid columns so it reads as the card's heading
+   instead of squeezing into the 220px stat column. */
+.cc-fact-split > .cc-card-section-label {
+  grid-column: 1 / -1;
 }
 .cc-fact-stat-col {
   display: flex;
