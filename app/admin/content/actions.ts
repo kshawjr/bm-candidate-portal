@@ -1,6 +1,6 @@
 "use server";
 
-import DOMPurify from "isomorphic-dompurify";
+import sanitizeHtml from "sanitize-html";
 import { revalidatePath } from "next/cache";
 import { createAppServiceClient } from "@/lib/supabase-app";
 import { createCoreClient } from "@/lib/core-client";
@@ -327,21 +327,29 @@ export async function saveStepConfigAction(
 /**
  * Sanitize the rich-text caption HTML emitted by the TipTap editor. Only
  * the formatting the editor exposes survives the round trip — bold,
- * italic, links — every other tag and attribute (script, style, on*,
- * inline color, etc.) is stripped. Plain text written before the
- * rich-text editor existed flows through untouched because there's no
- * markup to remove.
+ * italic, links, and the size-variant span — every other tag, attribute,
+ * and URL scheme gets stripped. Plain text written before the rich-text
+ * editor existed flows through untouched because there's no markup to
+ * remove.
+ *
+ * Switched from isomorphic-dompurify to sanitize-html: the former pulled
+ * in an ESM-only transitive (html-encoding-sniffer → @exodus/bytes) that
+ * broke the Vercel serverless runtime with ERR_REQUIRE_ESM. sanitize-html
+ * is CommonJS-native, has a more granular allowlist API, and handles URI
+ * scheme filtering without a regex.
  */
 function sanitizeCaptionHtml(input: string): string {
-  return DOMPurify.sanitize(input, {
-    ALLOWED_TAGS: ["strong", "em", "a", "br"],
-    ALLOWED_ATTR: ["href"],
-    // Block javascript: / data: / vbscript: hrefs even if the tag-level
-    // allowlist would let them through.
-    ALLOWED_URI_REGEXP:
-      /^(?:(?:https?|mailto|tel):|[^a-z]|[a-z+.-]+(?:[^a-z+.\-:]|$))/i,
-    KEEP_CONTENT: true,
-    USE_PROFILES: { html: true },
+  return sanitizeHtml(input, {
+    allowedTags: ["strong", "em", "a", "br", "span"],
+    allowedAttributes: {
+      a: ["href"],
+      // Permitted so a future caption editor could embed the size class
+      // inline; the current renderer puts the size on the wrapping <p>,
+      // not inside the caption HTML, so this is mostly belt-and-braces.
+      span: ["class"],
+    },
+    allowedSchemes: ["http", "https", "mailto"],
+    disallowedTagsMode: "discard",
   });
 }
 
