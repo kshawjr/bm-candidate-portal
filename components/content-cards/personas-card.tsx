@@ -1,5 +1,5 @@
 import Image from "next/image";
-import type { PersonasCardData } from "./types";
+import { resolveCardTitle, type PersonasCardData } from "./types";
 
 function PersonIcon() {
   return (
@@ -21,12 +21,13 @@ function PersonIcon() {
 }
 
 export function PersonasCard({ card }: { card: PersonasCardData }) {
+  const title = resolveCardTitle(card);
   const count = card.items.length;
   const gridModifier =
     count === 1 ? " cc-personas-grid--one" : count === 2 ? " cc-personas-grid--two" : "";
   return (
     <article className="cc-card cc-personas">
-      <div className="cc-card-section-label">Who they serve</div>
+      {title && <div className="cc-card-section-label">{title}</div>}
       <div className={`cc-personas-grid${gridModifier}`}>
         {card.items.map((p, i) => (
           <div key={i} className="cc-persona">

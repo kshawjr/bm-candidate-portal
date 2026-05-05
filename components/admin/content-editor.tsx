@@ -321,21 +321,20 @@ export function ContentEditor({
         <div className="adm-rail-head">
           <div className="adm-rail-eyebrow">Editing</div>
           <div className="adm-rail-brand">{brandName}</div>
-          {/* F1 placeholder: brand-level config (hero stats, logos,
-              colors) lives in bmave-core.brands and bmave-core.portal_content,
-              shared with FlightDeck and other Blue Maven apps. The editor
-              for it belongs in FlightDeck's Brand Studio, not in this
-              candidate-facing repo (per the canonical Blue Maven
-              architecture). This link surfaces that pointer until the
-              Brand Studio editor lands. */}
-          <a
-            className="adm-rail-brand-studio"
-            href="https://flightdeck.bmave.com/brand-studio"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Edit hero stats in Brand Studio →
-          </a>
+          {/* F1 placeholder (followup): brand-level config (hero stats,
+              logos, colors) lives in bmave-core.brands +
+              bmave-core.portal_content, shared with FlightDeck and other
+              Blue Maven apps. The editor for it belongs in FlightDeck's
+              Brand Studio, not in this candidate-facing repo. The link
+              originally placed here pointed at a route that doesn't
+              exist yet — replaced with informational copy so admins
+              don't 404 chasing a placeholder. Swap for a real link once
+              Brand Studio actually ships in FlightDeck. */}
+          <div className="adm-rail-brand-studio-info">
+            Hero stats are managed in FlightDeck Brand Studio — editor
+            coming soon. For urgent changes, ping Kevin or edit{" "}
+            <code>bmave-core.portal_content</code> directly.
+          </div>
         </div>
         <nav className="adm-rail-chapters">
           {chapters.map((chapter) => {

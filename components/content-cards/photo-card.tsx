@@ -1,9 +1,11 @@
 import Image from "next/image";
-import type { PhotoCardData } from "./types";
+import { resolveCardTitle, type PhotoCardData } from "./types";
 
 export function PhotoCard({ card }: { card: PhotoCardData }) {
+  const title = resolveCardTitle(card);
   return (
     <article className="cc-card cc-photo">
+      {title && <div className="cc-card-section-label">{title}</div>}
       <div className="cc-photo-frame">
         <Image
           src={card.image_url}

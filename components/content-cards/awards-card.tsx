@@ -1,5 +1,5 @@
 import Image from "next/image";
-import type { AwardsCardData } from "./types";
+import { resolveCardTitle, type AwardsCardData } from "./types";
 
 function StarIcon() {
   return (
@@ -20,9 +20,10 @@ function StarIcon() {
 }
 
 export function AwardsCard({ card }: { card: AwardsCardData }) {
+  const title = resolveCardTitle(card);
   return (
     <article className="cc-card cc-awards">
-      <div className="cc-card-section-label">Recognition</div>
+      {title && <div className="cc-card-section-label">{title}</div>}
       <ul className="cc-awards-row">
         {card.items.map((item, i) => (
           <li key={i} className="cc-award-tile">

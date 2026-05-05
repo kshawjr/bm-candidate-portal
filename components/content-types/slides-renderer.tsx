@@ -3,6 +3,10 @@
 import Image from "next/image";
 import { useEffect, useState } from "react";
 
+export type CaptionSize = "sm" | "md" | "lg";
+
+export const CAPTION_SIZES: ReadonlyArray<CaptionSize> = ["sm", "md", "lg"];
+
 export interface Slide {
   id: string;
   /** Defaults to "image" when omitted (existing slides). The video case
@@ -18,7 +22,12 @@ export interface Slide {
    *  fluffy" portal. */
   poster_url?: string | null;
   alt?: string | null;
+  /** Sanitized HTML — only <strong>, <em>, and <a href> survive
+   *  normalization on save. Plain text written before the rich-text
+   *  editor landed renders as-is (no markup is just text). */
   caption?: string | null;
+  /** Type-scale variant for the caption. Defaults to "md" when omitted. */
+  caption_size?: CaptionSize | null;
   /** PR 58: optional heading rendered above the image. Greets the
    *  candidate ("Welcome to Hounds Town") when set. Supports the
    *  `{{first_name}}` template variable, replaced at render time with
@@ -217,9 +226,17 @@ export function SlidesRenderer({
           </div>
 
           {slide!.caption && (
-            <p className="slide-caption">
-              {applySlideTemplate(slide!.caption, candidate ?? {})}
-            </p>
+            <p
+              className={`slide-caption slide-caption--${slide!.caption_size ?? "md"}`}
+              // Caption is sanitized server-side at save time
+              // (sanitizeCaptionHtml in app/admin/content/actions.ts) —
+              // only <strong>, <em>, <a href> survive. Existing plain-text
+              // captions render as-is because plain text has no markup
+              // for the sanitizer to remove.
+              dangerouslySetInnerHTML={{
+                __html: applySlideTemplate(slide!.caption, candidate ?? {}),
+              }}
+            />
           )}
         </>
       )}

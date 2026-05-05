@@ -1,11 +1,13 @@
 import Image from "next/image";
-import type { QuoteCardData } from "./types";
+import { resolveCardTitle, type QuoteCardData } from "./types";
 
 export function QuoteCard({ card }: { card: QuoteCardData }) {
   const initial = (card.author.trim().charAt(0) || "?").toUpperCase();
+  const title = resolveCardTitle(card);
 
   return (
     <article className="cc-card cc-quote">
+      {title && <div className="cc-card-section-label">{title}</div>}
       <div className="cc-quote-mark" aria-hidden="true">
         {"\u201C"}
       </div>

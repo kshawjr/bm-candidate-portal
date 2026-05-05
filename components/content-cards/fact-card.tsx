@@ -1,5 +1,5 @@
 import Image from "next/image";
-import type { FactCardData } from "./types";
+import { resolveCardTitle, type FactCardData } from "./types";
 
 // Heuristic: if the headline begins with a clear stat token (digits, $, %, K/M/B
 // suffix, + sign, commas), split it into a big display stat and a supporting
@@ -32,6 +32,7 @@ function FactImage({ src, alt }: { src: string; alt: string }) {
 export function FactCard({ card }: { card: FactCardData }) {
   const parsed = parseFactStat(card.headline);
   const hasImage = Boolean(card.image_url);
+  const title = resolveCardTitle(card);
 
   // Case 1: stat parse succeeded → keep the 2-col (stat | body) layout.
   //   With image: stack image ABOVE the stat in the left column so the
@@ -40,6 +41,7 @@ export function FactCard({ card }: { card: FactCardData }) {
   if (parsed) {
     return (
       <article className="cc-card cc-fact cc-fact-split">
+        {title && <div className="cc-card-section-label">{title}</div>}
         <div className="cc-fact-stat-col">
           {hasImage && <FactImage src={card.image_url!} alt={card.headline} />}
           <div className="cc-fact-stat">{parsed.stat}</div>
@@ -62,6 +64,7 @@ export function FactCard({ card }: { card: FactCardData }) {
     <article
       className={`cc-card cc-fact${hasImage ? " cc-fact-banner" : ""}`}
     >
+      {title && <div className="cc-card-section-label">{title}</div>}
       {hasImage && <FactImage src={card.image_url!} alt={card.headline} />}
       <h3 className="cc-fact-headline">{card.headline}</h3>
       <p className="cc-fact-body">{card.body}</p>

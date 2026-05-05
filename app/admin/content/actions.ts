@@ -1,10 +1,15 @@
 "use server";
 
+import DOMPurify from "isomorphic-dompurify";
 import { revalidatePath } from "next/cache";
 import { createAppServiceClient } from "@/lib/supabase-app";
 import { createCoreClient } from "@/lib/core-client";
 import type { ContentCard } from "@/components/content-cards/types";
-import type { Slide } from "@/components/content-types/slides-renderer";
+import {
+  CAPTION_SIZES,
+  type CaptionSize,
+  type Slide,
+} from "@/components/content-types/slides-renderer";
 
 const STORAGE_BUCKET = "brand-assets";
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5 MB
@@ -319,6 +324,27 @@ export async function saveStepConfigAction(
 
 // ---- slides ----
 
+/**
+ * Sanitize the rich-text caption HTML emitted by the TipTap editor. Only
+ * the formatting the editor exposes survives the round trip — bold,
+ * italic, links — every other tag and attribute (script, style, on*,
+ * inline color, etc.) is stripped. Plain text written before the
+ * rich-text editor existed flows through untouched because there's no
+ * markup to remove.
+ */
+function sanitizeCaptionHtml(input: string): string {
+  return DOMPurify.sanitize(input, {
+    ALLOWED_TAGS: ["strong", "em", "a", "br"],
+    ALLOWED_ATTR: ["href"],
+    // Block javascript: / data: / vbscript: hrefs even if the tag-level
+    // allowlist would let them through.
+    ALLOWED_URI_REGEXP:
+      /^(?:(?:https?|mailto|tel):|[^a-z]|[a-z+.-]+(?:[^a-z+.\-:]|$))/i,
+    KEEP_CONTENT: true,
+    USE_PROFILES: { html: true },
+  });
+}
+
 function normalizeSlides(input: unknown): Slide[] {
   if (!Array.isArray(input)) {
     throw new Error("slides must be an array");
@@ -354,9 +380,26 @@ function normalizeSlides(input: unknown): Slide[] {
         : `slide-${Date.now()}-${i}`;
     const alt =
       typeof s.alt === "string" && s.alt.trim().length > 0 ? s.alt : null;
-    const caption =
+    const captionRaw =
       typeof s.caption === "string" && s.caption.trim().length > 0
         ? s.caption
+        : null;
+    // Sanitize, then drop entirely if the visible text is empty after
+    // tag stripping — handles the admin-types-and-clears flow as well as
+    // someone pasting only disallowed markup.
+    const captionSanitized = captionRaw
+      ? sanitizeCaptionHtml(captionRaw).trim()
+      : "";
+    const captionVisible =
+      captionSanitized.replace(/<[^>]+>/g, "").trim().length > 0;
+    const captionFinal = captionVisible ? captionSanitized : null;
+    const captionSizeRaw =
+      typeof s.caption_size === "string"
+        ? (s.caption_size.toLowerCase() as CaptionSize)
+        : null;
+    const caption_size: CaptionSize | null =
+      captionSizeRaw && CAPTION_SIZES.includes(captionSizeRaw)
+        ? captionSizeRaw
         : null;
     // PR 58: preserve heading so the welcome migration's value isn't
     // wiped the next time an admin saves the slide deck. Same shape as
@@ -372,7 +415,8 @@ function normalizeSlides(input: unknown): Slide[] {
       video_url,
       poster_url,
       alt,
-      caption,
+      caption: captionFinal,
+      caption_size,
       heading,
     };
   });
