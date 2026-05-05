@@ -9,6 +9,10 @@ import type { Slide } from "@/components/content-types/slides-renderer";
 const STORAGE_BUCKET = "brand-assets";
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5 MB
 const MAX_VIDEO_BYTES = 100 * 1024 * 1024; // 100 MB
+// F3: tighter cap on slide videos than the 100 MB step-video cap. Slides
+// are mid-stop transitions, not the main attraction — anything larger
+// than 50 MB likely needs to live as a `video` step instead.
+const MAX_SLIDE_VIDEO_BYTES = 50 * 1024 * 1024;
 const ALLOWED_IMAGE_TYPES = new Set([
   "image/jpeg",
   "image/jpg",
@@ -20,6 +24,9 @@ const ALLOWED_VIDEO_TYPES = new Set([
   "video/quicktime",
   "video/webm",
 ]);
+// Slides take MP4 only — keeps the served files predictable and the
+// player consistent across browsers.
+const ALLOWED_SLIDE_VIDEO_TYPES = new Set(["video/mp4"]);
 
 // PR 48: matching middleware-level admin auth bypass (PR 47). Returns
 // a stub user so existing call sites that destructure or check the
@@ -95,6 +102,35 @@ export async function deleteContentCardAction(
 }
 
 /**
+ * Move a card from `fromIndex` to `toIndex`. No-op if either index is out
+ * of bounds. The journey_ahead card participates in this reorder system
+ * so admins can position the roadmap relative to other cards on the step.
+ */
+export async function reorderContentCardsAction(
+  stepId: string,
+  fromIndex: number,
+  toIndex: number,
+): Promise<void> {
+  await requireAdmin();
+  const cards = await loadStepCards(stepId);
+  if (
+    fromIndex < 0 ||
+    fromIndex >= cards.length ||
+    toIndex < 0 ||
+    toIndex >= cards.length ||
+    fromIndex === toIndex
+  ) {
+    return;
+  }
+  const next = [...cards];
+  const [moved] = next.splice(fromIndex, 1);
+  next.splice(toIndex, 0, moved);
+  await saveStepCards(stepId, next);
+  revalidatePath("/admin/content");
+  revalidatePath("/portal/[token]", "page");
+}
+
+/**
  * Upload an image file to brand-assets/{brandSlug}/{subdir}/{ts}-{name}
  * and return the public URL. Validates size + MIME type server-side.
  *
@@ -153,6 +189,48 @@ export async function uploadSlideImageAction(
   formData: FormData,
 ): Promise<{ url: string } | { error: string }> {
   return uploadBrandAsset(brandSlug, "slides", formData);
+}
+
+/**
+ * Upload an MP4 slide video to brand-assets/{brandSlug}/slides/{ts}-{name}.
+ * Stays in the same `slides/` subdir as slide images so per-brand cleanup
+ * is one prefix scan, not two.
+ */
+export async function uploadSlideVideoAction(
+  brandSlug: string,
+  formData: FormData,
+): Promise<{ url: string } | { error: string }> {
+  await requireAdmin();
+
+  const file = formData.get("file");
+  if (!(file instanceof File)) return { error: "No file provided" };
+  if (!ALLOWED_SLIDE_VIDEO_TYPES.has(file.type)) {
+    return { error: "Slide videos must be MP4" };
+  }
+  if (file.size > MAX_SLIDE_VIDEO_BYTES) {
+    return { error: "Slide videos must be under 50 MB" };
+  }
+  if (!brandSlug || !/^[a-z0-9-]+$/.test(brandSlug)) {
+    return { error: "Invalid brand slug" };
+  }
+
+  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-").slice(0, 80);
+  const path = `${brandSlug}/slides/${Date.now()}-${safeName}`;
+
+  const core = createCoreClient();
+  const { error: upErr } = await core.storage
+    .from(STORAGE_BUCKET)
+    .upload(path, file, {
+      contentType: file.type,
+      cacheControl: "31536000",
+      upsert: false,
+    });
+  if (upErr) return { error: upErr.message };
+
+  const { data: pub } = core.storage.from(STORAGE_BUCKET).getPublicUrl(path);
+  if (!pub?.publicUrl) return { error: "Failed to resolve public URL" };
+
+  return { url: pub.publicUrl };
 }
 
 /**
@@ -250,8 +328,26 @@ function normalizeSlides(input: unknown): Slide[] {
       throw new Error(`slide ${i + 1}: must be an object`);
     }
     const s = raw as Record<string, unknown>;
+    // Default to "image" when omitted so existing slides written before
+    // F3 don't start failing validation. Anything else gets coerced back
+    // to "image" — the renderer only branches on "video".
+    const media_type = s.media_type === "video" ? "video" : "image";
     const image_url = typeof s.image_url === "string" ? s.image_url.trim() : "";
-    if (!image_url) throw new Error(`slide ${i + 1}: image_url is required`);
+    const video_url =
+      typeof s.video_url === "string" && s.video_url.trim().length > 0
+        ? s.video_url.trim()
+        : null;
+    const poster_url =
+      typeof s.poster_url === "string" && s.poster_url.trim().length > 0
+        ? s.poster_url.trim()
+        : null;
+    if (media_type === "video") {
+      if (!video_url) {
+        throw new Error(`slide ${i + 1}: video_url is required for video slides`);
+      }
+    } else if (!image_url) {
+      throw new Error(`slide ${i + 1}: image_url is required`);
+    }
     const id =
       typeof s.id === "string" && s.id.trim().length > 0
         ? s.id.trim()
@@ -269,7 +365,16 @@ function normalizeSlides(input: unknown): Slide[] {
       typeof s.heading === "string" && s.heading.trim().length > 0
         ? s.heading
         : null;
-    return { id, image_url, alt, caption, heading };
+    return {
+      id,
+      media_type,
+      image_url,
+      video_url,
+      poster_url,
+      alt,
+      caption,
+      heading,
+    };
   });
 }
 

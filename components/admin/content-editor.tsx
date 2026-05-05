@@ -62,10 +62,16 @@ interface Props {
     cardIndex?: number,
   ) => Promise<void>;
   deleteCard: (stepId: string, cardIndex: number) => Promise<void>;
+  reorderCards: (
+    stepId: string,
+    fromIndex: number,
+    toIndex: number,
+  ) => Promise<void>;
   saveSlides: (stepId: string, slides: Slide[]) => Promise<void>;
   saveStepConfig: (stepId: string, config: Record<string, unknown>) => Promise<void>;
   upload: UploadFn;
   uploadSlide: UploadFn;
+  uploadSlideVideo: UploadFn;
   uploadVideo: UploadFn;
   candidateTokenForPreview: string | null;
   isGCalConfigured: boolean;
@@ -94,13 +100,27 @@ interface Props {
   ) => Promise<{ success: boolean; error?: string }>;
 }
 
-const CARD_TYPES: Array<{ type: ContentCard["type"]; label: string }> = [
+// "Add card" picker. journey_ahead is intentionally excluded — there is
+// exactly one of those per explore-chapter slides step (seeded by
+// migration 20260505_journey_ahead_card.sql), and admins can only reorder
+// it, never add a duplicate or pick it from this menu.
+const CARD_TYPES: Array<{ type: Exclude<ContentCard["type"], "journey_ahead">; label: string }> = [
   { type: "fact", label: "Fact" },
   { type: "quote", label: "Quote" },
-  { type: "awards", label: "Awards" },
-  { type: "personas", label: "Personas" },
+  { type: "awards", label: "Small Picture Card" },
+  { type: "personas", label: "Large Picture Card" },
   { type: "photo", label: "Photo" },
 ];
+
+// Short, human-readable label per card type for the card-list badge.
+const TYPE_BADGE: Record<ContentCard["type"], string> = {
+  fact: "fact",
+  quote: "quote",
+  awards: "small picture",
+  personas: "large picture",
+  photo: "photo",
+  journey_ahead: "journey",
+};
 
 function flattenSteps(
   chapters: AdminChapter[],
@@ -120,10 +140,12 @@ export function ContentEditor({
   initialChapterKey,
   saveCard,
   deleteCard,
+  reorderCards,
   saveSlides,
   saveStepConfig,
   upload,
   uploadSlide,
+  uploadSlideVideo,
   uploadVideo,
   candidateTokenForPreview,
   isGCalConfigured,
@@ -266,6 +288,17 @@ export function ContentEditor({
     });
   };
 
+  const handleReorder = (fromIndex: number, dir: -1 | 1) => {
+    if (!selectedStepId || !selectedStep) return;
+    const toIndex = fromIndex + dir;
+    if (toIndex < 0 || toIndex >= selectedStep.content_cards.length) return;
+    startDeleting(async () => {
+      await reorderCards(selectedStepId, fromIndex, toIndex);
+      router.refresh();
+      setToast("Card reordered");
+    });
+  };
+
   const previewHref = candidateTokenForPreview
     ? `/portal/${candidateTokenForPreview}`
     : null;
@@ -288,6 +321,21 @@ export function ContentEditor({
         <div className="adm-rail-head">
           <div className="adm-rail-eyebrow">Editing</div>
           <div className="adm-rail-brand">{brandName}</div>
+          {/* F1 placeholder: brand-level config (hero stats, logos,
+              colors) lives in bmave-core.brands and bmave-core.portal_content,
+              shared with FlightDeck and other Blue Maven apps. The editor
+              for it belongs in FlightDeck's Brand Studio, not in this
+              candidate-facing repo (per the canonical Blue Maven
+              architecture). This link surfaces that pointer until the
+              Brand Studio editor lands. */}
+          <a
+            className="adm-rail-brand-studio"
+            href="https://flightdeck.bmave.com/brand-studio"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Edit hero stats in Brand Studio →
+          </a>
         </div>
         <nav className="adm-rail-chapters">
           {chapters.map((chapter) => {
@@ -393,6 +441,7 @@ export function ContentEditor({
                 initialSlides={selectedStep.slides}
                 saveSlides={saveSlides}
                 upload={uploadSlide}
+                uploadVideo={uploadSlideVideo}
               />
             )}
 
@@ -453,6 +502,7 @@ export function ContentEditor({
                     setEditorState({ mode: "edit", card, cardIndex: idx })
                   }
                   onDelete={handleDelete}
+                  onReorder={handleReorder}
                   deleting={deleting}
                 />
 
@@ -548,10 +598,11 @@ interface CardListProps {
   cards: ContentCard[];
   onEdit: (card: ContentCard, idx: number) => void;
   onDelete: (idx: number) => void;
+  onReorder: (fromIndex: number, dir: -1 | 1) => void;
   deleting: boolean;
 }
 
-function CardList({ cards, onEdit, onDelete, deleting }: CardListProps) {
+function CardList({ cards, onEdit, onDelete, onReorder, deleting }: CardListProps) {
   if (cards.length === 0) {
     return (
       <div className="adm-cardlist-empty">
@@ -561,31 +612,64 @@ function CardList({ cards, onEdit, onDelete, deleting }: CardListProps) {
   }
   return (
     <ul className="adm-cardlist">
-      {cards.map((card, i) => (
-        <li key={i} className="adm-cardrow">
-          <span className={`adm-cardrow-badge adm-cardrow-badge-${card.type}`}>
-            {card.type}
-          </span>
-          <span className="adm-cardrow-summary">{summarize(card)}</span>
-          <div className="adm-cardrow-actions">
-            <button
-              type="button"
-              className="adm-btn-ghost"
-              onClick={() => onEdit(card, i)}
-            >
-              Edit
-            </button>
-            <button
-              type="button"
-              className="adm-btn-ghost adm-btn-danger"
-              onClick={() => onDelete(i)}
-              disabled={deleting}
-            >
-              Delete
-            </button>
-          </div>
-        </li>
-      ))}
+      {cards.map((card, i) => {
+        // journey_ahead is a marker card: the timeline content is hard-
+        // coded in the renderer, so there's nothing to edit, and the
+        // only-one invariant is enforced by the picker exclusion + the
+        // seed migration. Allow reorder, hide edit/delete.
+        const isMarker = card.type === "journey_ahead";
+        return (
+          <li key={i} className="adm-cardrow">
+            <span className={`adm-cardrow-badge adm-cardrow-badge-${card.type}`}>
+              {TYPE_BADGE[card.type]}
+            </span>
+            <span className="adm-cardrow-summary">{summarize(card)}</span>
+            <div className="adm-sliderow-reorder">
+              <button
+                type="button"
+                className="adm-icon-btn"
+                onClick={() => onReorder(i, -1)}
+                disabled={i === 0 || deleting}
+                aria-label="Move card up"
+                title="Move up"
+              >
+                ↑
+              </button>
+              <button
+                type="button"
+                className="adm-icon-btn"
+                onClick={() => onReorder(i, 1)}
+                disabled={i === cards.length - 1 || deleting}
+                aria-label="Move card down"
+                title="Move down"
+              >
+                ↓
+              </button>
+            </div>
+            <div className="adm-cardrow-actions">
+              {!isMarker && (
+                <>
+                  <button
+                    type="button"
+                    className="adm-btn-ghost"
+                    onClick={() => onEdit(card, i)}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    className="adm-btn-ghost adm-btn-danger"
+                    onClick={() => onDelete(i)}
+                    disabled={deleting}
+                  >
+                    Delete
+                  </button>
+                </>
+              )}
+            </div>
+          </li>
+        );
+      })}
     </ul>
   );
 }
@@ -597,10 +681,12 @@ function summarize(card: ContentCard): string {
     case "quote":
       return `${card.author} — ${card.role}`;
     case "awards":
-      return `${card.items.length} award${card.items.length === 1 ? "" : "s"}`;
+      return `${card.items.length} small picture${card.items.length === 1 ? "" : "s"}`;
     case "personas":
-      return `${card.items.length} persona${card.items.length === 1 ? "" : "s"}`;
+      return `${card.items.length} large picture${card.items.length === 1 ? "" : "s"}`;
     case "photo":
       return card.caption ?? "Photo";
+    case "journey_ahead":
+      return "Roadmap of stops (auto-rendered)";
   }
 }

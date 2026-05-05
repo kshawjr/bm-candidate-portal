@@ -4,13 +4,21 @@ import { QuoteCard } from "./quote-card";
 import { AwardsCard } from "./awards-card";
 import { PersonasCard } from "./personas-card";
 import { PhotoCard } from "./photo-card";
+import { JourneyAheadCard } from "./journey-ahead-card";
 
 interface Props {
   cards: ContentCard[];
   heading?: string;
+  brandSlug: string;
+  currentChapterKey: string | null;
 }
 
-export function ContentCardStrip({ cards, heading = "Learn more" }: Props) {
+export function ContentCardStrip({
+  cards,
+  heading = "Learn more",
+  brandSlug,
+  currentChapterKey,
+}: Props) {
   if (!cards || cards.length === 0) return null;
 
   return (
@@ -29,6 +37,14 @@ export function ContentCardStrip({ cards, heading = "Learn more" }: Props) {
               return <PersonasCard key={i} card={card} />;
             case "photo":
               return <PhotoCard key={i} card={card} />;
+            case "journey_ahead":
+              return (
+                <JourneyAheadCard
+                  key={i}
+                  brandSlug={brandSlug}
+                  currentChapterKey={currentChapterKey}
+                />
+              );
           }
         })}
       </div>

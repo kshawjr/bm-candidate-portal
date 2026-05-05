@@ -616,11 +616,13 @@ body {
   overflow: hidden;
   border: 1px solid var(--cin-border);
 }
-.slide-canvas img {
+.slide-canvas img,
+.slide-canvas video {
   width: 100%;
   height: 100%;
   object-fit: contain;
   display: block;
+  background: #000;
 }
 .slide-caption {
   font-size: 13px;
@@ -1937,8 +1939,18 @@ body {
 /* ---- personas card ---- */
 .cc-personas-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 20px;
+}
+/* 1 image: don't stretch across the row — center at a sensible width. */
+.cc-personas-grid--one {
+  grid-template-columns: minmax(0, 360px);
+  justify-content: center;
+}
+/* 2 images: side-by-side at 50% each, capped at the same row width as the
+   3-col grid so the images don't blow up edge-to-edge. */
+.cc-personas-grid--two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 .cc-persona {
   display: flex;
@@ -1981,11 +1993,17 @@ body {
 }
 @media (max-width: 760px) {
   .cc-personas-grid {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+  /* On tablet, 1- and 2-image grids stay as-is — the desktop tweaks
+     already produce sensible layouts at this size. */
 }
 @media (max-width: 480px) {
   .cc-personas-grid {
+    grid-template-columns: 1fr;
+  }
+  .cc-personas-grid--one,
+  .cc-personas-grid--two {
     grid-template-columns: 1fr;
   }
 }

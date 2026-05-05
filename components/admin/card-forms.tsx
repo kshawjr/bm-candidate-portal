@@ -14,6 +14,8 @@ import type {
 } from "@/components/content-cards/types";
 import { ImageUpload } from "./image-upload";
 
+const PERSONAS_MAX = 12;
+
 type UploadFn = (
   brandSlug: string,
   formData: FormData,
@@ -167,7 +169,7 @@ export function AwardsForm({
       {items.map((item, i) => (
         <div key={i} className="adm-repeatable-row">
           <div className="adm-repeatable-head">
-            <span className="adm-repeatable-label">Award {i + 1}</span>
+            <span className="adm-repeatable-label">Small picture {i + 1}</span>
             {items.length > 1 && (
               <button
                 type="button"
@@ -210,7 +212,7 @@ export function AwardsForm({
         </div>
       ))}
       <button type="button" className="adm-btn-ghost" onClick={addItem}>
-        + Add award
+        + Add small picture
       </button>
     </>
   );
@@ -234,22 +236,22 @@ export function PersonasForm({
     onChange({ ...value, items: next });
   };
   const removeItem = (idx: number) => {
-    if (items.length <= 2) return;
+    if (items.length <= 1) return;
     onChange({ ...value, items: items.filter((_, i) => i !== idx) });
   };
   const addItem = () => {
-    if (items.length >= 6) return;
-    onChange({ ...value, items: [...items, { name: "" }] });
+    if (items.length >= PERSONAS_MAX) return;
+    onChange({ ...value, items: [...items, {}] });
   };
 
   return (
     <>
-      <p className="adm-form-hint">2 to 6 personas.</p>
+      <p className="adm-form-hint">1 to {PERSONAS_MAX} large pictures.</p>
       {items.map((item, i) => (
         <div key={i} className="adm-repeatable-row">
           <div className="adm-repeatable-head">
-            <span className="adm-repeatable-label">Persona {i + 1}</span>
-            {items.length > 2 && (
+            <span className="adm-repeatable-label">Large picture {i + 1}</span>
+            {items.length > 1 && (
               <button
                 type="button"
                 className="adm-btn-ghost adm-btn-danger"
@@ -259,12 +261,14 @@ export function PersonasForm({
               </button>
             )}
           </div>
-          <Field label="Name" required>
+          <Field label="Name (optional)">
             <input
               type="text"
               className="adm-input"
-              value={item.name}
-              onChange={(e) => updateItem(i, { name: e.target.value })}
+              value={item.name ?? ""}
+              onChange={(e) =>
+                updateItem(i, { name: e.target.value || undefined })
+              }
             />
           </Field>
           <Field label="Caption (optional)">
@@ -289,9 +293,9 @@ export function PersonasForm({
           />
         </div>
       ))}
-      {items.length < 6 && (
+      {items.length < PERSONAS_MAX && (
         <button type="button" className="adm-btn-ghost" onClick={addItem}>
-          + Add persona
+          + Add large picture
         </button>
       )}
     </>
@@ -299,11 +303,7 @@ export function PersonasForm({
 }
 
 export function isPersonasValid(v: PersonasCardData): boolean {
-  return (
-    v.items.length >= 2 &&
-    v.items.length <= 6 &&
-    v.items.every((it) => it.name.trim().length > 0)
-  );
+  return v.items.length >= 1 && v.items.length <= PERSONAS_MAX;
 }
 
 // --- Photo ---
@@ -345,6 +345,23 @@ export function isPhotoValid(v: PhotoCardData): boolean {
   return v.image_url.length > 0;
 }
 
+// --- Journey ahead ---
+// Marker card with no editable fields. The roadmap renders from candidate
+// state + brand decoration; admins can only reorder it, never add a
+// duplicate (hidden from the picker) or delete it (the only-one invariant
+// is enforced in content-editor.tsx).
+
+export function JourneyAheadForm() {
+  return (
+    <p className="adm-form-hint">
+      The journey roadmap renders automatically from the candidate&apos;s
+      progress and the brand&apos;s scenery (paws, waves, etc.). This card
+      has no editable fields — drag it up or down to change where it sits
+      in the step.
+    </p>
+  );
+}
+
 // --- Validation dispatcher ---
 
 export function isCardValid(card: ContentCard): boolean {
@@ -359,6 +376,8 @@ export function isCardValid(card: ContentCard): boolean {
       return isPersonasValid(card);
     case "photo":
       return isPhotoValid(card);
+    case "journey_ahead":
+      return true;
   }
 }
 
@@ -375,10 +394,12 @@ export function defaultCardFor(type: ContentCard["type"]): ContentCard {
     case "personas":
       return {
         type: "personas",
-        items: [{ name: "" }, { name: "" }],
+        items: [{}],
       };
     case "photo":
       return { type: "photo", image_url: "" };
+    case "journey_ahead":
+      return { type: "journey_ahead" };
   }
 }
 
