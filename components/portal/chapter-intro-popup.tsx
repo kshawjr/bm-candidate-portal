@@ -14,6 +14,19 @@ export interface PreDismissChecklist {
   items: string[];
 }
 
+export interface ScarcityFraming {
+  /** May contain `{slots}` — replaced at render time with the random
+   *  number from `slotsRemaining`, or with an empty string when
+   *  `slotsRemaining` is null. */
+  heading: string;
+  body: string;
+}
+
+export interface SlotsRemainingRange {
+  min: number;
+  max: number;
+}
+
 export interface ChapterIntroPopupConfig {
   chapterKey: string;
   heading: string;
@@ -29,7 +42,32 @@ export interface ChapterIntroPopupConfig {
    *  is disabled until every item is checked. Used by Chapter 2 to gate
    *  booking on a few "I commit" affirmations. */
   preDismissChecklist: PreDismissChecklist | null;
+  /** F2 follow-up: heading + body of the "By invitation only" scarcity
+   *  block on first_chat. null → fall back to the legacy hardcoded
+   *  copy below so brands keep working until they're edited. */
+  scarcityFraming: ScarcityFraming | null;
+  /** F2 follow-up: range for the random "N more candidates" count.
+   *  null → omit the count from the heading entirely (replace `{slots}`
+   *  with empty string). */
+  slotsRemaining: SlotsRemainingRange | null;
+  /** F2 follow-up: helper text when the pre-dismiss checklist isn't
+   *  fully ticked. null/blank → fall back to the legacy copy. */
+  continueHint: string | null;
 }
+
+// Legacy fallbacks. The migration leaves scarcityFraming + continueHint
+// null on existing rows so brands that haven't been edited render the
+// same copy they always did.
+const DEFAULT_SCARCITY_HEADING =
+  "We're only taking {slots} more candidates this month.";
+const DEFAULT_SCARCITY_BODY = "Selective intake. Serious candidates only.";
+const DEFAULT_CONTINUE_HINT = "Check the items above to continue";
+
+export const FALLBACK_SCARCITY: ScarcityFraming = {
+  heading: DEFAULT_SCARCITY_HEADING,
+  body: DEFAULT_SCARCITY_BODY,
+};
+export const FALLBACK_CONTINUE_HINT = DEFAULT_CONTINUE_HINT;
 
 interface Props {
   config: ChapterIntroPopupConfig;
@@ -58,15 +96,36 @@ export function ChapterIntroPopup({ config, onDismiss, onDismissed }: Props) {
     checkedFlags.length === checklistItems.length &&
       checkedFlags.every(Boolean);
 
-  // PR 41: scarcity framing on the Chapter 2 intro popup. Random integer
-  // 2..5 inclusive, stable per mount via useMemo so the number doesn't
-  // shift on every re-render. Other chapters don't get this treatment —
-  // it's specifically for the Discovery Call booking moment.
+  // F2 follow-up: scarcity framing visibility still gated on first_chat
+  // (preserves PR 41 behavior). Content + slot range now configurable;
+  // hardcoded fallbacks live in the constants above for un-edited brands.
   const isFirstChat = config.chapterKey === "first_chat";
-  const slotsRemaining = useMemo(
-    () => (isFirstChat ? Math.floor(Math.random() * 4) + 2 : 0),
-    [isFirstChat],
-  );
+  const slotsRange = config.slotsRemaining;
+  const slotsRemaining = useMemo(() => {
+    if (!isFirstChat || !slotsRange) return null;
+    const min = Math.max(1, Math.floor(slotsRange.min));
+    const max = Math.max(min, Math.floor(slotsRange.max));
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+    // Stable per mount — recompute only if the range itself changes,
+    // which never happens during a single popup lifetime in practice.
+  }, [isFirstChat, slotsRange]);
+
+  const scarcity = config.scarcityFraming ?? FALLBACK_SCARCITY;
+  // Split on `{slots}` so the slot count keeps the large-number visual
+  // treatment (`.pp-popup-scarcity-num`) instead of becoming inline plain
+  // text. Multiple tokens are supported, but admins shouldn't need more
+  // than one.
+  const scarcityHeadingNodes = scarcity.heading
+    .split(/(\{slots\})/)
+    .map((part, i) => {
+      if (part !== "{slots}") return <span key={i}>{part}</span>;
+      if (slotsRemaining === null) return null;
+      return (
+        <span key={i} className="pp-popup-scarcity-num">
+          {slotsRemaining}
+        </span>
+      );
+    });
 
   // Lock page scroll while open. Restored on unmount.
   useEffect(() => {
@@ -144,15 +203,9 @@ export function ChapterIntroPopup({ config, onDismiss, onDismissed }: Props) {
             <div className="pp-popup-scarcity" aria-live="polite">
               <span className="pp-popup-scarcity-pill">By invitation only</span>
               <h2 className="pp-popup-scarcity-headline">
-                We&apos;re only taking{" "}
-                <span className="pp-popup-scarcity-num">
-                  {slotsRemaining}
-                </span>{" "}
-                more candidate{slotsRemaining === 1 ? "" : "s"} this month.
+                {scarcityHeadingNodes}
               </h2>
-              <p className="pp-popup-scarcity-sub">
-                Selective intake. Serious candidates only.
-              </p>
+              <p className="pp-popup-scarcity-sub">{scarcity.body}</p>
             </div>
           )}
           <h2 id="chapter-intro-heading" className="pp-popup-title">
@@ -232,7 +285,7 @@ export function ChapterIntroPopup({ config, onDismiss, onDismissed }: Props) {
           <div className="pp-popup-foot pp-popup-foot-checklist">
             {config.preDismissChecklist && !allChecked && (
               <span className="pp-popup-cta-hint">
-                Check the items above to continue
+                {config.continueHint?.trim() || FALLBACK_CONTINUE_HINT}
               </span>
             )}
             <button

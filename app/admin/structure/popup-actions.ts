@@ -177,6 +177,14 @@ export interface ChapterIntroFormData {
     heading: string;
     items: string[];
   } | null;
+  /** F2 follow-up: scarcity block content (only renders on first_chat).
+   *  null → renderer falls back to hardcoded copy. */
+  scarcityFraming: { heading: string; body: string } | null;
+  /** F2 follow-up: range for the random "N more candidates" count.
+   *  null → no count rendered. */
+  slotsRemaining: { min: number; max: number } | null;
+  /** F2 follow-up: helper text for the pre-dismiss checklist gate. */
+  continueHint: string | null;
 }
 
 export async function saveChapterIntroAction(
@@ -229,6 +237,20 @@ export async function saveChapterIntroAction(
           items,
         };
       })(),
+      scarcity_framing: (() => {
+        if (!data.scarcityFraming) return null;
+        const heading = data.scarcityFraming.heading.trim();
+        const body = data.scarcityFraming.body.trim();
+        if (!heading && !body) return null;
+        return { heading, body };
+      })(),
+      slots_remaining: (() => {
+        if (!data.slotsRemaining) return null;
+        const min = Math.max(1, Math.floor(data.slotsRemaining.min));
+        const max = Math.max(min, Math.floor(data.slotsRemaining.max));
+        return { min, max };
+      })(),
+      continue_hint: data.continueHint?.trim() || null,
     },
     { onConflict: "brand_id,chapter_key" },
   );
