@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition, type ReactNode } from "react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
   ShortTextField,
   SingleSelectField,
@@ -11,6 +12,10 @@ import {
   SaveIndicator,
   type SaveState,
 } from "@/components/portal/save-indicator";
+import {
+  MacroProgress,
+  type MacroSection,
+} from "@/components/application/macro-progress";
 import {
   ZipLocationField,
   isZipLocationComplete,
@@ -199,6 +204,97 @@ function sectionForIdx(idx: number): SectionDef {
   return SECTION_BY_IDX[idx] ?? { num: 7, title: "Closing", doneCopy: "" };
 }
 
+// Sections fed into the MacroProgress dots row. Distinct titles per
+// section number; deduped from SECTION_BY_IDX so changes there flow here
+// automatically.
+const MACRO_SECTIONS: MacroSection[] = (() => {
+  const seen = new Map<number, string>();
+  for (const def of Object.values(SECTION_BY_IDX)) {
+    if (!seen.has(def.num)) seen.set(def.num, def.title);
+  }
+  return Array.from(seen.entries())
+    .sort(([a], [b]) => a - b)
+    .map(([num, title]) => ({ num, title }));
+})();
+
+// Question position the candidate is on, 1-indexed against TOTAL_QUESTIONS.
+// Returns null for non-question screens (verification, chapter intro,
+// sign-off, success) so the macro counter hides cleanly. The mapping is
+// keyed off the screen-index comments at the top of this file: question
+// screens live at idx 1-4 and 6-12 (idx 5 is the chapter 2 intro).
+const QUESTION_NUM_BY_IDX: Record<number, number> = {
+  1: 1, // current_role
+  2: 2, // zip-location
+  3: 3, // motivation
+  4: 4, // motivation elaboration
+  // 5: chapter intro — skip
+  6: 5, // financial check
+  7: 6, // bankruptcy
+  8: 7, // felony
+  9: 8, // opening_timeline
+  10: 9, // involvement_level
+  11: 10, // growth_plan
+  12: 11, // brand-specific closing
+};
+
+function questionNumForIdx(idx: number): number | null {
+  return QUESTION_NUM_BY_IDX[idx] ?? null;
+}
+
+// Per-idx canonical answer-key list, used by computeInitialIdx() to
+// resume a returning candidate at the first incomplete screen. Keys
+// here are the same ones advanceWithSave() persists when leaving each
+// idx — keep them in sync if either changes. Idx 4 (motivation
+// elaboration) and idx 5 (chapter 2 intro) are intentionally empty:
+// elaboration is conditional on motivation, and chapter intros have no
+// answer to gate on. Idx 13 (sign-off) is omitted on purpose so resume
+// never auto-advances past the submit moment.
+const RESUME_KEYS_BY_IDX: Record<number, string[]> = {
+  0: ["verified_name", "verified_email", "verified_phone"],
+  1: ["current_role"],
+  2: ["zip_code"],
+  3: ["motivation"],
+  6: ["liquid_capital_range"],
+  7: ["has_filed_bankruptcy"],
+  8: ["has_felony"],
+  9: ["opening_timeline"],
+  10: ["involvement_level"],
+  11: ["growth_plan"],
+  12: ["brand_closing_response"],
+};
+
+function isAnswerComplete(answers: Answers, key: string): boolean {
+  const v = answers[key];
+  if (v == null) return false;
+  if (Array.isArray(v)) return v.length > 0;
+  if (typeof v === "string") return v.trim().length > 0;
+  if (typeof v === "boolean") return true;
+  if (typeof v === "number") return true;
+  return false;
+}
+
+/**
+ * Compute the screen idx a returning candidate should land on. Walks the
+ * sequence and returns the first idx whose required answers aren't all
+ * present. Idx 0 (verification) is always shown if any of the three
+ * verification fields is missing — name/email/phone re-confirmation on
+ * resume is intentional. Submitted candidates skip past this entirely
+ * (handled at the call site via isAlreadySubmitted).
+ *
+ * Best-effort. If the table here drifts from the actual save keys, the
+ * candidate sees a question they already answered — annoying, not
+ * data-losing, since their previous answer pre-populates the field.
+ */
+function computeInitialIdx(answers: Answers): number {
+  for (let idx = 0; idx <= LAST_INTERACTIVE_IDX; idx++) {
+    const keys = RESUME_KEYS_BY_IDX[idx];
+    if (!keys || keys.length === 0) continue; // idx 4 / 5: no gate
+    const allDone = keys.every((k) => isAnswerComplete(answers, k));
+    if (!allDone) return idx;
+  }
+  return LAST_INTERACTIVE_IDX;
+}
+
 // Helper: parse the stored motivation value. Older rows may contain a
 // single-string value (PR 27) or no value. Coerce to the current
 // MotivationValue shape (multi-select array).
@@ -231,10 +327,6 @@ export function ApplicationRenderer({
   onSubmit,
   onContinueToNextChapter,
 }: Props) {
-  // Start candidates who already submitted directly on the success screen
-  // so they see confirmation rather than the form again.
-  const [idx, setIdx] = useState(isAlreadySubmitted ? SUCCESS_IDX : 0);
-
   const fullName = [candidate.first_name, candidate.last_name]
     .filter(Boolean)
     .join(" ");
@@ -254,11 +346,22 @@ export function ApplicationRenderer({
     ...initialAnswers,
   }));
 
+  // Resume returning candidates at the first incomplete screen instead of
+  // restarting at verification every visit. Already-submitted candidates
+  // skip straight to the success screen (legacy behavior).
+  const [idx, setIdx] = useState(() => {
+    if (isAlreadySubmitted) return SUCCESS_IDX;
+    return computeInitialIdx({
+      verified_name: fullName,
+      verified_email: candidate.email,
+      verified_phone: initialPhone,
+      ...initialAnswers,
+    });
+  });
+
   const [pending, startTransition] = useTransition();
   const [saveState, setSaveState] = useState<SaveState>("idle");
-  // PR 39: microcopy that fades in once when the candidate advances out of
-  // a section. Cleared by a timeout so it doesn't linger.
-  const [doneCopy, setDoneCopy] = useState<string | null>(null);
+  const reduceMotion = useReducedMotion();
 
   const setA = (patch: Answers) =>
     setAnswers((prev) => ({ ...prev, ...patch }));
@@ -274,18 +377,6 @@ export function ApplicationRenderer({
       } catch {
         setSaveState("error");
         return;
-      }
-      // Trigger inter-section microcopy when the advance crosses a section
-      // boundary. Done before advancing idx so the copy reads "you finished
-      // section X" before the next section's pill ticks over.
-      const fromSection = sectionForIdx(idx).num;
-      const toSection = sectionForIdx(idx + 1).num;
-      if (toSection !== fromSection) {
-        const copy = sectionForIdx(idx).doneCopy;
-        if (copy) {
-          setDoneCopy(copy);
-          window.setTimeout(() => setDoneCopy(null), 2800);
-        }
       }
       setIdx((i) => i + 1);
     });
@@ -345,7 +436,6 @@ export function ApplicationRenderer({
         onNext={() =>
           advanceWithSave(["verified_name", "verified_email", "verified_phone"])
         }
-        progressPct={p}
         pending={pending}
         phoneIsPrefilled={phoneIsPrefilled}
       />
@@ -357,9 +447,7 @@ export function ApplicationRenderer({
     const v = (answers.current_role as string) ?? "";
     return (
       <QuestionScreen
-        eyebrow={`Chapter 1 of 4 · Question 1 of ${TOTAL_QUESTIONS}`}
         question="What do you do now?"
-        progressPct={p}
         canAdvance={v.trim().length > 0}
         onBack={goBack}
         onNext={() => advanceWithSave(["current_role"])}
@@ -391,9 +479,7 @@ export function ApplicationRenderer({
     };
     return (
       <QuestionScreen
-        eyebrow={`Chapter 1 of 4 · Question 2 of ${TOTAL_QUESTIONS}`}
         question="Where are you?"
-        progressPct={p}
         canAdvance={isZipLocationComplete(v)}
         onBack={goBack}
         onNext={() =>
@@ -436,10 +522,8 @@ export function ApplicationRenderer({
       (!hasOther || v.otherText.trim().length > 0);
     return (
       <QuestionScreen
-        eyebrow={`Chapter 1 of 4 · Question 3 of ${TOTAL_QUESTIONS}`}
         question="What's drawing you to this?"
         subCaption="Pick all that apply."
-        progressPct={p}
         canAdvance={canAdvance}
         onBack={goBack}
         onNext={() => advanceWithSave(["motivation", "motivation_other_text"])}
@@ -466,10 +550,8 @@ export function ApplicationRenderer({
     const prompt = motivationElaborationPrompt(v, MOTIVATIONS);
     return (
       <QuestionScreen
-        eyebrow={`Chapter 1 of 4 · Question 4 of ${TOTAL_QUESTIONS}`}
         question="Tell us more"
         subCaption={prompt}
-        progressPct={p}
         canAdvance={elaboration.trim().length > 0}
         onBack={goBack}
         onNext={() => advanceWithSave(["motivation_elaboration"])}
@@ -491,10 +573,8 @@ export function ApplicationRenderer({
   if (idx === 5) {
     return (
       <ChapterIntroScreen
-        eyebrow="Chapter 2 of 4 · The money conversation"
         body="Next up — a quick financial check. We're not judging, and none of this automatically disqualifies you. It just helps us match you to the right territory."
         onContinue={() => setIdx(6)}
-        progressPct={p}
       />
     );
   }
@@ -510,8 +590,6 @@ export function ApplicationRenderer({
       <FinancialCheckScreen
         value={v}
         onChange={(patch) => setA(patch)}
-        progressPct={p}
-        eyebrow={`Chapter 2 of 4 · Question 5 of ${TOTAL_QUESTIONS}`}
         onBack={goBack}
         onNext={() =>
           advanceWithSave([
@@ -541,10 +619,8 @@ export function ApplicationRenderer({
       (v.answer === "yes" && v.explanation.trim().length > 0);
     return (
       <QuestionScreen
-        eyebrow={`Chapter 2 of 4 · Background check · Question 6 of ${TOTAL_QUESTIONS}`}
         question="Have you ever filed for bankruptcy?"
         subCaption="Quick yes/no — none of these are automatic disqualifiers, but we need to know."
-        progressPct={p}
         canAdvance={canAdvance}
         onBack={goBack}
         onNext={() =>
@@ -583,9 +659,7 @@ export function ApplicationRenderer({
       (v.answer === "yes" && v.explanation.trim().length > 0);
     return (
       <QuestionScreen
-        eyebrow={`Chapter 2 of 4 · Background check · Question 7 of ${TOTAL_QUESTIONS}`}
         question="Have you ever been convicted of a felony?"
-        progressPct={p}
         canAdvance={canAdvance}
         onBack={goBack}
         onNext={() => advanceWithSave(["has_felony", "felony_explanation"])}
@@ -613,9 +687,7 @@ export function ApplicationRenderer({
       v.length > 0 && (v !== OTHER_VALUE || otherText.trim().length > 0);
     return (
       <QuestionScreen
-        eyebrow={`Chapter 3 of 4 · Question 8 of ${TOTAL_QUESTIONS}`}
         question="When would you want to open?"
-        progressPct={p}
         canAdvance={canAdvance}
         onBack={goBack}
         onNext={() =>
@@ -647,9 +719,7 @@ export function ApplicationRenderer({
       v.length > 0 && (v !== OTHER_VALUE || otherText.trim().length > 0);
     return (
       <QuestionScreen
-        eyebrow={`Chapter 3 of 4 · Question 9 of ${TOTAL_QUESTIONS}`}
         question="How hands-on do you want to be?"
-        progressPct={p}
         canAdvance={canAdvance}
         onBack={goBack}
         onNext={() =>
@@ -684,9 +754,7 @@ export function ApplicationRenderer({
       v.length > 0 && (v !== OTHER_VALUE || otherText.trim().length > 0);
     return (
       <QuestionScreen
-        eyebrow={`Chapter 3 of 4 · Question 10 of ${TOTAL_QUESTIONS}`}
         question="One location, or building a portfolio?"
-        progressPct={p}
         canAdvance={canAdvance}
         onBack={goBack}
         onNext={() =>
@@ -718,10 +786,8 @@ export function ApplicationRenderer({
       v.length > 0 && (v !== OTHER_VALUE || otherText.trim().length > 0);
     return (
       <QuestionScreen
-        eyebrow={`Chapter 4 of 4 · Question 11 of ${TOTAL_QUESTIONS}`}
         question={closingQ.question}
         subCaption={closingQ.subCaption}
-        progressPct={p}
         canAdvance={canAdvance}
         onBack={goBack}
         onNext={() =>
@@ -774,7 +840,6 @@ export function ApplicationRenderer({
         initialName={(answers.verified_name as string) ?? ""}
         onSubmit={handleSubmit}
         onBack={goBack}
-        progressPct={p}
         pending={pending}
       />
     );
@@ -793,9 +858,12 @@ export function ApplicationRenderer({
   };
 
   // ---- Wrapping cluster ----
-  // Save state, section pill, time estimate, and inter-section microcopy
-  // ride above whichever screen the candidate is on. Hidden once the
-  // candidate is past the form (success screen).
+  // Phase 1 (this PR): macro progress (chapter dots + section title +
+  // question counter + thin progress bar) replaces the section pill and
+  // the inter-section microcopy that used to live here. Time estimate
+  // and SaveIndicator stick around — they cover different needs (time
+  // expectation, save confidence). Hidden once the candidate is past the
+  // form (success screen).
   const section = sectionForIdx(idx);
   const sectionsCompletedLeftOfCurrent = Math.max(0, section.num - 1);
   const timeLeftLabel =
@@ -805,22 +873,42 @@ export function ApplicationRenderer({
   return (
     <div className="app-renderer-wrap">
       {onForm && (
-        <div className="app-meta-cluster" aria-live="polite">
-          {timeLeftLabel && (
-            <span className="app-meta-time">{timeLeftLabel}</span>
-          )}
-          <span className="app-meta-section">
-            Section {section.num} of {SECTION_TOTAL}
-          </span>
-          <SaveIndicator state={saveState} />
-        </div>
+        <>
+          <MacroProgress
+            sections={MACRO_SECTIONS}
+            currentSectionNum={section.num}
+            currentQuestionNum={questionNumForIdx(idx)}
+            totalQuestions={TOTAL_QUESTIONS}
+            progressPct={p}
+          />
+          <div className="app-meta-cluster" aria-live="polite">
+            {timeLeftLabel && (
+              <span className="app-meta-time">{timeLeftLabel}</span>
+            )}
+            <SaveIndicator state={saveState} />
+          </div>
+        </>
       )}
-      {pickScreen()}
-      {doneCopy && (
-        <div className="app-section-microcopy" role="status">
-          {doneCopy}
-        </div>
-      )}
+      <AnimatePresence mode="wait" initial={false}>
+        <motion.div
+          key={idx}
+          className="app-screen-motion"
+          initial={
+            reduceMotion ? { opacity: 1, y: 0 } : { opacity: 0, y: 12 }
+          }
+          animate={{ opacity: 1, y: 0 }}
+          exit={
+            reduceMotion ? { opacity: 1, y: 0 } : { opacity: 0, y: -12 }
+          }
+          transition={
+            reduceMotion
+              ? { duration: 0 }
+              : { duration: 0.35, ease: "easeOut" }
+          }
+        >
+          {pickScreen()}
+        </motion.div>
+      </AnimatePresence>
     </div>
   );
 }

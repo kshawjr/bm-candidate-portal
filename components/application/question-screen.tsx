@@ -3,10 +3,8 @@
 import type { ReactNode } from "react";
 
 interface Props {
-  eyebrow: string;
   question: string;
   subCaption?: string;
-  progressPct: number;
   canAdvance: boolean;
   onBack?: () => void;
   onNext: () => void;
@@ -15,11 +13,13 @@ interface Props {
   children: ReactNode;
 }
 
+// Per-screen progress bar + eyebrow were removed in the polish layer
+// (Phase 1) — the new MacroProgress component above the screen owns
+// both. Kept the rest of the screen chrome untouched: question heading,
+// optional sub-caption, the field children, and the back/next nav.
 export function QuestionScreen({
-  eyebrow,
   question,
   subCaption,
-  progressPct,
   canAdvance,
   onBack,
   onNext,
@@ -29,16 +29,6 @@ export function QuestionScreen({
 }: Props) {
   return (
     <div className="app-screen">
-      <div className="app-progress">
-        <div className="app-progress-bar">
-          <div
-            className="app-progress-fill"
-            style={{ width: `${progressPct}%` }}
-          />
-        </div>
-        <div className="app-progress-meta">{eyebrow}</div>
-      </div>
-
       <h2 className="app-question">{question}</h2>
       {subCaption && <p className="app-sub-caption">{subCaption}</p>}
 

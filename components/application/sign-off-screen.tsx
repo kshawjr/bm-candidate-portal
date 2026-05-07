@@ -6,7 +6,6 @@ interface Props {
   initialName: string;
   onSubmit: (signatureName: string) => void;
   onBack: () => void;
-  progressPct: number;
   pending?: boolean;
 }
 
@@ -14,7 +13,6 @@ export function SignOffScreen({
   initialName,
   onSubmit,
   onBack,
-  progressPct,
   pending,
 }: Props) {
   const [name, setName] = useState(initialName);
@@ -24,16 +22,6 @@ export function SignOffScreen({
 
   return (
     <div className="app-screen">
-      <div className="app-progress">
-        <div className="app-progress-bar">
-          <div
-            className="app-progress-fill"
-            style={{ width: `${progressPct}%` }}
-          />
-        </div>
-        <div className="app-progress-meta">Final step</div>
-      </div>
-
       <h2 className="app-question">Make it official</h2>
       <p className="app-sub-caption">
         One signature and you're done.

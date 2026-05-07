@@ -3652,22 +3652,20 @@ body {
 .app-renderer-wrap {
   position: relative;
 }
+/* Phase 1 polish layer: meta cluster moves out of the absolute top-right
+   corner and sits as a small compact row above the macro progress. The
+   section pill that lived here was removed — its job (where am I in the
+   flow?) is now covered by the macro progress dots. Time-estimate and
+   SaveIndicator stick around as the only two pills. */
 .app-meta-cluster {
-  position: absolute;
-  top: -8px;
-  right: 0;
-  display: inline-flex;
+  display: flex;
+  justify-content: flex-end;
   align-items: center;
   gap: 8px;
-  z-index: 5;
+  margin: 0 0 14px;
   font-family: var(--font-body, system-ui), system-ui, sans-serif;
-  pointer-events: none;
 }
-.app-meta-cluster > * {
-  pointer-events: auto;
-}
-.app-meta-time,
-.app-meta-section {
+.app-meta-time {
   display: inline-flex;
   align-items: center;
   padding: 4px 10px;
@@ -3679,18 +3677,137 @@ body {
   color: var(--cin-text-muted, #6b7280);
   border: 1px solid color-mix(in srgb, var(--brand-primary, #2563eb) 14%, #e5e7eb);
 }
-.app-meta-section {
-  color: var(--brand-dark, var(--brand-primary, #2563eb));
-}
 @media (max-width: 720px) {
   .app-meta-cluster {
-    position: static;
-    margin: 0 0 12px;
+    margin: 0 0 10px;
     flex-wrap: wrap;
     gap: 6px;
   }
-  .app-meta-time,
-  .app-meta-section {
+  .app-meta-time {
+    font-size: 10px;
+  }
+}
+
+/* ---- Macro progress (Phase 1) ----
+   Persistent header above the question card. Three regions stacked:
+   chapter dots row · active-section title with question counter · thin
+   progress bar. */
+.app-macro-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin: 0 0 28px;
+  font-family: var(--font-body, system-ui), system-ui, sans-serif;
+}
+.app-macro-dots {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  min-height: 28px;
+}
+.app-macro-dot-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-width: 22px;
+}
+.app-macro-dot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.app-macro-dot--future {
+  width: 10px;
+  height: 10px;
+  background: color-mix(in srgb, var(--cin-text-muted, #9ca3af) 30%, transparent);
+}
+.app-macro-dot--active {
+  width: 22px;
+  height: 22px;
+  background: color-mix(in srgb, var(--brand-primary, #2563eb) 14%, transparent);
+  border: 1.5px solid color-mix(in srgb, var(--brand-primary, #2563eb) 30%, transparent);
+}
+.app-macro-dot-inner {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--brand-primary, #2563eb);
+}
+.app-macro-dot--complete {
+  width: 14px;
+  height: 14px;
+  background: var(--brand-primary, #2563eb);
+  color: #ffffff;
+}
+.app-macro-dot-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--brand-dark, var(--brand-primary, #2563eb));
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.app-macro-title-row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+}
+.app-macro-title-block {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.app-macro-eyebrow {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--cin-text-muted, #6b7280);
+}
+.app-macro-title {
+  margin: 0;
+  font-family: var(--font-heading, var(--font-body, system-ui)), serif;
+  font-size: 22px;
+  font-weight: 500;
+  color: var(--cin-text, #111827);
+  line-height: 1.2;
+}
+.app-macro-counter {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--cin-text-muted, #6b7280);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.app-macro-bar {
+  height: 3px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--cin-text-muted, #9ca3af) 14%, transparent);
+  overflow: hidden;
+}
+.app-macro-bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  background: var(--brand-primary, #2563eb);
+}
+@media (max-width: 720px) {
+  .app-macro-progress {
+    gap: 10px;
+    margin-bottom: 22px;
+  }
+  .app-macro-title {
+    font-size: 18px;
+  }
+  .app-macro-counter {
+    font-size: 12px;
+  }
+  .app-macro-dot-label {
     font-size: 10px;
   }
 }

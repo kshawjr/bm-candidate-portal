@@ -17,8 +17,6 @@ interface FinancialAnswers {
 interface Props {
   value: FinancialAnswers;
   onChange: (patch: Partial<FinancialAnswers>) => void;
-  progressPct: number;
-  eyebrow: string;
   onBack: () => void;
   onNext: () => void;
   pending: boolean;
@@ -27,8 +25,6 @@ interface Props {
 export function FinancialCheckScreen({
   value,
   onChange,
-  progressPct,
-  eyebrow,
   onBack,
   onNext,
   pending,
@@ -68,16 +64,6 @@ export function FinancialCheckScreen({
 
   return (
     <div className="app-screen">
-      <div className="app-progress">
-        <div className="app-progress-bar">
-          <div
-            className="app-progress-fill"
-            style={{ width: `${progressPct}%` }}
-          />
-        </div>
-        <div className="app-progress-meta">{eyebrow}</div>
-      </div>
-
       <div
         ref={introRef}
         className={`financial-intro${introPlayed ? " played" : ""}`}

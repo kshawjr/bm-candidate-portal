@@ -12,7 +12,6 @@ interface Props {
   value: VerifiedContact;
   onChange: (v: VerifiedContact) => void;
   onNext: () => void;
-  progressPct: number;
   pending?: boolean;
   /** PR 42: shown as a small hint under the phone field when the value
    *  was prefilled (from candidates_in_portal.prefilled_phone). Field is
@@ -24,7 +23,6 @@ export function VerificationScreen({
   value,
   onChange,
   onNext,
-  progressPct,
   pending,
   phoneIsPrefilled,
 }: Props) {
@@ -35,10 +33,8 @@ export function VerificationScreen({
 
   return (
     <QuestionScreen
-      eyebrow="Quick check"
       question="Real quick — can you confirm this is right?"
       subCaption="We pulled this from what you submitted earlier. Edit anything that's off."
-      progressPct={progressPct}
       canAdvance={canAdvance}
       onNext={onNext}
       nextLabel="Looks good →"
