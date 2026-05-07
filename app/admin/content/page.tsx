@@ -166,8 +166,24 @@ export default async function ContentEditorPage({ searchParams }: Props) {
     ((brand as { short_name?: string | null }).short_name ?? "").trim() ||
     (brand.name as string);
 
+  // Key ContentEditor on the resolved selection so every URL change
+  // (?step=… or ?chapter=…) fully unmounts and remounts the editor
+  // subtree. Diagnosis: empirical accumulation — clicking through 5
+  // consecutive steps left ~8 editor-classed elements in the DOM,
+  // implying the previous step's editor wasn't unmounting cleanly. The
+  // per-editor `key={selectedStep.id}` inside ContentEditor handles the
+  // common case (same content_type across steps) but evidently doesn't
+  // catch every transition. Keying the whole subtree makes remount
+  // unconditional. Heavy hammer (rail expansion + selection state are
+  // re-derived from URL params on each mount), but the rail's state is
+  // already URL-driven so this is essentially free in practice.
+  const selectionKey =
+    initialStepId ??
+    (initialChapterKey ? `chapter-${initialChapterKey}` : "none");
+
   return (
     <ContentEditor
+      key={selectionKey}
       brandId={brand.id}
       brandSlug={brand.slug}
       brandName={brand.name}
