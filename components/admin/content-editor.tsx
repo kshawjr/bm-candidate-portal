@@ -433,100 +433,102 @@ export function ContentEditor({
               )}
             </header>
 
-            {selectedStep.content_type === "slides" && (
-              <SlideEditor
-                key={selectedStep.id}
-                brandSlug={brandSlug}
-                stepId={selectedStep.id}
-                initialSlides={selectedStep.slides}
-                saveSlides={saveSlides}
-                upload={uploadSlide}
-                uploadVideo={uploadSlideVideo}
-              />
-            )}
-
-            {selectedStep.content_type === "video" && (
-              <VideoEditor
-                key={selectedStep.id}
-                brandSlug={brandSlug}
-                stepId={selectedStep.id}
-                initialConfig={selectedStep.config as unknown as VideoConfig}
-                saveConfig={(stepId, config) =>
-                  saveStepConfig(stepId, config as unknown as Record<string, unknown>)
-                }
-                uploadVideo={uploadVideo}
-              />
-            )}
-
-            {selectedStep.content_type === "schedule" && (
-              <ScheduleEditor
-                key={selectedStep.id}
-                stepId={selectedStep.id}
-                initialConfig={selectedStep.config as unknown as ScheduleConfig}
-                isGCalConfigured={isGCalConfigured}
-                saveConfig={(stepId, config) =>
-                  saveStepConfig(stepId, config as unknown as Record<string, unknown>)
-                }
-              />
-            )}
-
-            {selectedStep.content_type === "application" && (
-              <ApplicationNotice />
-            )}
-
-            {(selectedStep.content_type === "slides" ||
-              selectedStep.content_type === "static") && (
-              <div
-                className={
-                  selectedStep.content_type === "slides"
-                    ? "adm-cards-section"
-                    : undefined
-                }
-              >
-                {selectedStep.content_type === "slides" && (
-                  <div className="adm-cards-section-eyebrow">
-                    Content cards
-                  </div>
-                )}
-                <CardList
-                  cards={selectedStep.content_cards}
-                  onEdit={(card, idx) =>
-                    setEditorState({ mode: "edit", card, cardIndex: idx })
-                  }
-                  onDelete={handleDelete}
-                  onReorder={handleReorder}
-                  deleting={deleting}
-                />
-
-                <div className="adm-add-zone">
-                  <button
-                    type="button"
-                    className="adm-btn-primary"
-                    onClick={() => setAddMenuOpen((v) => !v)}
-                  >
-                    + Add card
-                  </button>
-                  {addMenuOpen && (
-                    <div className="adm-add-menu" role="menu">
-                      {CARD_TYPES.map(({ type, label }) => (
-                        <button
-                          key={type}
-                          type="button"
-                          role="menuitem"
-                          className="adm-add-menu-item"
-                          onClick={() => {
-                            setEditorState({ mode: "create", type });
-                            setAddMenuOpen(false);
-                          }}
-                        >
-                          {label}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
+            {/* Switch instead of N independent ===-guards. With independent
+                guards a future content_type drift could in principle paint
+                two editors at once if a guard ever stops being mutually
+                exclusive. A switch on a single discriminator can fire at
+                most one branch — and the default surfaces unknown types
+                visibly instead of silently blank. */}
+            {(() => {
+              switch (selectedStep.content_type) {
+                case "slides":
+                  return (
+                    <>
+                      <SlideEditor
+                        key={selectedStep.id}
+                        brandSlug={brandSlug}
+                        stepId={selectedStep.id}
+                        initialSlides={selectedStep.slides}
+                        saveSlides={saveSlides}
+                        upload={uploadSlide}
+                        uploadVideo={uploadSlideVideo}
+                      />
+                      <CardsSection
+                        contentType={selectedStep.content_type}
+                        cards={selectedStep.content_cards}
+                        onEdit={(card, idx) =>
+                          setEditorState({ mode: "edit", card, cardIndex: idx })
+                        }
+                        onDelete={handleDelete}
+                        onReorder={handleReorder}
+                        deleting={deleting}
+                        addMenuOpen={addMenuOpen}
+                        setAddMenuOpen={setAddMenuOpen}
+                        onPickType={(type) => {
+                          setEditorState({ mode: "create", type });
+                          setAddMenuOpen(false);
+                        }}
+                      />
+                    </>
+                  );
+                case "video":
+                  return (
+                    <VideoEditor
+                      key={selectedStep.id}
+                      brandSlug={brandSlug}
+                      stepId={selectedStep.id}
+                      initialConfig={selectedStep.config as unknown as VideoConfig}
+                      saveConfig={(stepId, config) =>
+                        saveStepConfig(
+                          stepId,
+                          config as unknown as Record<string, unknown>,
+                        )
+                      }
+                      uploadVideo={uploadVideo}
+                    />
+                  );
+                case "schedule":
+                  return (
+                    <ScheduleEditor
+                      key={selectedStep.id}
+                      stepId={selectedStep.id}
+                      initialConfig={selectedStep.config as unknown as ScheduleConfig}
+                      isGCalConfigured={isGCalConfigured}
+                      saveConfig={(stepId, config) =>
+                        saveStepConfig(
+                          stepId,
+                          config as unknown as Record<string, unknown>,
+                        )
+                      }
+                    />
+                  );
+                case "application":
+                  return <ApplicationNotice />;
+                case "static":
+                  return (
+                    <CardsSection
+                      contentType={selectedStep.content_type}
+                      cards={selectedStep.content_cards}
+                      onEdit={(card, idx) =>
+                        setEditorState({ mode: "edit", card, cardIndex: idx })
+                      }
+                      onDelete={handleDelete}
+                      onReorder={handleReorder}
+                      deleting={deleting}
+                      addMenuOpen={addMenuOpen}
+                      setAddMenuOpen={setAddMenuOpen}
+                      onPickType={(type) => {
+                        setEditorState({ mode: "create", type });
+                        setAddMenuOpen(false);
+                      }}
+                    />
+                  );
+                default:
+                  return (
+                    <UnknownTypeNotice contentType={selectedStep.content_type} />
+                  );
+              }
+            })()}
 
             <TransitionPopupEditor
               key={selectedStep.id}
@@ -681,4 +683,96 @@ function summarize(card: ContentCard): string {
     case "journey_ahead":
       return "Roadmap of stops (auto-rendered)";
   }
+}
+
+// ----- cards section (slides + static) -----
+//
+// Pulled out of the inline conditional so the dispatch switch's `slides`
+// and `static` branches can share it without re-inlining ~50 lines twice.
+
+interface CardsSectionProps {
+  contentType: "slides" | "static";
+  cards: ContentCard[];
+  onEdit: (card: ContentCard, idx: number) => void;
+  onDelete: (idx: number) => void;
+  onReorder: (fromIndex: number, dir: -1 | 1) => void;
+  deleting: boolean;
+  addMenuOpen: boolean;
+  setAddMenuOpen: (next: boolean | ((v: boolean) => boolean)) => void;
+  onPickType: (type: ContentCard["type"]) => void;
+}
+
+function CardsSection({
+  contentType,
+  cards,
+  onEdit,
+  onDelete,
+  onReorder,
+  deleting,
+  addMenuOpen,
+  setAddMenuOpen,
+  onPickType,
+}: CardsSectionProps) {
+  const isSlides = contentType === "slides";
+  return (
+    <div className={isSlides ? "adm-cards-section" : undefined}>
+      {isSlides && (
+        <div className="adm-cards-section-eyebrow">Content cards</div>
+      )}
+      <CardList
+        cards={cards}
+        onEdit={onEdit}
+        onDelete={onDelete}
+        onReorder={onReorder}
+        deleting={deleting}
+      />
+      <div className="adm-add-zone">
+        <button
+          type="button"
+          className="adm-btn-primary"
+          onClick={() => setAddMenuOpen((v) => !v)}
+        >
+          + Add card
+        </button>
+        {addMenuOpen && (
+          <div className="adm-add-menu" role="menu">
+            {CARD_TYPES.map(({ type, label }) => (
+              <button
+                key={type}
+                type="button"
+                role="menuitem"
+                className="adm-add-menu-item"
+                onClick={() => onPickType(type)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ----- unknown type fallback -----
+//
+// Default branch of the dispatch switch. Surfaces drift visibly instead
+// of leaving a blank pane — if a future content_type is added in the DB
+// before the editor knows about it, the admin gets a clear hint instead
+// of silent emptiness.
+
+function UnknownTypeNotice({ contentType }: { contentType: string }) {
+  return (
+    <div className="adm-notice">
+      <div className="adm-notice-eyebrow">Unsupported content type</div>
+      <p>
+        This step is configured with{" "}
+        <code>content_type={JSON.stringify(contentType)}</code>, which the
+        admin doesn&apos;t have an editor for. The candidate-side
+        renderer probably also doesn&apos;t support it. Either change the
+        type via the structure editor or wire up an editor in{" "}
+        <code>components/admin/content-editor.tsx</code>.
+      </p>
+    </div>
+  );
 }
