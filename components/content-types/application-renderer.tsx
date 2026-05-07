@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, type ReactNode } from "react";
+import { useEffect, useRef, useState, useTransition, type ReactNode } from "react";
 import {
   ShortTextField,
   SingleSelectField,
@@ -199,6 +199,63 @@ function sectionForIdx(idx: number): SectionDef {
   return SECTION_BY_IDX[idx] ?? { num: 7, title: "Closing", doneCopy: "" };
 }
 
+// Per-idx canonical answer-key list, used by computeInitialIdx() to
+// resume a returning candidate at the first incomplete screen. Keys
+// match what advanceWithSave() persists when leaving each idx — keep
+// them in sync if either changes. Idx 4 (motivation elaboration) and
+// idx 5 (chapter 2 intro) are intentionally absent: elaboration is
+// conditional on the motivation answer, and chapter intros have no
+// answer to gate on. Idx 13 (sign-off) is omitted on purpose so resume
+// never auto-advances past the submit moment.
+const RESUME_KEYS_BY_IDX: Record<number, string[]> = {
+  0: ["verified_name", "verified_email", "verified_phone"],
+  1: ["current_role"],
+  2: ["zip_code"],
+  3: ["motivation"],
+  6: ["liquid_capital_range"],
+  7: ["has_filed_bankruptcy"],
+  8: ["has_felony"],
+  9: ["opening_timeline"],
+  10: ["involvement_level"],
+  11: ["growth_plan"],
+  12: ["brand_closing_response"],
+};
+
+function isAnswerComplete(answers: Answers, key: string): boolean {
+  const v = answers[key];
+  if (v == null) return false;
+  if (Array.isArray(v)) return v.length > 0;
+  if (typeof v === "string") return v.trim().length > 0;
+  if (typeof v === "boolean") return true;
+  if (typeof v === "number") return true;
+  return false;
+}
+
+/**
+ * Compute the screen idx a returning candidate should land on. Walks the
+ * sequence and returns the first idx whose required answers aren't all
+ * present. Idx 0 (verification) is always shown if any of the three
+ * verification fields is missing — name/email/phone re-confirmation on
+ * resume is intentional. Submitted candidates skip past this entirely
+ * (handled at the call site via isAlreadySubmitted).
+ *
+ * Best-effort. If the table here drifts from the actual save keys, the
+ * candidate sees a question they already answered — annoying, not
+ * data-losing, since their previous answer pre-populates the field.
+ *
+ * (This is the only piece kept from the closed PR #76 — it was the only
+ *  behavioral improvement worth saving from that direction.)
+ */
+function computeInitialIdx(answers: Answers): number {
+  for (let idx = 0; idx <= LAST_INTERACTIVE_IDX; idx++) {
+    const keys = RESUME_KEYS_BY_IDX[idx];
+    if (!keys || keys.length === 0) continue;
+    const allDone = keys.every((k) => isAnswerComplete(answers, k));
+    if (!allDone) return idx;
+  }
+  return LAST_INTERACTIVE_IDX;
+}
+
 // Helper: parse the stored motivation value. Older rows may contain a
 // single-string value (PR 27) or no value. Coerce to the current
 // MotivationValue shape (multi-select array).
@@ -231,10 +288,6 @@ export function ApplicationRenderer({
   onSubmit,
   onContinueToNextChapter,
 }: Props) {
-  // Start candidates who already submitted directly on the success screen
-  // so they see confirmation rather than the form again.
-  const [idx, setIdx] = useState(isAlreadySubmitted ? SUCCESS_IDX : 0);
-
   const fullName = [candidate.first_name, candidate.last_name]
     .filter(Boolean)
     .join(" ");
@@ -254,11 +307,38 @@ export function ApplicationRenderer({
     ...initialAnswers,
   }));
 
+  // Resume a returning candidate at the first incomplete screen instead
+  // of restarting at verification every visit. Already-submitted
+  // candidates still skip straight to success (existing behavior).
+  const [idx, setIdx] = useState(() => {
+    if (isAlreadySubmitted) return SUCCESS_IDX;
+    return computeInitialIdx({
+      verified_name: fullName,
+      verified_email: candidate.email,
+      verified_phone: initialPhone,
+      ...initialAnswers,
+    });
+  });
+
   const [pending, startTransition] = useTransition();
   const [saveState, setSaveState] = useState<SaveState>("idle");
   // PR 39: microcopy that fades in once when the candidate advances out of
   // a section. Cleared by a timeout so it doesn't linger.
   const [doneCopy, setDoneCopy] = useState<string | null>(null);
+
+  // A3 (subtle animations): when section.num changes, briefly dim the
+  // section pill so the count update feels acknowledged instead of
+  // snapping. Toggle drives a CSS class for 200ms then clears.
+  const currentSectionNum = sectionForIdx(idx).num;
+  const prevSectionNum = useRef(currentSectionNum);
+  const [sectionPillUpdating, setSectionPillUpdating] = useState(false);
+  useEffect(() => {
+    if (prevSectionNum.current === currentSectionNum) return;
+    prevSectionNum.current = currentSectionNum;
+    setSectionPillUpdating(true);
+    const t = window.setTimeout(() => setSectionPillUpdating(false), 200);
+    return () => window.clearTimeout(t);
+  }, [currentSectionNum]);
 
   const setA = (patch: Answers) =>
     setAnswers((prev) => ({ ...prev, ...patch }));
@@ -809,13 +889,20 @@ export function ApplicationRenderer({
           {timeLeftLabel && (
             <span className="app-meta-time">{timeLeftLabel}</span>
           )}
-          <span className="app-meta-section">
+          <span
+            className={`app-meta-section${sectionPillUpdating ? " is-updating" : ""}`}
+          >
             Section {section.num} of {SECTION_TOTAL}
           </span>
           <SaveIndicator state={saveState} />
         </div>
       )}
-      {pickScreen()}
+      {/* A1: keyed wrapper makes React remount the screen subtree on
+          every idx change. The CSS animation on .app-screen-host runs
+          on each fresh mount, giving a 200ms opacity fade-in. */}
+      <div key={idx} className="app-screen-host">
+        {pickScreen()}
+      </div>
       {doneCopy && (
         <div className="app-section-microcopy" role="status">
           {doneCopy}

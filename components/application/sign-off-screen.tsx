@@ -81,7 +81,14 @@ export function SignOffScreen({
           onClick={() => onSubmit(name.trim())}
           disabled={!canSubmit || pending}
         >
-          {pending ? "Submitting…" : "Submit application"}
+          {pending ? (
+            <>
+              <span className="app-btn-spinner" aria-hidden="true" />
+              <span className="app-btn-loading-label">Submitting…</span>
+            </>
+          ) : (
+            "Submit application"
+          )}
         </button>
       </div>
     </div>
