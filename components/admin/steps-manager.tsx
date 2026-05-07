@@ -6,6 +6,10 @@ import type {
   ContentType,
   StepFormData,
 } from "@/app/admin/structure/actions";
+import {
+  canonicalContractFor,
+  isCanonicalStep,
+} from "@/lib/canonical-steps";
 
 export interface AdminStepRow {
   id: string;
@@ -323,6 +327,7 @@ export function StepsManager({
       {drawer && (
         <StepDrawer
           initial={drawer.mode === "edit" ? drawer.step : null}
+          chapterKey={chapterKey}
           onCancel={() => setDrawer(null)}
           onSave={handleDrawerSave}
           saving={pending}
@@ -338,6 +343,10 @@ export function StepsManager({
 
 interface DrawerProps {
   initial: AdminStepRow | null;
+  /** Chapter the step belongs to. Combined with the step_key from
+   *  `initial`, this tells us whether the row is a canonical Stop 1 step
+   *  whose content_type is locked by the portal renderer contract. */
+  chapterKey: string;
   onCancel: () => void;
   onSave: (
     data: StepFormData,
@@ -347,7 +356,13 @@ interface DrawerProps {
   saving: boolean;
 }
 
-function StepDrawer({ initial, onCancel, onSave, saving }: DrawerProps) {
+function StepDrawer({
+  initial,
+  chapterKey,
+  onCancel,
+  onSave,
+  saving,
+}: DrawerProps) {
   const isEdit = initial !== null;
   const [form, setForm] = useState<StepFormData>(() => ({
     step_key: initial?.step_key ?? "",
@@ -355,6 +370,18 @@ function StepDrawer({ initial, onCancel, onSave, saving }: DrawerProps) {
     description: initial?.description ?? null,
     content_type: (initial?.content_type as ContentType) ?? "static",
   }));
+
+  // Lock content_type when editing a canonical step (the portal renderer
+  // dispatches by chapter_key + step_key and expects a fixed
+  // content_type). Server action enforces the same rule defensively;
+  // disabling the UI control avoids ever surfacing a request that would
+  // be rejected. Adding new canonical steps stays editable since we
+  // can't know step_key until the form fills it in.
+  const isContentTypeLocked =
+    isEdit && isCanonicalStep(chapterKey, form.step_key);
+  const lockedContract = isContentTypeLocked
+    ? canonicalContractFor(chapterKey, form.step_key)
+    : null;
 
   const valid =
     form.label.trim().length > 0 &&
@@ -458,6 +485,15 @@ function StepDrawer({ initial, onCancel, onSave, saving }: DrawerProps) {
               <span className="adm-form-required" aria-hidden="true">
                 *
               </span>
+              {isContentTypeLocked && (
+                <span
+                  className="adm-form-hint"
+                  style={{ marginLeft: 8, fontWeight: 400 }}
+                  title="This step's renderer is fixed by the portal contract. Edit content via /admin/content."
+                >
+                  🔒 locked
+                </span>
+              )}
             </span>
             <select
               className="adm-input"
@@ -468,6 +504,7 @@ function StepDrawer({ initial, onCancel, onSave, saving }: DrawerProps) {
                   content_type: e.target.value as ContentType,
                 })
               }
+              disabled={isContentTypeLocked}
             >
               {CONTENT_TYPE_OPTIONS.map((opt) => (
                 <option
@@ -481,12 +518,17 @@ function StepDrawer({ initial, onCancel, onSave, saving }: DrawerProps) {
               ))}
             </select>
             <span className="adm-form-hint">
-              {CONTENT_TYPE_OPTIONS.find((o) => o.value === form.content_type)
-                ?.description ?? ""}
+              {isContentTypeLocked && lockedContract
+                ? `Locked to "${lockedContract.content_type}" — the candidate ` +
+                  `portal expects a fixed renderer at this step. Edit ` +
+                  `content via /admin/content.`
+                : CONTENT_TYPE_OPTIONS.find(
+                    (o) => o.value === form.content_type,
+                  )?.description ?? ""}
             </span>
           </label>
 
-          {typeChanged && (
+          {typeChanged && !isContentTypeLocked && (
             <div className="adm-form-error adm-form-error-inline">
               Changing type will reset this step&apos;s content. You&apos;ll
               be asked to confirm.

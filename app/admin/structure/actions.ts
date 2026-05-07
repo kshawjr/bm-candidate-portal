@@ -3,6 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { createAppServiceClient } from "@/lib/supabase-app";
 import {
+  canonicalContractFor,
+  isCanonicalStep,
+} from "@/lib/canonical-steps";
+import {
   getCandidatesOnStep,
   getCandidatesOnChapter,
   type CandidateOnJourney,
@@ -309,13 +313,36 @@ export async function updateStepAction(
   const app = createAppServiceClient();
   const { data: existing, error: readErr } = await app
     .from("steps_config")
-    .select("content_type")
+    .select("content_type, chapter_key, step_key")
     .eq("id", stepId)
     .maybeSingle();
   if (readErr) throw new Error(`step lookup failed: ${readErr.message}`);
   if (!existing) throw new Error("Step not found");
 
   const typeChanged = existing.content_type !== data.content_type;
+
+  // Canonical-step lockdown. The portal renderer dispatches by
+  // (chapter_key, step_key) and expects a fixed content_type at each
+  // canonical position (e.g., explore/app is always 'application'). PR
+  // #72 had to patch application drift on prod after this flow let an
+  // admin flip the type. Reject content_type changes on canonical rows
+  // with a clear error pointing at the actual edit path.
+  if (
+    typeChanged &&
+    isCanonicalStep(existing.chapter_key, existing.step_key)
+  ) {
+    const contract = canonicalContractFor(
+      existing.chapter_key,
+      existing.step_key,
+    )!;
+    throw new Error(
+      `Content type is locked for this step. The candidate portal expects ` +
+        `a "${contract.content_type}" renderer at ` +
+        `(${contract.chapter_key} → ${contract.step_key}). Edit the step's ` +
+        `content via /admin/content instead of changing its type.`,
+    );
+  }
+
   if (typeChanged && !data.confirmTypeReset) {
     throw new Error(
       "Content type change requires confirmation. Existing content will be reset.",
