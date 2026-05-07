@@ -326,18 +326,30 @@ export function ApplicationRenderer({
   // a section. Cleared by a timeout so it doesn't linger.
   const [doneCopy, setDoneCopy] = useState<string | null>(null);
 
-  // A3 (subtle animations): when section.num changes, briefly dim the
-  // section pill so the count update feels acknowledged instead of
-  // snapping. Toggle drives a CSS class for 200ms then clears.
+  // A3 + A9 (subtle animations): when section.num changes, run two
+  // simultaneous pill effects:
+  //   - is-updating: 200ms opacity dim (subtle "value just updated").
+  //   - is-completing: 1300ms success-color flash + check icon scale-in
+  //     (acknowledges that a section was just finished — the pill itself
+  //     is the celebration, no overlay).
   const currentSectionNum = sectionForIdx(idx).num;
   const prevSectionNum = useRef(currentSectionNum);
   const [sectionPillUpdating, setSectionPillUpdating] = useState(false);
+  const [sectionPillCompleting, setSectionPillCompleting] = useState(false);
   useEffect(() => {
     if (prevSectionNum.current === currentSectionNum) return;
     prevSectionNum.current = currentSectionNum;
     setSectionPillUpdating(true);
-    const t = window.setTimeout(() => setSectionPillUpdating(false), 200);
-    return () => window.clearTimeout(t);
+    setSectionPillCompleting(true);
+    const tDim = window.setTimeout(() => setSectionPillUpdating(false), 200);
+    const tFlash = window.setTimeout(
+      () => setSectionPillCompleting(false),
+      1300,
+    );
+    return () => {
+      window.clearTimeout(tDim);
+      window.clearTimeout(tFlash);
+    };
   }, [currentSectionNum]);
 
   const setA = (patch: Answers) =>
@@ -890,9 +902,12 @@ export function ApplicationRenderer({
             <span className="app-meta-time">{timeLeftLabel}</span>
           )}
           <span
-            className={`app-meta-section${sectionPillUpdating ? " is-updating" : ""}`}
+            className={`app-meta-section${sectionPillUpdating ? " is-updating" : ""}${sectionPillCompleting ? " is-completing" : ""}`}
           >
             Section {section.num} of {SECTION_TOTAL}
+            <span className="section-check" aria-hidden="true">
+              ✓
+            </span>
           </span>
           <SaveIndicator state={saveState} />
         </div>
