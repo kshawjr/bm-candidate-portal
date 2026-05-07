@@ -113,6 +113,11 @@ const STAGE_CONTENT: Record<string, Record<string, string>> = {
 
 type ContentType = "slides" | "static" | "application" | "schedule" | "video" | "document" | "checklist";
 
+// IMPORTANT: this list is mirrored in lib/canonical-steps.ts as the
+// portal renderer's step-contract lockdown. If you add, remove, or
+// retype a canonical step here, update CANONICAL_STEPS in
+// canonical-steps.ts AND the
+// 20260508_enforce_canonical_step_contracts.sql migration to match.
 const CHAPTER_STEPS: Record<string, Array<{ key: string; label: string; type: ContentType; desc: string }>> = {
   explore: [
     { key: "tour",     label: "Brand tour",         type: "slides",      desc: "A short walk through who we are" },
