@@ -9,7 +9,7 @@ import {
   CAPTION_SIZES,
   type CaptionSize,
   type Slide,
-} from "@/components/content-types/slides-renderer";
+} from "@/components/content-types/slide-types";
 
 const STORAGE_BUCKET = "brand-assets";
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5 MB

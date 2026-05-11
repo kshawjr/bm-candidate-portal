@@ -3,74 +3,21 @@
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import { useReducedMotion } from "@/lib/use-reduced-motion";
+import {
+  CAPTION_SIZES,
+  applySlideTemplate,
+  type CaptionSize,
+  type Slide,
+} from "./slide-types";
 
-export type CaptionSize = "sm" | "md" | "lg";
-
-export const CAPTION_SIZES: ReadonlyArray<CaptionSize> = ["sm", "md", "lg"];
-
-export interface Slide {
-  id: string;
-  /** Defaults to "image" when omitted (existing slides). The video case
-   *  swaps the <Image> for a <video controls> with the same canvas
-   *  dimensions; image-specific fields (alt) are unused for video. */
-  media_type?: "image" | "video";
-  image_url: string;
-  /** Required when `media_type === "video"`. Points at an MP4 served
-   *  from the same brand-assets bucket as slide images. */
-  video_url?: string | null;
-  /** Optional poster frame shown before the video plays — without it,
-   *  the browser shows a black frame, which feels off in a "light and
-   *  fluffy" portal. */
-  poster_url?: string | null;
-  /** Required when `media_type === "video"` — admin picks Yes/No in the
-   *  slide editor and the choice drives the candidate-facing UX: silent
-   *  videos play muted with no overlay; videos with audio play muted but
-   *  surface a "Tap for sound" pill until the candidate unmutes. Null on
-   *  legacy slides authored before this field existed; the renderer
-   *  treats null as silent and the admin form forces a pick on next edit. */
-  has_sound?: boolean | null;
-  alt?: string | null;
-  /** Sanitized HTML — only <strong>, <em>, and <a href> survive
-   *  normalization on save. Plain text written before the rich-text
-   *  editor landed renders as-is (no markup is just text). */
-  caption?: string | null;
-  /** Type-scale variant for the caption. Defaults to "md" when omitted. */
-  caption_size?: CaptionSize | null;
-  /** PR 58: optional heading rendered above the image. Greets the
-   *  candidate ("Welcome to Hounds Town") when set. Supports the
-   *  `{{first_name}}` template variable, replaced at render time with
-   *  the candidate's name (falls back to "there"). */
-  heading?: string | null;
-}
-
-/**
- * Replace template variables in slide content. Resolved at render time
- * against the candidate already in scope.
- *
- * Supported variables:
- *   {{first_name}}            — bare name; falls back to "there"
- *   {{first_name_greeting}}   — full greeting prefix that vanishes
- *                               cleanly when the name is unknown.
- *                               "Hi Jane, " when set, "" when not.
- *
- * The greeting variant exists so admins can write headings like
- * "{{first_name_greeting}}Welcome to Hounds Town" — which renders as
- * "Hi Jane, Welcome to Hounds Town" with a name and just
- * "Welcome to Hounds Town" without one, instead of the awkward
- * "Welcome, there, to Hounds Town" the bare {{first_name}} fallback
- * would produce inside a sentence.
- */
-export function applySlideTemplate(
-  content: string,
-  candidate: { first_name?: string | null },
-): string {
-  const trimmed = candidate.first_name?.trim() ?? "";
-  const name = trimmed || "there";
-  const greeting = trimmed ? `Hi ${trimmed}, ` : "";
-  return content
-    .replace(/\{\{first_name_greeting\}\}/g, greeting)
-    .replace(/\{\{first_name\}\}/g, name);
-}
+// Re-export so existing client-side imports of these symbols from
+// `slides-renderer` keep resolving. Server-side code (e.g.
+// app/admin/content/actions.ts) must import from `./slide-types`
+// directly — a re-export through this `"use client"` file would still
+// be proxied at the server boundary and tripping calls like
+// CAPTION_SIZES.includes().
+export { CAPTION_SIZES, applySlideTemplate };
+export type { CaptionSize, Slide };
 
 interface Props {
   slides: Slide[];
