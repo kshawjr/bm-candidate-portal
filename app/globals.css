@@ -723,7 +723,11 @@ body {
    above carries font-size through to the paragraphs today (the
    `.slide-caption p` rule above only sets margin + text-align, not
    font-size), but pinning it here guards against any future rule on
-   `.slide-caption p` accidentally overriding the inherited size. */
+   `.slide-caption p` accidentally overriding the inherited size.
+   These rules are LEGACY — they only apply to captions saved before
+   the inline size mark (see `.caption-size-*` below) shipped. Both
+   systems coexist: legacy captions keep their wrapper-level size,
+   new captions use per-selection inline spans. */
 .slide-caption--sm p {
   font-size: var(--caption-size-sm);
 }
@@ -732,6 +736,18 @@ body {
 }
 .slide-caption--lg p {
   font-size: var(--caption-size-lg);
+}
+/* Inline size mark — emitted by the TipTap captionSize extension as
+   <span class="caption-size-{sm,lg}" data-caption-size="{sm,lg}">.
+   "Regular" is the absence of the mark (default body size), so no
+   .caption-size-md is needed. */
+.slide-caption .caption-size-sm {
+  font-size: var(--caption-size-sm);
+}
+.slide-caption .caption-size-lg {
+  font-size: var(--caption-size-lg);
+  font-family: var(--font-heading);
+  color: var(--cin-text);
 }
 .slide-controls {
   display: grid;

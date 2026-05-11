@@ -361,14 +361,18 @@ function sanitizeCaptionHtml(input: string): string {
     allowedTags: ["strong", "em", "a", "br", "span", "p"],
     allowedAttributes: {
       a: ["href"],
-      // Permitted so a future caption editor could embed the size class
-      // inline; the current renderer puts the size on the wrapping <p>,
-      // not inside the caption HTML, so this is mostly belt-and-braces.
-      span: ["class"],
+      // <span> carries the inline captionSize mark from TipTap:
+      // `<span class="caption-size-{sm,lg}" data-caption-size="{sm,lg}">`.
+      // `class` is further restricted to the size variants via
+      // `allowedClasses` below — arbitrary class injection is blocked.
+      span: ["class", "data-caption-size"],
       // Only the TextAlign-emitted inline style survives — anything else
       // on a <p> (color, font-family, padding, etc.) is dropped via the
       // allowedStyles allowlist below.
       p: ["style"],
+    },
+    allowedClasses: {
+      span: ["caption-size-sm", "caption-size-md", "caption-size-lg"],
     },
     allowedStyles: {
       p: {
