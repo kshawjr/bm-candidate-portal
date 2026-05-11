@@ -704,6 +704,20 @@ body {
 .slide-caption em {
   font-style: italic;
 }
+/* Multi-paragraph captions emit nested <p> tags. Default each <p> to
+   left-aligned so the alignment toolbar's "Left" button reads as
+   expected (TipTap's TextAlign extension omits the style attribute for
+   the default alignment — without this override, the inner <p> would
+   inherit the legacy center-by-default from `.slide-caption`). An
+   inline `style="text-align: ..."` from the TextAlign extension wins
+   over this rule whenever the admin picks center/right/justify. */
+.slide-caption p {
+  margin: 0;
+  text-align: left;
+}
+.slide-caption p + p {
+  margin-top: 0.4em;
+}
 .slide-controls {
   display: grid;
   grid-template-columns: 1fr auto 1fr;

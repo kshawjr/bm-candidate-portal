@@ -358,13 +358,22 @@ export async function saveStepConfigAction(
  */
 function sanitizeCaptionHtml(input: string): string {
   return sanitizeHtml(input, {
-    allowedTags: ["strong", "em", "a", "br", "span"],
+    allowedTags: ["strong", "em", "a", "br", "span", "p"],
     allowedAttributes: {
       a: ["href"],
       // Permitted so a future caption editor could embed the size class
       // inline; the current renderer puts the size on the wrapping <p>,
       // not inside the caption HTML, so this is mostly belt-and-braces.
       span: ["class"],
+      // Only the TextAlign-emitted inline style survives — anything else
+      // on a <p> (color, font-family, padding, etc.) is dropped via the
+      // allowedStyles allowlist below.
+      p: ["style"],
+    },
+    allowedStyles: {
+      p: {
+        "text-align": [/^(left|center|right|justify)$/],
+      },
     },
     allowedSchemes: ["http", "https", "mailto"],
     disallowedTagsMode: "discard",

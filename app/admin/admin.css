@@ -1309,6 +1309,13 @@
 .adm-caption-toolbar-spacer {
   flex: 1;
 }
+.adm-caption-toolbar-divider {
+  display: inline-block;
+  width: 1px;
+  height: 18px;
+  margin: 0 4px;
+  background: #d1d5db;
+}
 .adm-caption-tool {
   background: transparent;
   border: 1px solid transparent;
