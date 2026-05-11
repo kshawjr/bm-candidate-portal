@@ -617,11 +617,13 @@ function CardList({ cards, onEdit, onDelete, onReorder, deleting }: CardListProp
   return (
     <ul className="adm-cardlist">
       {cards.map((card, i) => {
-        // journey_ahead is a marker card: the timeline content is hard-
-        // coded in the renderer, so there's nothing to edit, and the
-        // only-one invariant is enforced by the picker exclusion + the
-        // seed migration. Allow reorder, hide edit/delete.
-        const isMarker = card.type === "journey_ahead";
+        // journey_ahead used to be a pure marker card (no editor), so
+        // Edit + Delete were both hidden. PR #89 added per-card config
+        // (title + background image) — Edit is now meaningful and is
+        // shown. Delete stays hidden because the only-one invariant is
+        // still enforced by the picker exclusion + seed migration; if
+        // admin nuked it, there's no UI path to re-add.
+        const isUndeletable = card.type === "journey_ahead";
         return (
           <li key={i} className="adm-cardrow">
             <span className={`adm-cardrow-badge adm-cardrow-badge-${card.type}`}>
@@ -651,24 +653,22 @@ function CardList({ cards, onEdit, onDelete, onReorder, deleting }: CardListProp
               </button>
             </div>
             <div className="adm-cardrow-actions">
-              {!isMarker && (
-                <>
-                  <button
-                    type="button"
-                    className="adm-btn-ghost"
-                    onClick={() => onEdit(card, i)}
-                  >
-                    Edit
-                  </button>
-                  <button
-                    type="button"
-                    className="adm-btn-ghost adm-btn-danger"
-                    onClick={() => onDelete(i)}
-                    disabled={deleting}
-                  >
-                    Delete
-                  </button>
-                </>
+              <button
+                type="button"
+                className="adm-btn-ghost"
+                onClick={() => onEdit(card, i)}
+              >
+                Edit
+              </button>
+              {!isUndeletable && (
+                <button
+                  type="button"
+                  className="adm-btn-ghost adm-btn-danger"
+                  onClick={() => onDelete(i)}
+                  disabled={deleting}
+                >
+                  Delete
+                </button>
               )}
             </div>
           </li>
