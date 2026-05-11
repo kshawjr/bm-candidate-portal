@@ -412,11 +412,14 @@ function normalizeSlides(input: unknown): Slide[] {
       if (!video_url) {
         throw new Error(`slide ${i + 1}: video_url is required for video slides`);
       }
-      if (has_sound === null) {
-        throw new Error(
-          `slide ${i + 1}: pick whether this video has sound (Yes or No)`,
-        );
-      }
+      // Intentionally permissive on null `has_sound`: per PR #81 the
+      // drawer's Save button is disabled until the admin picks Yes/No,
+      // so new edits can't write null. Legacy pre-PR-81 slides that
+      // still carry null must survive non-edit operations (reorder ↑/↓,
+      // Delete, neighboring-slide updates) — they hit this validator
+      // because saveSlidesAction serializes the whole slides array, not
+      // just the edited slide. The renderer treats null as silent so
+      // candidates see a sensible default until admin edits the slide.
     } else if (!image_url) {
       throw new Error(`slide ${i + 1}: image_url is required`);
     }
