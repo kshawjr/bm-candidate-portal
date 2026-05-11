@@ -130,6 +130,10 @@ interface Props {
   /** Optional override for the section heading. Falls back to "Your
    *  journey ahead" when omitted. */
   title?: string;
+  /** Optional per-card background image. Rendered at 30% opacity
+   *  behind the road + markers. Set on the journey_ahead card config
+   *  in the content-card editor; null/undefined = no image. */
+  backgroundImageUrl?: string | null;
 }
 
 /**
@@ -151,6 +155,7 @@ export function JourneyTimeline({
   brandSlug,
   currentChapterKey,
   title,
+  backgroundImageUrl,
 }: Props) {
   const theme = BRAND_THEMES[brandSlug] ?? FALLBACK_THEME;
   const isHT = brandSlug === "hounds-town-usa";
@@ -180,7 +185,44 @@ export function JourneyTimeline({
   }, [openPin]);
 
   const containerRef = useRef<HTMLElement | null>(null);
+  const pinsRef = useRef<HTMLDivElement | null>(null);
   const [revealed, setRevealed] = useState(false);
+  // Per-pin tooltip anchor override. Default is `null` (centered below
+  // the pin via the base .journey-pin-tooltip rule). When a pin sits
+  // close enough to a viewport edge that the centered tooltip would
+  // clip, we switch it to anchor on one side of the pin. Recomputed on
+  // mount + every resize.
+  const [pinAnchors, setPinAnchors] = useState<
+    Record<number, "shift-right" | "shift-left">
+  >({});
+  useEffect(() => {
+    function compute() {
+      const container = pinsRef.current;
+      if (!container) return;
+      const pins =
+        container.querySelectorAll<HTMLButtonElement>(".journey-pin");
+      const viewportWidth = window.innerWidth;
+      // Tooltip width = 230px desktop / 180px mobile. Use 230 as the
+      // worst case so we never under-shift on desktop and never miss a
+      // clip on mobile.
+      const tooltipHalf = 115;
+      const buffer = 24;
+      const next: Record<number, "shift-right" | "shift-left"> = {};
+      pins.forEach((pin, i) => {
+        const rect = pin.getBoundingClientRect();
+        const pinCenter = rect.left + rect.width / 2;
+        if (pinCenter - tooltipHalf < buffer) {
+          next[i + 1] = "shift-right";
+        } else if (pinCenter + tooltipHalf > viewportWidth - buffer) {
+          next[i + 1] = "shift-left";
+        }
+      });
+      setPinAnchors(next);
+    }
+    compute();
+    window.addEventListener("resize", compute);
+    return () => window.removeEventListener("resize", compute);
+  }, []);
   useEffect(() => {
     const el = containerRef.current;
     if (!el || revealed) return;
@@ -224,6 +266,18 @@ export function JourneyTimeline({
         role="img"
         aria-label="Discovery journey road map"
       >
+        {backgroundImageUrl && (
+          /* Sits underneath the SVG scenery + pins. 30% opacity is set in
+             CSS so the road + markers stay readable. Decorative — the
+             roadmap is already labelled on the canvas wrapper above. */
+          /* eslint-disable-next-line @next/next/no-img-element */
+          <img
+            src={backgroundImageUrl}
+            alt=""
+            aria-hidden="true"
+            className="journey-roadmap-bg"
+          />
+        )}
         <svg
           viewBox="0 0 1200 600"
           className="journey-roadmap-svg"
@@ -291,8 +345,15 @@ export function JourneyTimeline({
             </linearGradient>
           </defs>
 
-          {/* 1. Sky */}
-          <rect x="0" y="0" width="1200" height="600" fill="url(#jr-sky)" />
+          {/* 1. Sky — skipped when a per-card background image is set so
+                the image (rendered as an <img> before this SVG, at 30%
+                opacity) shows through. The remaining SVG layers
+                (mountains, sun/clouds, ground, road, brand scenery,
+                pins) still draw on top, matching the brief's "behind
+                the road + markers" intent. */}
+          {!backgroundImageUrl && (
+            <rect x="0" y="0" width="1200" height="600" fill="url(#jr-sky)" />
+          )}
 
           {/* 2. Sun */}
           <g className="jr-sun">
@@ -315,21 +376,37 @@ export function JourneyTimeline({
             <ellipse cx="58" cy="10" rx="22" ry="8" fill="rgba(255,255,255,0.88)" />
           </g>
 
-          {/* 4. Far mountains (low silhouette) */}
-          <path
-            d="M 0 380 L 80 320 L 160 360 L 240 290 L 340 340 L 440 280 L 540 320 L 640 270 L 760 310 L 880 260 L 1000 300 L 1120 250 L 1200 290 L 1200 600 L 0 600 Z"
-            fill="url(#jr-mountains-far)"
-            opacity="0.7"
-          />
+          {/* 4. Far mountains (low silhouette) — skipped when a per-card
+                bg image is set, same as the sky rect above. Mountains
+                + ground are opaque and cover the bottom ~50% of the
+                canvas; without skipping them the photo would only show
+                in the upper sky region and look like nothing changed. */}
+          {!backgroundImageUrl && (
+            <path
+              d="M 0 380 L 80 320 L 160 360 L 240 290 L 340 340 L 440 280 L 540 320 L 640 270 L 760 310 L 880 260 L 1000 300 L 1120 250 L 1200 290 L 1200 600 L 0 600 Z"
+              fill="url(#jr-mountains-far)"
+              opacity="0.7"
+            />
+          )}
 
           {/* 5. Mid mountains (brand-tinted, in front of far) */}
-          <path
-            d="M 0 440 L 100 380 L 200 420 L 320 360 L 440 410 L 580 350 L 700 400 L 820 350 L 940 390 L 1080 340 L 1200 380 L 1200 600 L 0 600 Z"
-            fill="url(#jr-mountains-mid)"
-          />
+          {!backgroundImageUrl && (
+            <path
+              d="M 0 440 L 100 380 L 200 420 L 320 360 L 440 410 L 580 350 L 700 400 L 820 350 L 940 390 L 1080 340 L 1200 380 L 1200 600 L 0 600 Z"
+              fill="url(#jr-mountains-mid)"
+            />
+          )}
 
           {/* 6. Ground / grass / sand */}
-          <rect x="0" y="500" width="1200" height="100" fill="url(#jr-ground)" />
+          {!backgroundImageUrl && (
+            <rect
+              x="0"
+              y="500"
+              width="1200"
+              height="100"
+              fill="url(#jr-ground)"
+            />
+          )}
 
           {/* 7. Brand foreground decorations — sit between ground and road */}
           {isHT && (
@@ -497,7 +574,7 @@ export function JourneyTimeline({
           />
         </svg>
 
-        <div className="journey-roadmap-pins" role="list">
+        <div className="journey-roadmap-pins" role="list" ref={pinsRef}>
           {STAGES.map((stage, i) => {
             const pos = PIN_POSITIONS[i];
             const isCurrent = stage.num === currentStageNum;
@@ -546,7 +623,19 @@ export function JourneyTimeline({
                     <span>{stage.num}</span>
                   )}
                 </span>
-                <div className="journey-pin-tooltip" role="tooltip">
+                <div
+                  className={(() => {
+                    const anchor = pinAnchors[stage.num];
+                    if (anchor === "shift-right") {
+                      return "journey-pin-tooltip is-shift-right";
+                    }
+                    if (anchor === "shift-left") {
+                      return "journey-pin-tooltip is-shift-left";
+                    }
+                    return "journey-pin-tooltip";
+                  })()}
+                  role="tooltip"
+                >
                   <div className="journey-pin-tooltip-weeks">{stage.weeks}</div>
                   <div className="journey-pin-tooltip-title">{stage.title}</div>
                   <p className="journey-pin-tooltip-body">{stage.body}</p>

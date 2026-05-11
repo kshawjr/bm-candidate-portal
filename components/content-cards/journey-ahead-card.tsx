@@ -18,6 +18,7 @@ export function JourneyAheadCard({ card, brandSlug, currentChapterKey }: Props) 
       brandSlug={brandSlug}
       currentChapterKey={currentChapterKey}
       title={title ?? undefined}
+      backgroundImageUrl={card.background_image_url ?? null}
     />
   );
 }

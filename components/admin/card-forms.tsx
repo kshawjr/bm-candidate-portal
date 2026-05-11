@@ -465,19 +465,20 @@ export function isPhotoValid(v: PhotoCardData): boolean {
 }
 
 // --- Journey ahead ---
-// Marker card — the roadmap stages and brand scenery are not per-instance
-// configurable (they come from candidate state + brand slug). The only
-// admin-editable surface is the section title, defaulting to "Your
-// journey ahead". Reorder controls in the card list let admins move it
-// up or down within the step's content cards.
+// The 8-stage roadmap + brand scenery render automatically from
+// candidate state + brand slug. Per-card editable surface is the
+// optional title and an optional background image (rendered at 30%
+// opacity behind the road + markers).
 
 export function JourneyAheadForm({
   value,
   onChange,
+  brandSlug,
+  upload,
 }: {
   value: JourneyAheadCardData;
   onChange: (v: JourneyAheadCardData) => void;
-}) {
+} & CommonProps) {
   return (
     <>
       <CardTitleField
@@ -485,11 +486,24 @@ export function JourneyAheadForm({
         value={value.title}
         onChange={(title) => onChange({ ...value, title })}
       />
+      <ImageUpload
+        label="Background image (optional)"
+        value={value.background_image_url ?? null}
+        onChange={(url) =>
+          onChange({ ...value, background_image_url: url ?? null })
+        }
+        brandSlug={brandSlug}
+        onUpload={upload}
+        purpose="Renders at 30% opacity behind the road + stop markers"
+        recommendedSize="1600 × 900 px (16:9)"
+        recommendedFormat="JPG or PNG"
+        maxSizeMB={5}
+      />
       <p className="adm-form-hint">
         The roadmap stages and brand scenery (paws, waves, etc.) render
-        automatically from the candidate&apos;s progress — only the title
-        above is editable here. Drag the card up or down in the cards
-        list to change where it sits within the step.
+        automatically from the candidate&apos;s progress. Use the
+        reorder controls in the card list to move this card within the
+        step.
       </p>
     </>
   );

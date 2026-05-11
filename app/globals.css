@@ -4188,6 +4188,19 @@ body {
   opacity: 1;
   transform: translateY(0);
 }
+/* Optional per-card background image (journey_ahead card config).
+   Sits underneath the SVG scenery + pin layer at 30% opacity so the
+   road + markers stay readable. Decorative — alt="" on the <img>. */
+.journey-roadmap-bg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.3;
+  z-index: 0;
+  pointer-events: none;
+}
 .journey-roadmap-svg {
   position: absolute;
   inset: 0;
@@ -4378,6 +4391,40 @@ body {
 .journey-pin:focus-visible .journey-pin-tooltip {
   opacity: 1;
   transform: translateX(-50%) scale(1);
+}
+/* Anchor variants — set by JS after measuring each pin's viewport
+   position. The base tooltip is centered below the pin via
+   `left: 50%; translateX(-50%)`. For pins close to a viewport edge,
+   that center can clip; the variants below anchor the tooltip's left
+   or right edge to the pin's center instead, so it always extends
+   into the viewport. The tip pointer is repositioned to sit above
+   the pin (the anchored edge of the tooltip). */
+.journey-pin-tooltip.is-shift-right {
+  left: 50%;
+  transform: translateX(0) scale(0.96);
+}
+.journey-pin:hover .journey-pin-tooltip.is-shift-right,
+.journey-pin.is-open .journey-pin-tooltip.is-shift-right,
+.journey-pin:focus-visible .journey-pin-tooltip.is-shift-right {
+  transform: translateX(0) scale(1);
+}
+.journey-pin-tooltip.is-shift-right .journey-pin-tooltip-tip {
+  left: 0;
+  transform: translateX(-50%);
+}
+.journey-pin-tooltip.is-shift-left {
+  left: 50%;
+  transform: translateX(-100%) scale(0.96);
+}
+.journey-pin:hover .journey-pin-tooltip.is-shift-left,
+.journey-pin.is-open .journey-pin-tooltip.is-shift-left,
+.journey-pin:focus-visible .journey-pin-tooltip.is-shift-left {
+  transform: translateX(-100%) scale(1);
+}
+.journey-pin-tooltip.is-shift-left .journey-pin-tooltip-tip {
+  left: auto;
+  right: 0;
+  transform: translateX(50%);
 }
 .journey-pin-tooltip-weeks {
   font-size: 10px;

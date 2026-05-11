@@ -44,12 +44,15 @@ export interface PhotoCardData {
   caption?: string;
 }
 
-// Marker card — the journey-ahead roadmap renders automatically from
-// brand + candidate context, so no per-instance config. Existing once per
-// brand on the explore tour step. Hidden from the "Add card" picker.
+// The journey-ahead roadmap renders the 8-stage scenery automatically
+// from brand + candidate context. Per-card configurable surface is
+// limited to the optional title and an optional background image that
+// renders at 30% opacity behind the road + markers (per-instance, not
+// per-brand — each placement of the card can have its own image).
 export interface JourneyAheadCardData {
   type: "journey_ahead";
   title?: string;
+  background_image_url?: string | null;
 }
 
 export type ContentCard =
