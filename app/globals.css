@@ -610,6 +610,7 @@ body {
   letter-spacing: -0.01em;
 }
 .slide-canvas {
+  position: relative;
   aspect-ratio: 16 / 9;
   background: var(--surface-subtle);
   border-radius: var(--radius-md);
@@ -623,6 +624,43 @@ body {
   object-fit: contain;
   display: block;
   background: #000;
+}
+/* "Tap for sound" pill — surfaces only on video slides flagged with
+   has_sound=true. Hidden by default; fades in over 300ms once the
+   video starts playing muted, fades out over 200ms when the candidate
+   unmutes (via tap or the browser's native speaker icon). Z-index
+   keeps it above the native controls bar. */
+.tap-for-sound {
+  position: absolute;
+  bottom: 12px;
+  right: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: rgba(0, 0, 0, 0.7);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 200ms ease-out;
+  z-index: 10;
+}
+.tap-for-sound.is-visible {
+  opacity: 1;
+  pointer-events: auto;
+  transition: opacity 300ms ease-in;
+}
+.tap-for-sound:hover {
+  background: rgba(0, 0, 0, 0.85);
+}
+.tap-for-sound:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
 }
 /* Caption type-scale tokens. These three sizes are the only options the
    admin caption editor exposes — locking the size to a brand-aware token

@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { parseVideoSource, type VideoProvider } from "@/lib/video-source";
-import { useReducedMotion } from "@/lib/use-reduced-motion";
 
 export interface ChapterVideoConfig {
   chapterKey: string;
@@ -33,7 +32,6 @@ interface Props {
 export function ChapterVideoPopup({ config, onDismiss, onDismissed }: Props) {
   const [closing, setClosing] = useState(false);
   const [pending, startTransition] = useTransition();
-  const reduceMotion = useReducedMotion();
 
   // Lock page scroll while the popup is open. Restored on unmount even if
   // dismiss fails halfway.
@@ -89,8 +87,6 @@ export function ChapterVideoPopup({ config, onDismiss, onDismissed }: Props) {
               controls
               playsInline
               preload="metadata"
-              autoPlay={!reduceMotion}
-              muted
             />
           ) : parsed ? (
             <iframe
