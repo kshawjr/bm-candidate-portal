@@ -345,8 +345,15 @@ export function JourneyTimeline({
             </linearGradient>
           </defs>
 
-          {/* 1. Sky */}
-          <rect x="0" y="0" width="1200" height="600" fill="url(#jr-sky)" />
+          {/* 1. Sky — skipped when a per-card background image is set so
+                the image (rendered as an <img> before this SVG, at 30%
+                opacity) shows through. The remaining SVG layers
+                (mountains, sun/clouds, ground, road, brand scenery,
+                pins) still draw on top, matching the brief's "behind
+                the road + markers" intent. */}
+          {!backgroundImageUrl && (
+            <rect x="0" y="0" width="1200" height="600" fill="url(#jr-sky)" />
+          )}
 
           {/* 2. Sun */}
           <g className="jr-sun">
