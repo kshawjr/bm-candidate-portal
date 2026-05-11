@@ -8,17 +8,22 @@ import {
   type VideoSource,
 } from "@/components/content-types/video-renderer";
 
-type UploadFn = (
+type VideoUploadInitFn = (
   brandSlug: string,
-  formData: FormData,
-) => Promise<{ url: string } | { error: string }>;
+  filename: string,
+  contentType: string,
+  fileSize: number,
+) => Promise<
+  | { signedUrl: string; publicUrl: string; contentType: string }
+  | { error: string }
+>;
 
 interface Props {
   brandSlug: string;
   stepId: string;
   initialConfig: VideoConfig;
   saveConfig: (stepId: string, config: VideoConfig) => Promise<void>;
-  uploadVideo: UploadFn;
+  uploadVideo: VideoUploadInitFn;
 }
 
 const DEFAULT_CONFIG: VideoConfig = {
@@ -101,19 +106,45 @@ export function VideoEditor({
       return;
     }
     if (file.size > MAX_VIDEO_MB * 1024 * 1024) {
-      setError(`Video must be under ${MAX_VIDEO_MB} MB`);
+      setError(
+        `Video files must be under ${MAX_VIDEO_MB}MB. Try compressing or trimming.`,
+      );
       return;
     }
-    const fd = new FormData();
-    fd.append("file", file);
     setUploadFileName(file.name);
     startUploading(async () => {
-      const result = await uploadVideo(brandSlug, fd);
-      if ("url" in result) {
-        setConfig({ ...config, source: "upload", url: result.url });
+      try {
+        const init = await uploadVideo(
+          brandSlug,
+          file.name,
+          file.type,
+          file.size,
+        );
+        if (!init || "error" in init) {
+          setError(
+            (init && "error" in init && init.error) || "Upload failed",
+          );
+          setUploadFileName(null);
+          return;
+        }
+        const res = await fetch(init.signedUrl, {
+          method: "PUT",
+          headers: {
+            "Content-Type": init.contentType,
+            "x-upsert": "false",
+          },
+          body: file,
+        });
+        if (!res.ok) {
+          const text = await res.text().catch(() => "");
+          setError(text || `Upload failed (${res.status})`);
+          setUploadFileName(null);
+          return;
+        }
+        setConfig({ ...config, source: "upload", url: init.publicUrl });
         setToast("Video uploaded");
-      } else {
-        setError(result.error);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Upload failed");
         setUploadFileName(null);
       }
     });

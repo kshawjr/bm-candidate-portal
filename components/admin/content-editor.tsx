@@ -24,6 +24,16 @@ type UploadFn = (
   formData: FormData,
 ) => Promise<{ url: string } | { error: string }>;
 
+type VideoUploadInitFn = (
+  brandSlug: string,
+  filename: string,
+  contentType: string,
+  fileSize: number,
+) => Promise<
+  | { signedUrl: string; publicUrl: string; contentType: string }
+  | { error: string }
+>;
+
 export interface AdminChapter {
   id: string;
   chapter_key: string;
@@ -72,8 +82,8 @@ interface Props {
   saveStepConfig: (stepId: string, config: Record<string, unknown>) => Promise<void>;
   upload: UploadFn;
   uploadSlide: UploadFn;
-  uploadSlideVideo: UploadFn;
-  uploadVideo: UploadFn;
+  uploadSlideVideo: VideoUploadInitFn;
+  uploadVideo: VideoUploadInitFn;
   candidateTokenForPreview: string | null;
   isGCalConfigured: boolean;
   createStep: (
