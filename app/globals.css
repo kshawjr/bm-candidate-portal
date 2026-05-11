@@ -666,9 +666,9 @@ body {
    admin caption editor exposes — locking the size to a brand-aware token
    prevents arbitrary pixel values from sneaking into per-slide HTML. */
 :root {
-  --caption-size-sm: 12px;
-  --caption-size-md: 13px;
-  --caption-size-lg: 16px;
+  --caption-size-sm: 13px;
+  --caption-size-md: 16px;
+  --caption-size-lg: 22px;
 }
 .slide-caption {
   font-size: var(--caption-size-md);
@@ -717,6 +717,21 @@ body {
 }
 .slide-caption p + p {
   margin-top: 0.4em;
+}
+/* Pin the size variant directly on the inner <p> as well as the
+   wrapper. Inheritance from the `.slide-caption--{sm,md,lg}` rule
+   above carries font-size through to the paragraphs today (the
+   `.slide-caption p` rule above only sets margin + text-align, not
+   font-size), but pinning it here guards against any future rule on
+   `.slide-caption p` accidentally overriding the inherited size. */
+.slide-caption--sm p {
+  font-size: var(--caption-size-sm);
+}
+.slide-caption--md p {
+  font-size: var(--caption-size-md);
+}
+.slide-caption--lg p {
+  font-size: var(--caption-size-lg);
 }
 .slide-controls {
   display: grid;
