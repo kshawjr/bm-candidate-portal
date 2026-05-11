@@ -376,21 +376,37 @@ export function JourneyTimeline({
             <ellipse cx="58" cy="10" rx="22" ry="8" fill="rgba(255,255,255,0.88)" />
           </g>
 
-          {/* 4. Far mountains (low silhouette) */}
-          <path
-            d="M 0 380 L 80 320 L 160 360 L 240 290 L 340 340 L 440 280 L 540 320 L 640 270 L 760 310 L 880 260 L 1000 300 L 1120 250 L 1200 290 L 1200 600 L 0 600 Z"
-            fill="url(#jr-mountains-far)"
-            opacity="0.7"
-          />
+          {/* 4. Far mountains (low silhouette) — skipped when a per-card
+                bg image is set, same as the sky rect above. Mountains
+                + ground are opaque and cover the bottom ~50% of the
+                canvas; without skipping them the photo would only show
+                in the upper sky region and look like nothing changed. */}
+          {!backgroundImageUrl && (
+            <path
+              d="M 0 380 L 80 320 L 160 360 L 240 290 L 340 340 L 440 280 L 540 320 L 640 270 L 760 310 L 880 260 L 1000 300 L 1120 250 L 1200 290 L 1200 600 L 0 600 Z"
+              fill="url(#jr-mountains-far)"
+              opacity="0.7"
+            />
+          )}
 
           {/* 5. Mid mountains (brand-tinted, in front of far) */}
-          <path
-            d="M 0 440 L 100 380 L 200 420 L 320 360 L 440 410 L 580 350 L 700 400 L 820 350 L 940 390 L 1080 340 L 1200 380 L 1200 600 L 0 600 Z"
-            fill="url(#jr-mountains-mid)"
-          />
+          {!backgroundImageUrl && (
+            <path
+              d="M 0 440 L 100 380 L 200 420 L 320 360 L 440 410 L 580 350 L 700 400 L 820 350 L 940 390 L 1080 340 L 1200 380 L 1200 600 L 0 600 Z"
+              fill="url(#jr-mountains-mid)"
+            />
+          )}
 
           {/* 6. Ground / grass / sand */}
-          <rect x="0" y="500" width="1200" height="100" fill="url(#jr-ground)" />
+          {!backgroundImageUrl && (
+            <rect
+              x="0"
+              y="500"
+              width="1200"
+              height="100"
+              fill="url(#jr-ground)"
+            />
+          )}
 
           {/* 7. Brand foreground decorations — sit between ground and road */}
           {isHT && (
