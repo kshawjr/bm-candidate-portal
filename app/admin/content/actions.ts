@@ -67,6 +67,38 @@ async function saveStepCards(stepId: string, cards: ContentCard[]) {
 }
 
 /**
+ * Server-side validation for a single content card. Mirrors the
+ * drawer-level `isCardValid` gate, but enforced at the action boundary
+ * so direct API hits can't write malformed data. Currently only
+ * journey_ahead carries enough structure to need it — other card
+ * types still trust the client gate.
+ */
+function validateContentCard(card: ContentCard): void {
+  if (card.type !== "journey_ahead") return;
+  if (!card.stops) {
+    // Legacy seed (`{"type":"journey_ahead"}`) — no stops yet. The
+    // migration backfills these; if one slips through without stops,
+    // the renderer falls back to DEFAULT_JOURNEY_STOPS so we don't
+    // need to block the save here.
+    return;
+  }
+  card.stops.forEach((stop, i) => {
+    const num = i + 1;
+    const titleEmpty = !stop.title || stop.title.trim().length === 0;
+    const captionEmpty = !stop.caption || stop.caption.trim().length === 0;
+    if (titleEmpty && captionEmpty) {
+      throw new Error(`Stop ${num}: title and caption are required`);
+    }
+    if (titleEmpty) {
+      throw new Error(`Stop ${num}: title is required`);
+    }
+    if (captionEmpty) {
+      throw new Error(`Stop ${num}: caption is required`);
+    }
+  });
+}
+
+/**
  * Upsert a single content card on a step.
  * - cardIndex omitted → append a new card at the end
  * - cardIndex provided → replace the card at that index
@@ -77,6 +109,7 @@ export async function saveContentCardAction(
   cardIndex?: number,
 ): Promise<void> {
   await requireAdmin();
+  validateContentCard(card);
   const cards = await loadStepCards(stepId);
   const next = [...cards];
   if (typeof cardIndex === "number" && cardIndex >= 0 && cardIndex < next.length) {

@@ -4426,6 +4426,34 @@ body {
   right: 0;
   transform: translateX(50%);
 }
+/* Vertical flip — stops 1–4 sit in the upper half of the canvas where
+   a below-the-pin tooltip overlaps the road. Render those above the
+   pin instead. Stops 5–8 keep the default (below-the-pin) layout. The
+   tip arrow flips to point DOWN at the pin from the tooltip's bottom
+   edge. Combines cleanly with the shift-right/shift-left horizontal
+   variants above. */
+.journey-pin-tooltip.is-shift-up {
+  top: auto;
+  bottom: calc(100% + 14px);
+}
+.journey-pin-tooltip.is-shift-up .journey-pin-tooltip-tip {
+  /* Flip the triangle: arrow now points down toward the pin sitting
+     below the tooltip. Border-top is the visible edge; border-bottom
+     becomes transparent. */
+  top: 100%;
+  bottom: auto;
+  border-bottom: 0;
+  border-top: 8px solid
+    color-mix(in srgb, var(--brand-primary, #2563eb) 30%, #e5e7eb);
+}
+.journey-pin-tooltip.is-shift-up .journey-pin-tooltip-tip::after {
+  /* Mirror the inner triangle so the lighter fill aligns with the
+     flipped outer arrow. */
+  top: auto;
+  bottom: 2px;
+  border-bottom: 0;
+  border-top: 6px solid rgba(254, 252, 246, 0.97);
+}
 .journey-pin-tooltip-weeks {
   font-size: 10px;
   font-weight: 700;

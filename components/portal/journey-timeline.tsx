@@ -122,6 +122,8 @@ const FALLBACK_THEME: BrandTheme = {
   pathDescription: "Connecting path between stages.",
 };
 
+import type { JourneyStop } from "@/components/content-cards/types";
+
 interface Props {
   brandSlug: string;
   /** chapter_key the candidate is currently on — used to mark the
@@ -130,10 +132,28 @@ interface Props {
   /** Optional override for the section heading. Falls back to "Your
    *  journey ahead" when omitted. */
   title?: string;
+  /** Optional sub-heading shown under the title. Falls back to the
+   *  hardcoded "Here's how the next 6–8 weeks look." when omitted. */
+  caption?: string | null;
   /** Optional per-card background image. Rendered at 30% opacity
    *  behind the road + markers. Set on the journey_ahead card config
    *  in the content-card editor; null/undefined = no image. */
   backgroundImageUrl?: string | null;
+  /** Per-stop title + caption overrides. Each entry maps to the stop
+   *  at the same index in STAGES. null/undefined = use STAGES copy
+   *  (the hardcoded default — covers legacy cards pre-migration). */
+  stops?:
+    | readonly [
+        JourneyStop,
+        JourneyStop,
+        JourneyStop,
+        JourneyStop,
+        JourneyStop,
+        JourneyStop,
+        JourneyStop,
+        JourneyStop,
+      ]
+    | null;
 }
 
 /**
@@ -155,7 +175,9 @@ export function JourneyTimeline({
   brandSlug,
   currentChapterKey,
   title,
+  caption,
   backgroundImageUrl,
+  stops,
 }: Props) {
   const theme = BRAND_THEMES[brandSlug] ?? FALLBACK_THEME;
   const isHT = brandSlug === "hounds-town-usa";
@@ -254,7 +276,7 @@ export function JourneyTimeline({
           {title?.trim() || "Your journey ahead"}
         </h2>
         <p className="journey-roadmap-sub">
-          Here&apos;s how the next 6–8 weeks look.{" "}
+          {caption?.trim() || "Here\u2019s how the next 6\u20138 weeks look."}{" "}
           <span className="journey-roadmap-tap">
             Tap a stop to see what happens there.
           </span>
@@ -579,6 +601,18 @@ export function JourneyTimeline({
             const pos = PIN_POSITIONS[i];
             const isCurrent = stage.num === currentStageNum;
             const isPast = stage.num < currentStageNum;
+            // Per-stop admin overrides — fall back to the hardcoded
+            // STAGES copy when the card hasn't been migrated yet.
+            const stopOverride = stops?.[i];
+            const popoverTitle =
+              stopOverride?.title.trim() || stage.title;
+            const popoverBody =
+              stopOverride?.caption.trim() || stage.body;
+            // Stops 1–4 sit in the upper half of the canvas where a
+            // tooltip rendered below the pin can collide with the road
+            // beneath. Flip those to render above the pin; stops 5–8
+            // keep the existing below-the-pin layout from PR #89.
+            const verticalClass = i < 4 ? "is-shift-up" : "";
             const cls = [
               "journey-pin",
               isCurrent && "is-current",
@@ -595,7 +629,7 @@ export function JourneyTimeline({
                 className={cls}
                 role="listitem"
                 aria-current={isCurrent ? "step" : undefined}
-                aria-label={`Stage ${stage.num} — ${stage.title}, ${stage.weeks}`}
+                aria-label={`Stage ${stage.num} — ${popoverTitle}, ${stage.weeks}`}
                 style={{
                   left: `${(pos.x / 1200) * 100}%`,
                   top: `${(pos.y / 600) * 100}%`,
@@ -626,19 +660,17 @@ export function JourneyTimeline({
                 <div
                   className={(() => {
                     const anchor = pinAnchors[stage.num];
-                    if (anchor === "shift-right") {
-                      return "journey-pin-tooltip is-shift-right";
-                    }
-                    if (anchor === "shift-left") {
-                      return "journey-pin-tooltip is-shift-left";
-                    }
-                    return "journey-pin-tooltip";
+                    const classes = ["journey-pin-tooltip"];
+                    if (anchor === "shift-right") classes.push("is-shift-right");
+                    if (anchor === "shift-left") classes.push("is-shift-left");
+                    if (verticalClass) classes.push(verticalClass);
+                    return classes.join(" ");
                   })()}
                   role="tooltip"
                 >
                   <div className="journey-pin-tooltip-weeks">{stage.weeks}</div>
-                  <div className="journey-pin-tooltip-title">{stage.title}</div>
-                  <p className="journey-pin-tooltip-body">{stage.body}</p>
+                  <div className="journey-pin-tooltip-title">{popoverTitle}</div>
+                  <p className="journey-pin-tooltip-body">{popoverBody}</p>
                   <span className="journey-pin-tooltip-tip" aria-hidden="true" />
                 </div>
               </button>
