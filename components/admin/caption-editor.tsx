@@ -9,6 +9,7 @@
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Link from "@tiptap/extension-link";
+import TextAlign from "@tiptap/extension-text-align";
 import { useEffect, useState } from "react";
 import {
   CAPTION_SIZES,
@@ -56,6 +57,11 @@ export function CaptionEditor({ value, size, onChange }: Props) {
         HTMLAttributes: { rel: "noopener noreferrer", target: "_blank" },
         validate: (href) =>
           /^(https?:|mailto:|tel:|\/|#)/i.test(href ?? ""),
+      }),
+      TextAlign.configure({
+        types: ["paragraph"],
+        alignments: ["left", "center", "right", "justify"],
+        defaultAlignment: "left",
       }),
     ],
     content: value ?? "",
@@ -147,6 +153,43 @@ export function CaptionEditor({ value, size, onChange }: Props) {
         >
           🔗
         </button>
+        <span className="adm-caption-toolbar-divider" aria-hidden="true" />
+        <button
+          type="button"
+          className={`adm-caption-tool${editor.isActive({ textAlign: "left" }) ? " is-active" : ""}`}
+          onClick={() => editor.chain().focus().setTextAlign("left").run()}
+          aria-label="Align left"
+          title="Align left"
+        >
+          <AlignIcon variant="left" />
+        </button>
+        <button
+          type="button"
+          className={`adm-caption-tool${editor.isActive({ textAlign: "center" }) ? " is-active" : ""}`}
+          onClick={() => editor.chain().focus().setTextAlign("center").run()}
+          aria-label="Align center"
+          title="Align center"
+        >
+          <AlignIcon variant="center" />
+        </button>
+        <button
+          type="button"
+          className={`adm-caption-tool${editor.isActive({ textAlign: "right" }) ? " is-active" : ""}`}
+          onClick={() => editor.chain().focus().setTextAlign("right").run()}
+          aria-label="Align right"
+          title="Align right"
+        >
+          <AlignIcon variant="right" />
+        </button>
+        <button
+          type="button"
+          className={`adm-caption-tool${editor.isActive({ textAlign: "justify" }) ? " is-active" : ""}`}
+          onClick={() => editor.chain().focus().setTextAlign("justify").run()}
+          aria-label="Justify"
+          title="Justify"
+        >
+          <AlignIcon variant="justify" />
+        </button>
         <div className="adm-caption-toolbar-spacer" />
         <select
           className="adm-caption-size"
@@ -207,5 +250,64 @@ export function CaptionEditor({ value, size, onChange }: Props) {
       )}
       <EditorContent editor={editor} />
     </div>
+  );
+}
+
+// Inline alignment icons — no icon library in this repo (see PR #81),
+// so the four variants share one SVG frame and toggle line lengths to
+// suggest left / center / right / justify.
+function AlignIcon({
+  variant,
+}: {
+  variant: "left" | "center" | "right" | "justify";
+}) {
+  const lines: Array<{ x1: number; x2: number }> = (() => {
+    switch (variant) {
+      case "left":
+        return [
+          { x1: 3, x2: 17 },
+          { x1: 3, x2: 21 },
+          { x1: 3, x2: 14 },
+          { x1: 3, x2: 19 },
+        ];
+      case "center":
+        return [
+          { x1: 5, x2: 19 },
+          { x1: 3, x2: 21 },
+          { x1: 7, x2: 17 },
+          { x1: 4, x2: 20 },
+        ];
+      case "right":
+        return [
+          { x1: 7, x2: 21 },
+          { x1: 3, x2: 21 },
+          { x1: 10, x2: 21 },
+          { x1: 5, x2: 21 },
+        ];
+      case "justify":
+      default:
+        return [
+          { x1: 3, x2: 21 },
+          { x1: 3, x2: 21 },
+          { x1: 3, x2: 21 },
+          { x1: 3, x2: 21 },
+        ];
+    }
+  })();
+  return (
+    <svg
+      aria-hidden="true"
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+    >
+      {lines.map((l, i) => (
+        <line key={i} x1={l.x1} x2={l.x2} y1={6 + i * 4} y2={6 + i * 4} />
+      ))}
+    </svg>
   );
 }

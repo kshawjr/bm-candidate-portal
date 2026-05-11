@@ -232,13 +232,17 @@ export function SlidesRenderer({
           </div>
 
           {slide!.caption && (
-            <p
+            // <div> wrapper (not <p>) so the sanitized HTML can contain
+            // its own <p> elements — TipTap emits one paragraph per
+            // block, and per-paragraph text-align lives on those inner
+            // <p>s. A <p> inside a <p> would auto-close the outer and
+            // strip the size class.
+            <div
               className={`slide-caption slide-caption--${slide!.caption_size ?? "md"}`}
               // Caption is sanitized server-side at save time
               // (sanitizeCaptionHtml in app/admin/content/actions.ts) —
-              // only <strong>, <em>, <a href> survive. Existing plain-text
-              // captions render as-is because plain text has no markup
-              // for the sanitizer to remove.
+              // only <strong>, <em>, <a href>, and <p style="text-align">
+              // survive. Existing plain-text captions render as-is.
               dangerouslySetInnerHTML={{
                 __html: applySlideTemplate(slide!.caption, candidate ?? {}),
               }}
