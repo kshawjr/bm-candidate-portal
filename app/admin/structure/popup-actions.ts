@@ -115,45 +115,60 @@ export async function deleteChapterVideoAction(
   return { success: true };
 }
 
+interface SignedUploadInit {
+  signedUrl: string;
+  publicUrl: string;
+  contentType: string;
+}
+
 /**
- * Upload an mp4/mov/webm file for a chapter's transition video. Stored in
- * brand-assets/{brandSlug}/chapter-videos/{ts}-{name}. Returns the public
- * URL — the form writes that into videoUrl and saves with provider=mp4.
+ * Mint a signed upload URL for a chapter transition video. The client
+ * PUTs the file directly to Supabase Storage at the returned signedUrl —
+ * Vercel functions cap request bodies at ~4.5 MB, so video binaries
+ * can't flow through a server action. Stored in
+ * brand-assets/{brandSlug}/chapter-videos/{ts}-{name}; the form writes
+ * `publicUrl` into videoUrl and saves with provider=mp4.
  */
-export async function uploadChapterVideoAction(
+export async function createChapterVideoUploadAction(
   brandSlug: string,
-  formData: FormData,
-): Promise<{ url: string } | { error: string }> {
+  filename: string,
+  contentType: string,
+  fileSize: number,
+): Promise<SignedUploadInit | { error: string }> {
   await requireAdmin();
 
-  const file = formData.get("file");
-  if (!(file instanceof File)) return { error: "No file provided" };
-  if (!ALLOWED_VIDEO_TYPES.has(file.type)) {
-    return { error: "Video must be MP4, MOV, or WebM" };
-  }
-  if (file.size > MAX_VIDEO_BYTES) {
-    return { error: "Video must be under 100 MB" };
-  }
   if (!brandSlug || !/^[a-z0-9-]+$/.test(brandSlug)) {
     return { error: "Invalid brand slug" };
   }
+  if (!ALLOWED_VIDEO_TYPES.has(contentType)) {
+    return { error: "Video must be MP4, MOV, or WebM" };
+  }
+  if (!Number.isFinite(fileSize) || fileSize <= 0) {
+    return { error: "Invalid file size" };
+  }
+  if (fileSize > MAX_VIDEO_BYTES) {
+    return { error: "Video files must be under 100 MB. Try compressing or trimming." };
+  }
 
-  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-").slice(0, 80);
+  const safeName = filename.replace(/[^a-zA-Z0-9._-]/g, "-").slice(0, 80);
   const path = `${brandSlug}/chapter-videos/${Date.now()}-${safeName}`;
 
   const core = createCoreClient();
-  const { error: upErr } = await core.storage
+  const { data, error } = await core.storage
     .from(STORAGE_BUCKET)
-    .upload(path, file, {
-      contentType: file.type,
-      cacheControl: "31536000",
-      upsert: false,
-    });
-  if (upErr) return { error: upErr.message };
+    .createSignedUploadUrl(path);
+  if (error || !data) {
+    return { error: error?.message ?? "Failed to create upload URL" };
+  }
 
   const { data: pub } = core.storage.from(STORAGE_BUCKET).getPublicUrl(path);
   if (!pub?.publicUrl) return { error: "Failed to resolve public URL" };
-  return { url: pub.publicUrl };
+
+  return {
+    signedUrl: data.signedUrl,
+    publicUrl: pub.publicUrl,
+    contentType,
+  };
 }
 
 // ======================================================================

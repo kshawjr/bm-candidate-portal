@@ -119,8 +119,13 @@ interface Props {
   ) => Promise<{ success: boolean; error?: string }>;
   uploadChapterVideo: (
     brandSlug: string,
-    formData: FormData,
-  ) => Promise<{ url: string } | { error: string }>;
+    filename: string,
+    contentType: string,
+    fileSize: number,
+  ) => Promise<
+    | { signedUrl: string; publicUrl: string; contentType: string }
+    | { error: string }
+  >;
   saveChapterComplete: (
     brandId: string,
     chapterKey: string,
@@ -1535,9 +1540,21 @@ interface ChapterVideoDrawerProps {
   ) => Promise<{ success: boolean; error?: string }>;
   uploadVideo: (
     brandSlug: string,
-    formData: FormData,
-  ) => Promise<{ url: string } | { error: string }>;
+    filename: string,
+    contentType: string,
+    fileSize: number,
+  ) => Promise<
+    | { signedUrl: string; publicUrl: string; contentType: string }
+    | { error: string }
+  >;
 }
+
+const CHAPTER_VIDEO_MAX_MB = 100;
+const CHAPTER_VIDEO_ALLOWED_TYPES = new Set([
+  "video/mp4",
+  "video/quicktime",
+  "video/webm",
+]);
 
 function ChapterVideoDrawer({
   chapter,
@@ -1580,20 +1597,53 @@ function ChapterVideoDrawer({
 
   const handleVideoFile = (file: File) => {
     setLocalError(null);
+    if (!CHAPTER_VIDEO_ALLOWED_TYPES.has(file.type)) {
+      setLocalError("MP4, MOV, or WebM only");
+      return;
+    }
+    if (file.size > CHAPTER_VIDEO_MAX_MB * 1024 * 1024) {
+      setLocalError(
+        `Video files must be under ${CHAPTER_VIDEO_MAX_MB}MB. Try compressing or trimming.`,
+      );
+      return;
+    }
     setUploading(true);
-    const fd = new FormData();
-    fd.append("file", file);
     startTransition(async () => {
-      const result = await uploadVideo(brandSlug, fd);
-      setUploading(false);
-      if ("url" in result) {
+      try {
+        const init = await uploadVideo(
+          brandSlug,
+          file.name,
+          file.type,
+          file.size,
+        );
+        if (!init || "error" in init) {
+          setLocalError(
+            (init && "error" in init && init.error) || "Upload failed",
+          );
+          return;
+        }
+        const res = await fetch(init.signedUrl, {
+          method: "PUT",
+          headers: {
+            "Content-Type": init.contentType,
+            "x-upsert": "false",
+          },
+          body: file,
+        });
+        if (!res.ok) {
+          const text = await res.text().catch(() => "");
+          setLocalError(text || `Upload failed (${res.status})`);
+          return;
+        }
         setForm((f) => ({
           ...f,
-          videoUrl: result.url,
+          videoUrl: init.publicUrl,
           videoProvider: "mp4",
         }));
-      } else {
-        setLocalError(result.error || "Upload failed");
+      } catch (e) {
+        setLocalError(e instanceof Error ? e.message : "Upload failed");
+      } finally {
+        setUploading(false);
       }
     });
   };
