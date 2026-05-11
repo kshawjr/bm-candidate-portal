@@ -4454,6 +4454,63 @@ body {
   border-bottom: 0;
   border-top: 6px solid rgba(254, 252, 246, 0.97);
 }
+/* Extra edge-shift for the two extreme pins. The shift-right /
+   shift-left anchor from PR #89 still clips on narrow viewports for
+   stops 1 and 8; these classes push another 75% / 25% of tooltip
+   width inward, composed with the base transform via combined
+   selectors so we don't clobber the hover scale.
+     Math:
+       base centered  → translateX(-50%)
+       is-shift-right →   translateX(0)
+       is-shift-left  →   translateX(-100%)
+     For stop 1 (push 75% right):
+       on top of base       → translateX(-50% + 75%) = translateX(25%)
+       on top of shift-right → translateX(0  + 75%) = translateX(75%)
+     For stop 8 (push 25% left):
+       on top of base      → translateX(-50% - 25%) = translateX(-75%)
+       on top of shift-left → translateX(-100% - 25%) = translateX(-125%)
+   The tip arrow is hidden on edge pins (see further below) — pointing
+   it back at the pin from this much offset looked worse than letting
+   the proximity speak for itself. */
+.journey-pin-tooltip.is-edge-1 {
+  transform: translateX(25%) scale(0.96);
+}
+.journey-pin:hover .journey-pin-tooltip.is-edge-1,
+.journey-pin.is-open .journey-pin-tooltip.is-edge-1,
+.journey-pin:focus-visible .journey-pin-tooltip.is-edge-1 {
+  transform: translateX(25%) scale(1);
+}
+.journey-pin-tooltip.is-shift-right.is-edge-1 {
+  transform: translateX(75%) scale(0.96);
+}
+.journey-pin:hover .journey-pin-tooltip.is-shift-right.is-edge-1,
+.journey-pin.is-open .journey-pin-tooltip.is-shift-right.is-edge-1,
+.journey-pin:focus-visible .journey-pin-tooltip.is-shift-right.is-edge-1 {
+  transform: translateX(75%) scale(1);
+}
+.journey-pin-tooltip.is-edge-8 {
+  transform: translateX(-75%) scale(0.96);
+}
+.journey-pin:hover .journey-pin-tooltip.is-edge-8,
+.journey-pin.is-open .journey-pin-tooltip.is-edge-8,
+.journey-pin:focus-visible .journey-pin-tooltip.is-edge-8 {
+  transform: translateX(-75%) scale(1);
+}
+.journey-pin-tooltip.is-shift-left.is-edge-8 {
+  transform: translateX(-125%) scale(0.96);
+}
+.journey-pin:hover .journey-pin-tooltip.is-shift-left.is-edge-8,
+.journey-pin.is-open .journey-pin-tooltip.is-shift-left.is-edge-8,
+.journey-pin:focus-visible .journey-pin-tooltip.is-shift-left.is-edge-8 {
+  transform: translateX(-125%) scale(1);
+}
+/* Tip arrow no longer aligns with the pin once the tooltip is shoved
+   75% / 25% past the anchor — hide it on edge pins. The big positional
+   offset makes the association unambiguous without an arrow. */
+.journey-pin-tooltip.is-edge-1 .journey-pin-tooltip-tip,
+.journey-pin-tooltip.is-edge-8 .journey-pin-tooltip-tip {
+  display: none;
+}
 .journey-pin-tooltip-weeks {
   font-size: 10px;
   font-weight: 700;

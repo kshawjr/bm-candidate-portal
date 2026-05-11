@@ -613,6 +613,12 @@ export function JourneyTimeline({
             // beneath. Flip those to render above the pin; stops 5–8
             // keep the existing below-the-pin layout from PR #89.
             const verticalClass = i < 4 ? "is-shift-up" : "";
+            // Extra push for the two extreme edge pins: the shift-right
+            // / shift-left anchor from PR #89 still clips against narrow
+            // viewports on stops 1 and 8 specifically. Adding 75% of
+            // tooltip width inward on stop 1, 25% inward on stop 8.
+            const edgeClass =
+              i === 0 ? "is-edge-1" : i === 7 ? "is-edge-8" : "";
             const cls = [
               "journey-pin",
               isCurrent && "is-current",
@@ -664,6 +670,7 @@ export function JourneyTimeline({
                     if (anchor === "shift-right") classes.push("is-shift-right");
                     if (anchor === "shift-left") classes.push("is-shift-left");
                     if (verticalClass) classes.push(verticalClass);
+                    if (edgeClass) classes.push(edgeClass);
                     return classes.join(" ");
                   })()}
                   role="tooltip"
