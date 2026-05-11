@@ -11,10 +11,15 @@ import StarterKit from "@tiptap/starter-kit";
 import Link from "@tiptap/extension-link";
 import TextAlign from "@tiptap/extension-text-align";
 import { useEffect, useState } from "react";
+import { type CaptionSize } from "@/components/content-types/slide-types";
+// Aliased on import to avoid colliding with the legacy wrapper-level
+// `CaptionSize` type imported above. The legacy type still types the
+// `size` prop (which carries pre-existing wrapper sizing through saves
+// for backward compat). The mark below is what new selections use.
 import {
-  CAPTION_SIZES,
-  type CaptionSize,
-} from "@/components/content-types/slide-types";
+  CaptionSize as CaptionSizeMark,
+  type CaptionSizeValue,
+} from "@/lib/tiptap-size-extension";
 
 interface Props {
   /** Current caption HTML (or plain text — backwards compatible). */
@@ -22,12 +27,6 @@ interface Props {
   size: CaptionSize | null;
   onChange: (html: string | null, size: CaptionSize | null) => void;
 }
-
-const SIZE_LABEL: Record<CaptionSize, string> = {
-  sm: "Small",
-  md: "Regular",
-  lg: "Large",
-};
 
 export function CaptionEditor({ value, size, onChange }: Props) {
   // The editor only initializes once — TipTap's setContent on `value`
@@ -63,6 +62,7 @@ export function CaptionEditor({ value, size, onChange }: Props) {
         alignments: ["left", "center", "right", "justify"],
         defaultAlignment: "left",
       }),
+      CaptionSizeMark,
     ],
     content: value ?? "",
     onUpdate: ({ editor }) => {
@@ -193,21 +193,30 @@ export function CaptionEditor({ value, size, onChange }: Props) {
         <div className="adm-caption-toolbar-spacer" />
         <select
           className="adm-caption-size"
-          value={size ?? "md"}
+          // Dropdown now reflects the size mark at the current cursor /
+          // selection, not the wrapper-level size of the whole caption.
+          // "Regular" maps to no mark (default body size); "sm" / "lg"
+          // apply the captionSize mark inline on the selection.
+          value={
+            (editor.getAttributes("captionSize").size as
+              | CaptionSizeValue
+              | null
+              | undefined) ?? ""
+          }
           onChange={(e) => {
-            const next = e.target.value as CaptionSize;
-            if (CAPTION_SIZES.includes(next)) {
-              onChange(value, next === "md" ? null : next);
+            const next = e.target.value;
+            if (next === "") {
+              editor.chain().focus().unsetCaptionSize().run();
+            } else if (next === "sm" || next === "lg") {
+              editor.chain().focus().setCaptionSize(next).run();
             }
           }}
           aria-label="Caption size"
           title="Caption size"
         >
-          {CAPTION_SIZES.map((s) => (
-            <option key={s} value={s}>
-              {SIZE_LABEL[s]}
-            </option>
-          ))}
+          <option value="">Regular</option>
+          <option value="sm">Small</option>
+          <option value="lg">Large</option>
         </select>
       </div>
       {showLinkInput && (
