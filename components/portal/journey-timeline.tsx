@@ -130,6 +130,10 @@ interface Props {
   /** Optional override for the section heading. Falls back to "Your
    *  journey ahead" when omitted. */
   title?: string;
+  /** Optional per-card background image. Rendered at 30% opacity
+   *  behind the road + markers. Set on the journey_ahead card config
+   *  in the content-card editor; null/undefined = no image. */
+  backgroundImageUrl?: string | null;
 }
 
 /**
@@ -151,6 +155,7 @@ export function JourneyTimeline({
   brandSlug,
   currentChapterKey,
   title,
+  backgroundImageUrl,
 }: Props) {
   const theme = BRAND_THEMES[brandSlug] ?? FALLBACK_THEME;
   const isHT = brandSlug === "hounds-town-usa";
@@ -180,7 +185,44 @@ export function JourneyTimeline({
   }, [openPin]);
 
   const containerRef = useRef<HTMLElement | null>(null);
+  const pinsRef = useRef<HTMLDivElement | null>(null);
   const [revealed, setRevealed] = useState(false);
+  // Per-pin tooltip anchor override. Default is `null` (centered below
+  // the pin via the base .journey-pin-tooltip rule). When a pin sits
+  // close enough to a viewport edge that the centered tooltip would
+  // clip, we switch it to anchor on one side of the pin. Recomputed on
+  // mount + every resize.
+  const [pinAnchors, setPinAnchors] = useState<
+    Record<number, "shift-right" | "shift-left">
+  >({});
+  useEffect(() => {
+    function compute() {
+      const container = pinsRef.current;
+      if (!container) return;
+      const pins =
+        container.querySelectorAll<HTMLButtonElement>(".journey-pin");
+      const viewportWidth = window.innerWidth;
+      // Tooltip width = 230px desktop / 180px mobile. Use 230 as the
+      // worst case so we never under-shift on desktop and never miss a
+      // clip on mobile.
+      const tooltipHalf = 115;
+      const buffer = 24;
+      const next: Record<number, "shift-right" | "shift-left"> = {};
+      pins.forEach((pin, i) => {
+        const rect = pin.getBoundingClientRect();
+        const pinCenter = rect.left + rect.width / 2;
+        if (pinCenter - tooltipHalf < buffer) {
+          next[i + 1] = "shift-right";
+        } else if (pinCenter + tooltipHalf > viewportWidth - buffer) {
+          next[i + 1] = "shift-left";
+        }
+      });
+      setPinAnchors(next);
+    }
+    compute();
+    window.addEventListener("resize", compute);
+    return () => window.removeEventListener("resize", compute);
+  }, []);
   useEffect(() => {
     const el = containerRef.current;
     if (!el || revealed) return;
@@ -224,6 +266,18 @@ export function JourneyTimeline({
         role="img"
         aria-label="Discovery journey road map"
       >
+        {backgroundImageUrl && (
+          /* Sits underneath the SVG scenery + pins. 30% opacity is set in
+             CSS so the road + markers stay readable. Decorative — the
+             roadmap is already labelled on the canvas wrapper above. */
+          /* eslint-disable-next-line @next/next/no-img-element */
+          <img
+            src={backgroundImageUrl}
+            alt=""
+            aria-hidden="true"
+            className="journey-roadmap-bg"
+          />
+        )}
         <svg
           viewBox="0 0 1200 600"
           className="journey-roadmap-svg"
@@ -497,7 +551,7 @@ export function JourneyTimeline({
           />
         </svg>
 
-        <div className="journey-roadmap-pins" role="list">
+        <div className="journey-roadmap-pins" role="list" ref={pinsRef}>
           {STAGES.map((stage, i) => {
             const pos = PIN_POSITIONS[i];
             const isCurrent = stage.num === currentStageNum;
@@ -546,7 +600,19 @@ export function JourneyTimeline({
                     <span>{stage.num}</span>
                   )}
                 </span>
-                <div className="journey-pin-tooltip" role="tooltip">
+                <div
+                  className={(() => {
+                    const anchor = pinAnchors[stage.num];
+                    if (anchor === "shift-right") {
+                      return "journey-pin-tooltip is-shift-right";
+                    }
+                    if (anchor === "shift-left") {
+                      return "journey-pin-tooltip is-shift-left";
+                    }
+                    return "journey-pin-tooltip";
+                  })()}
+                  role="tooltip"
+                >
                   <div className="journey-pin-tooltip-weeks">{stage.weeks}</div>
                   <div className="journey-pin-tooltip-title">{stage.title}</div>
                   <p className="journey-pin-tooltip-body">{stage.body}</p>

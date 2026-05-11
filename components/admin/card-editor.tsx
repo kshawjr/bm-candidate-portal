@@ -81,7 +81,7 @@ export function CardEditor({
       case "photo":
         return <PhotoForm value={card} onChange={setCard} {...common} />;
       case "journey_ahead":
-        return <JourneyAheadForm value={card} onChange={setCard} />;
+        return <JourneyAheadForm value={card} onChange={setCard} {...common} />;
     }
   };
 
