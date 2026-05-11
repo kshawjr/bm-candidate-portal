@@ -17,7 +17,7 @@ import {
 import {
   saveChapterIntroAction,
   deleteChapterIntroAction,
-  uploadChapterIntroHeroAction,
+  createChapterIntroHeroUploadAction,
   saveChapterVideoAction,
   deleteChapterVideoAction,
   createChapterVideoUploadAction,
@@ -227,7 +227,7 @@ export default async function StructurePage({ searchParams }: Props) {
       reorderChapters={reorderChaptersAction}
       saveChapterIntro={saveChapterIntroAction}
       deleteChapterIntro={deleteChapterIntroAction}
-      uploadChapterIntroHero={uploadChapterIntroHeroAction}
+      uploadChapterIntroHero={createChapterIntroHeroUploadAction}
       saveChapterVideo={saveChapterVideoAction}
       deleteChapterVideo={deleteChapterVideoAction}
       uploadChapterVideo={createChapterVideoUploadAction}

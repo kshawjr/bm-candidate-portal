@@ -106,8 +106,13 @@ interface Props {
   ) => Promise<{ success: boolean; error?: string }>;
   uploadChapterIntroHero: (
     brandSlug: string,
-    formData: FormData,
-  ) => Promise<{ url: string } | { error: string }>;
+    filename: string,
+    contentType: string,
+    fileSize: number,
+  ) => Promise<
+    | { signedUrl: string; publicUrl: string; contentType: string }
+    | { error: string }
+  >;
   saveChapterVideo: (
     brandId: string,
     chapterKey: string,
@@ -637,9 +642,22 @@ interface ChapterIntroDrawerProps {
   ) => Promise<{ success: boolean; error?: string }>;
   uploadHero: (
     brandSlug: string,
-    formData: FormData,
-  ) => Promise<{ url: string } | { error: string }>;
+    filename: string,
+    contentType: string,
+    fileSize: number,
+  ) => Promise<
+    | { signedUrl: string; publicUrl: string; contentType: string }
+    | { error: string }
+  >;
 }
+
+const HERO_IMAGE_MAX_MB = 5;
+const HERO_IMAGE_ALLOWED_TYPES = new Set([
+  "image/jpeg",
+  "image/jpg",
+  "image/png",
+  "image/webp",
+]);
 
 function ChapterIntroDrawer({
   chapter,
@@ -724,16 +742,49 @@ function ChapterIntroDrawer({
 
   const handleHeroFile = (file: File) => {
     setLocalError(null);
+    if (!HERO_IMAGE_ALLOWED_TYPES.has(file.type)) {
+      setLocalError("Image must be JPG, PNG, or WebP");
+      return;
+    }
+    if (file.size > HERO_IMAGE_MAX_MB * 1024 * 1024) {
+      setLocalError(
+        `Image files must be under ${HERO_IMAGE_MAX_MB}MB. Try optimizing the file.`,
+      );
+      return;
+    }
     setUploading(true);
-    const fd = new FormData();
-    fd.append("file", file);
     startTransition(async () => {
-      const result = await uploadHero(brandSlug, fd);
-      setUploading(false);
-      if ("url" in result) {
-        setForm((f) => ({ ...f, heroImageUrl: result.url }));
-      } else {
-        setLocalError(result.error || "Upload failed");
+      try {
+        const init = await uploadHero(
+          brandSlug,
+          file.name,
+          file.type,
+          file.size,
+        );
+        if (!init || "error" in init) {
+          setLocalError(
+            (init && "error" in init && init.error) || "Upload failed",
+          );
+          return;
+        }
+        const res = await fetch(init.signedUrl, {
+          method: "PUT",
+          headers: {
+            "Content-Type": init.contentType,
+            "x-upsert": "false",
+          },
+          body: file,
+        });
+        if (!res.ok) {
+          const text = await res.text().catch(() => "");
+          setLocalError(text || `Upload failed (${res.status})`);
+          return;
+        }
+        setForm((f) => ({ ...f, heroImageUrl: init.publicUrl }));
+      } catch (e) {
+        setLocalError(e instanceof Error ? e.message : "Upload failed");
+      } finally {
+        setUploading(false);
       }
     });
   };
