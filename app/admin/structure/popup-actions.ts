@@ -349,38 +349,57 @@ export async function deleteChapterCompleteAction(
   return { success: true };
 }
 
-export async function uploadChapterIntroHeroAction(
+interface SignedUploadInit {
+  signedUrl: string;
+  publicUrl: string;
+  contentType: string;
+}
+
+/**
+ * Mint a signed upload URL for a chapter intro hero image. Same
+ * direct-to-storage pattern as the slide / step / chapter video
+ * uploads (PR #78 / #79): server hands back a signed URL, browser
+ * PUTs the file straight to Supabase Storage. Image cap stays at
+ * 5 MB — the change is the transport, not the size.
+ */
+export async function createChapterIntroHeroUploadAction(
   brandSlug: string,
-  formData: FormData,
-): Promise<{ url: string } | { error: string }> {
+  filename: string,
+  contentType: string,
+  fileSize: number,
+): Promise<SignedUploadInit | { error: string }> {
   await requireAdmin();
 
-  const file = formData.get("file");
-  if (!(file instanceof File)) return { error: "No file provided" };
-  if (!ALLOWED_IMAGE_TYPES.has(file.type)) {
-    return { error: "Image must be JPG, PNG, or WebP" };
-  }
-  if (file.size > MAX_IMAGE_BYTES) {
-    return { error: "Image must be under 5 MB" };
-  }
   if (!brandSlug || !/^[a-z0-9-]+$/.test(brandSlug)) {
     return { error: "Invalid brand slug" };
   }
+  if (!ALLOWED_IMAGE_TYPES.has(contentType)) {
+    return { error: "Image must be JPG, PNG, or WebP" };
+  }
+  if (!Number.isFinite(fileSize) || fileSize <= 0) {
+    return { error: "Invalid file size" };
+  }
+  if (fileSize > MAX_IMAGE_BYTES) {
+    return { error: "Image files must be under 5 MB. Try optimizing the file." };
+  }
 
-  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-").slice(0, 80);
+  const safeName = filename.replace(/[^a-zA-Z0-9._-]/g, "-").slice(0, 80);
   const path = `${brandSlug}/chapter-intros/${Date.now()}-${safeName}`;
 
   const core = createCoreClient();
-  const { error: upErr } = await core.storage
+  const { data, error } = await core.storage
     .from(STORAGE_BUCKET)
-    .upload(path, file, {
-      contentType: file.type,
-      cacheControl: "31536000",
-      upsert: false,
-    });
-  if (upErr) return { error: upErr.message };
+    .createSignedUploadUrl(path);
+  if (error || !data) {
+    return { error: error?.message ?? "Failed to create upload URL" };
+  }
 
   const { data: pub } = core.storage.from(STORAGE_BUCKET).getPublicUrl(path);
   if (!pub?.publicUrl) return { error: "Failed to resolve public URL" };
-  return { url: pub.publicUrl };
+
+  return {
+    signedUrl: data.signedUrl,
+    publicUrl: pub.publicUrl,
+    contentType,
+  };
 }

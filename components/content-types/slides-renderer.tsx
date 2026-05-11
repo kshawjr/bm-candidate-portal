@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { useEffect, useState } from "react";
+import { useReducedMotion } from "@/lib/use-reduced-motion";
 
 export type CaptionSize = "sm" | "md" | "lg";
 
@@ -96,6 +97,7 @@ export function SlidesRenderer({
   candidate,
 }: Props) {
   const [idx, setIdx] = useState(0);
+  const reduceMotion = useReducedMotion();
 
   // Fire slide_viewed once per index change. Skips the handoff index
   // (idx === slides.length) since that's a sentinel screen, not a real
@@ -205,6 +207,8 @@ export function SlidesRenderer({
                 controls
                 playsInline
                 preload="metadata"
+                autoPlay={!reduceMotion}
+                muted
                 width={1280}
                 height={720}
               />
