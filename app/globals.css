@@ -740,11 +740,18 @@ body {
 /* Inline size mark — emitted by the TipTap captionSize extension as
    <span class="caption-size-{sm,lg}" data-caption-size="{sm,lg}">.
    "Regular" is the absence of the mark (default body size), so no
-   .caption-size-md is needed. */
-.slide-caption .caption-size-sm {
+   .caption-size-md is needed.
+
+   Rules are global (not scoped to .slide-caption) so the same sizing
+   applies inside the TipTap editor's editable area — without this,
+   admin couldn't see the size change while editing because the
+   ProseMirror editable element doesn't carry the .slide-caption
+   wrapper. Class names are namespaced enough that global scope is
+   safe. */
+.caption-size-sm {
   font-size: var(--caption-size-sm);
 }
-.slide-caption .caption-size-lg {
+.caption-size-lg {
   font-size: var(--caption-size-lg);
   font-family: var(--font-heading);
   color: var(--cin-text);
