@@ -877,6 +877,11 @@
   align-items: center;
   margin-bottom: 10px;
 }
+.adm-repeatable-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
 .adm-repeatable-label {
   font-size: 12px;
   font-weight: 600;

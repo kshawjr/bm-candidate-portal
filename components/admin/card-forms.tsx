@@ -206,6 +206,13 @@ export function AwardsForm({
   const removeItem = (idx: number) => {
     onChange({ ...value, items: items.filter((_, i) => i !== idx) });
   };
+  const moveItem = (fromIndex: number, toIndex: number) => {
+    if (toIndex < 0 || toIndex >= items.length) return;
+    const next = [...items];
+    const [moved] = next.splice(fromIndex, 1);
+    next.splice(toIndex, 0, moved);
+    onChange({ ...value, items: next });
+  };
   const addItem = () => {
     onChange({ ...value, items: [...items, { name: "" }] });
   };
@@ -222,13 +229,35 @@ export function AwardsForm({
           <div className="adm-repeatable-head">
             <span className="adm-repeatable-label">Small picture {i + 1}</span>
             {items.length > 1 && (
-              <button
-                type="button"
-                className="adm-btn-ghost adm-btn-danger"
-                onClick={() => removeItem(i)}
-              >
-                Remove
-              </button>
+              <div className="adm-repeatable-actions">
+                <button
+                  type="button"
+                  className="adm-icon-btn"
+                  onClick={() => moveItem(i, i - 1)}
+                  disabled={i === 0}
+                  aria-label="Move up"
+                  title="Move up"
+                >
+                  ↑
+                </button>
+                <button
+                  type="button"
+                  className="adm-icon-btn"
+                  onClick={() => moveItem(i, i + 1)}
+                  disabled={i === items.length - 1}
+                  aria-label="Move down"
+                  title="Move down"
+                >
+                  ↓
+                </button>
+                <button
+                  type="button"
+                  className="adm-btn-ghost adm-btn-danger"
+                  onClick={() => removeItem(i)}
+                >
+                  Remove
+                </button>
+              </div>
             )}
           </div>
           <Field label="Name" required>
@@ -290,6 +319,13 @@ export function PersonasForm({
     if (items.length <= 1) return;
     onChange({ ...value, items: items.filter((_, i) => i !== idx) });
   };
+  const moveItem = (fromIndex: number, toIndex: number) => {
+    if (toIndex < 0 || toIndex >= items.length) return;
+    const next = [...items];
+    const [moved] = next.splice(fromIndex, 1);
+    next.splice(toIndex, 0, moved);
+    onChange({ ...value, items: next });
+  };
   const addItem = () => {
     if (items.length >= PERSONAS_MAX) return;
     onChange({ ...value, items: [...items, {}] });
@@ -308,13 +344,35 @@ export function PersonasForm({
           <div className="adm-repeatable-head">
             <span className="adm-repeatable-label">Large picture {i + 1}</span>
             {items.length > 1 && (
-              <button
-                type="button"
-                className="adm-btn-ghost adm-btn-danger"
-                onClick={() => removeItem(i)}
-              >
-                Remove
-              </button>
+              <div className="adm-repeatable-actions">
+                <button
+                  type="button"
+                  className="adm-icon-btn"
+                  onClick={() => moveItem(i, i - 1)}
+                  disabled={i === 0}
+                  aria-label="Move up"
+                  title="Move up"
+                >
+                  ↑
+                </button>
+                <button
+                  type="button"
+                  className="adm-icon-btn"
+                  onClick={() => moveItem(i, i + 1)}
+                  disabled={i === items.length - 1}
+                  aria-label="Move down"
+                  title="Move down"
+                >
+                  ↓
+                </button>
+                <button
+                  type="button"
+                  className="adm-btn-ghost adm-btn-danger"
+                  onClick={() => removeItem(i)}
+                >
+                  Remove
+                </button>
+              </div>
             )}
           </div>
           <Field label="Name (optional)">
