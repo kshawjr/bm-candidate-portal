@@ -14,7 +14,7 @@ import { useEffect, useState } from "react";
 import {
   CAPTION_SIZES,
   type CaptionSize,
-} from "@/components/content-types/slides-renderer";
+} from "@/components/content-types/slide-types";
 
 interface Props {
   /** Current caption HTML (or plain text — backwards compatible). */
