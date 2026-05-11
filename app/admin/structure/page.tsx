@@ -20,7 +20,7 @@ import {
   uploadChapterIntroHeroAction,
   saveChapterVideoAction,
   deleteChapterVideoAction,
-  uploadChapterVideoAction,
+  createChapterVideoUploadAction,
   saveChapterCompleteAction,
   deleteChapterCompleteAction,
 } from "./popup-actions";
@@ -230,7 +230,7 @@ export default async function StructurePage({ searchParams }: Props) {
       uploadChapterIntroHero={uploadChapterIntroHeroAction}
       saveChapterVideo={saveChapterVideoAction}
       deleteChapterVideo={deleteChapterVideoAction}
-      uploadChapterVideo={uploadChapterVideoAction}
+      uploadChapterVideo={createChapterVideoUploadAction}
       saveChapterComplete={saveChapterCompleteAction}
       deleteChapterComplete={deleteChapterCompleteAction}
     />
