@@ -44,6 +44,7 @@ function newSlide(): Slide {
     image_url: "",
     video_url: null,
     poster_url: null,
+    has_sound: null,
     alt: null,
     caption: null,
     caption_size: null,
@@ -287,8 +288,11 @@ function SlideDrawer({
   });
   const isEdit = indexForEdit !== null;
   const isVideo = slide.media_type === "video";
+  const hasSoundPicked =
+    slide.has_sound === true || slide.has_sound === false;
   const valid = isVideo
-    ? !!(slide.video_url && slide.video_url.trim().length > 0)
+    ? !!(slide.video_url && slide.video_url.trim().length > 0) &&
+      hasSoundPicked
     : slide.image_url.trim().length > 0;
 
   return (
@@ -354,6 +358,40 @@ function SlideDrawer({
                 onUpload={uploadVideo}
                 maxSizeMB={SLIDE_VIDEO_MAX_MB}
               />
+              <fieldset className="adm-field">
+                <legend className="adm-form-label">
+                  Does this video have sound? *
+                </legend>
+                <div className="adm-radio-row">
+                  <label className="adm-radio">
+                    <input
+                      type="radio"
+                      name="has_sound"
+                      checked={slide.has_sound === true}
+                      onChange={() =>
+                        setSlide({ ...slide, has_sound: true })
+                      }
+                    />
+                    <span>Yes, this video has audio</span>
+                  </label>
+                  <label className="adm-radio">
+                    <input
+                      type="radio"
+                      name="has_sound"
+                      checked={slide.has_sound === false}
+                      onChange={() =>
+                        setSlide({ ...slide, has_sound: false })
+                      }
+                    />
+                    <span>No, this video is silent</span>
+                  </label>
+                </div>
+                <span className="adm-form-hint">
+                  Videos with audio show a &ldquo;Tap for sound&rdquo;
+                  pill so candidates know to unmute. Silent videos play
+                  muted with no overlay.
+                </span>
+              </fieldset>
               <ImageUpload
                 label="Poster image (optional)"
                 value={slide.poster_url ?? null}

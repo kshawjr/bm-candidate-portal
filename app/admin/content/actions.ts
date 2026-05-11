@@ -393,9 +393,16 @@ function normalizeSlides(input: unknown): Slide[] {
       typeof s.poster_url === "string" && s.poster_url.trim().length > 0
         ? s.poster_url.trim()
         : null;
+    const has_sound: boolean | null =
+      typeof s.has_sound === "boolean" ? s.has_sound : null;
     if (media_type === "video") {
       if (!video_url) {
         throw new Error(`slide ${i + 1}: video_url is required for video slides`);
+      }
+      if (has_sound === null) {
+        throw new Error(
+          `slide ${i + 1}: pick whether this video has sound (Yes or No)`,
+        );
       }
     } else if (!image_url) {
       throw new Error(`slide ${i + 1}: image_url is required`);
@@ -440,6 +447,7 @@ function normalizeSlides(input: unknown): Slide[] {
       image_url,
       video_url,
       poster_url,
+      has_sound,
       alt,
       caption: captionFinal,
       caption_size,

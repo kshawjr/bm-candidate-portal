@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useReducedMotion } from "@/lib/use-reduced-motion";
 
 export type CaptionSize = "sm" | "md" | "lg";
@@ -22,6 +22,13 @@ export interface Slide {
    *  the browser shows a black frame, which feels off in a "light and
    *  fluffy" portal. */
   poster_url?: string | null;
+  /** Required when `media_type === "video"` — admin picks Yes/No in the
+   *  slide editor and the choice drives the candidate-facing UX: silent
+   *  videos play muted with no overlay; videos with audio play muted but
+   *  surface a "Tap for sound" pill until the candidate unmutes. Null on
+   *  legacy slides authored before this field existed; the renderer
+   *  treats null as silent and the admin form forces a pick on next edit. */
+  has_sound?: boolean | null;
   alt?: string | null;
   /** Sanitized HTML — only <strong>, <em>, and <a href> survive
    *  normalization on save. Plain text written before the rich-text
@@ -200,17 +207,12 @@ export function SlidesRenderer({
           )}
           <div className="slide-canvas">
             {slide!.media_type === "video" && slide!.video_url ? (
-              <video
+              <SlideVideo
                 key={slide!.id}
                 src={slide!.video_url}
-                poster={slide!.poster_url ?? undefined}
-                controls
-                playsInline
-                preload="metadata"
-                autoPlay={!reduceMotion}
-                muted
-                width={1280}
-                height={720}
+                poster={slide!.poster_url ?? null}
+                hasSound={slide!.has_sound === true}
+                reduceMotion={reduceMotion}
               />
             ) : (
               <Image
@@ -301,5 +303,80 @@ export function SlidesRenderer({
         )}
       </div>
     </div>
+  );
+}
+
+interface SlideVideoProps {
+  src: string;
+  poster: string | null;
+  hasSound: boolean;
+  reduceMotion: boolean;
+}
+
+// Per-slide-instance video state — re-mounts on slide change (parent
+// passes `key={slide.id}`), so muted/hasStarted are fresh each time.
+function SlideVideo({ src, poster, hasSound, reduceMotion }: SlideVideoProps) {
+  const ref = useRef<HTMLVideoElement>(null);
+  const [muted, setMuted] = useState(true);
+  // Gate the overlay on playback start so it doesn't flash up on the
+  // poster frame before anything happens — the pill only makes sense
+  // once audio could actually be playing.
+  const [hasStarted, setHasStarted] = useState(false);
+
+  const showOverlay = hasSound && muted && hasStarted;
+
+  const unmute = () => {
+    const el = ref.current;
+    if (el) el.muted = false;
+    setMuted(false);
+  };
+
+  return (
+    <>
+      <video
+        ref={ref}
+        src={src}
+        poster={poster ?? undefined}
+        controls
+        playsInline
+        preload="metadata"
+        autoPlay={!reduceMotion}
+        muted={muted}
+        onPlay={() => setHasStarted(true)}
+        // Sync local muted state when the user toggles via the browser's
+        // native controls — otherwise the overlay would stay visible
+        // after unmuting through the speaker icon.
+        onVolumeChange={(e) => setMuted(e.currentTarget.muted)}
+        width={1280}
+        height={720}
+      />
+      {hasSound && (
+        <button
+          type="button"
+          className={`tap-for-sound${showOverlay ? " is-visible" : ""}`}
+          onClick={unmute}
+          aria-label="Tap for sound"
+          aria-hidden={!showOverlay}
+          tabIndex={showOverlay ? 0 : -1}
+        >
+          <svg
+            aria-hidden="true"
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M11 5 6 9H2v6h4l5 4V5z" />
+            <line x1="22" y1="9" x2="16" y2="15" />
+            <line x1="16" y1="9" x2="22" y2="15" />
+          </svg>
+          <span>Tap for sound</span>
+        </button>
+      )}
+    </>
   );
 }
