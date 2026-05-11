@@ -11,13 +11,23 @@ type UploadFn = (
   formData: FormData,
 ) => Promise<{ url: string } | { error: string }>;
 
+type VideoUploadInitFn = (
+  brandSlug: string,
+  filename: string,
+  contentType: string,
+  fileSize: number,
+) => Promise<
+  | { signedUrl: string; publicUrl: string; contentType: string }
+  | { error: string }
+>;
+
 interface Props {
   brandSlug: string;
   stepId: string;
   initialSlides: Slide[];
   saveSlides: (stepId: string, slides: Slide[]) => Promise<void>;
   upload: UploadFn;
-  uploadVideo: UploadFn;
+  uploadVideo: VideoUploadInitFn;
 }
 
 type DrawerState =
@@ -25,7 +35,7 @@ type DrawerState =
   | { mode: "create" }
   | { mode: "edit"; index: number };
 
-const SLIDE_VIDEO_MAX_MB = 50;
+const SLIDE_VIDEO_MAX_MB = 100;
 
 function newSlide(): Slide {
   return {
@@ -253,7 +263,7 @@ export function SlideEditor({
 interface DrawerProps {
   brandSlug: string;
   upload: UploadFn;
-  uploadVideo: UploadFn;
+  uploadVideo: VideoUploadInitFn;
   initial: Slide;
   indexForEdit: number | null;
   onCancel: () => void;
@@ -432,13 +442,18 @@ function SlideDrawer({
   );
 }
 
-// ---- video upload (MP4-only, 50 MB cap, no preview thumbnail) ----
+// ---- video upload (MP4-only, signed-URL direct-to-storage) ----
+//
+// The MP4 binary cannot flow through a Next.js server action — Vercel
+// caps function request bodies at ~4.5 MB. Instead, the server mints a
+// signed upload URL via Supabase Storage, then the browser PUTs the
+// file straight to the storage host. Bypasses the function entirely.
 
 interface VideoUploadProps {
   value: string | null;
   onChange: (url: string | null) => void;
   brandSlug: string;
-  onUpload: UploadFn;
+  onUpload: VideoUploadInitFn;
   label: string;
   maxSizeMB: number;
 }
@@ -463,17 +478,34 @@ function VideoUpload({
       return;
     }
     if (file.size > maxBytes) {
-      setError(`Video must be under ${maxSizeMB} MB`);
+      setError(
+        `Video files must be under ${maxSizeMB}MB. Try compressing or trimming.`,
+      );
       return;
     }
-    const fd = new FormData();
-    fd.append("file", file);
     startTransition(async () => {
-      const result = await onUpload(brandSlug, fd);
-      if ("url" in result) {
-        onChange(result.url);
-      } else {
-        setError(result.error || "Upload failed");
+      try {
+        const init = await onUpload(brandSlug, file.name, file.type, file.size);
+        if (!init || "error" in init) {
+          setError((init && "error" in init && init.error) || "Upload failed");
+          return;
+        }
+        const res = await fetch(init.signedUrl, {
+          method: "PUT",
+          headers: {
+            "Content-Type": init.contentType,
+            "x-upsert": "false",
+          },
+          body: file,
+        });
+        if (!res.ok) {
+          const text = await res.text().catch(() => "");
+          setError(text || `Upload failed (${res.status})`);
+          return;
+        }
+        onChange(init.publicUrl);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Upload failed");
       }
     });
   };

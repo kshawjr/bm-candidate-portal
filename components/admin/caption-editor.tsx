@@ -37,7 +37,9 @@ export function CaptionEditor({ value, size, onChange }: Props) {
       StarterKit.configure({
         // Disable everything except bold, italic, and the document/text
         // primitives. Headings, lists, blockquotes, etc. would all be
-        // stripped server-side anyway, so don't surface them.
+        // stripped server-side anyway, so don't surface them. `link` is
+        // disabled here so the separately-imported Link extension below
+        // owns the schema — StarterKit v3 ships Link bundled.
         heading: false,
         bulletList: false,
         orderedList: false,
@@ -47,6 +49,7 @@ export function CaptionEditor({ value, size, onChange }: Props) {
         horizontalRule: false,
         strike: false,
         code: false,
+        link: false,
       }),
       Link.configure({
         openOnClick: false,

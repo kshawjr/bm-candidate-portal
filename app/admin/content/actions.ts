@@ -14,10 +14,7 @@ import {
 const STORAGE_BUCKET = "brand-assets";
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5 MB
 const MAX_VIDEO_BYTES = 100 * 1024 * 1024; // 100 MB
-// F3: tighter cap on slide videos than the 100 MB step-video cap. Slides
-// are mid-stop transitions, not the main attraction — anything larger
-// than 50 MB likely needs to live as a `video` step instead.
-const MAX_SLIDE_VIDEO_BYTES = 50 * 1024 * 1024;
+const MAX_SLIDE_VIDEO_BYTES = 100 * 1024 * 1024; // 100 MB
 const ALLOWED_IMAGE_TYPES = new Set([
   "image/jpeg",
   "image/jpg",
@@ -196,88 +193,109 @@ export async function uploadSlideImageAction(
   return uploadBrandAsset(brandSlug, "slides", formData);
 }
 
-/**
- * Upload an MP4 slide video to brand-assets/{brandSlug}/slides/{ts}-{name}.
- * Stays in the same `slides/` subdir as slide images so per-brand cleanup
- * is one prefix scan, not two.
- */
-export async function uploadSlideVideoAction(
+interface SignedUploadInit {
+  signedUrl: string;
+  publicUrl: string;
+  contentType: string;
+}
+
+// Vercel serverless functions cap request bodies at ~4.5 MB, so video
+// files cannot flow through a server action body. Instead, the server
+// mints a signed upload URL and the browser PUTs the file straight to
+// Supabase Storage. Public URL is deterministic from the path, so we
+// can hand it back at the same time and skip a second round trip.
+async function createBrandAssetUploadUrl(
   brandSlug: string,
-  formData: FormData,
-): Promise<{ url: string } | { error: string }> {
+  subdir: "slides" | "videos",
+  filename: string,
+  contentType: string,
+  fileSize: number,
+  allowedTypes: Set<string>,
+  maxBytes: number,
+  oversizeMessage: string,
+  typeMessage: string,
+): Promise<SignedUploadInit | { error: string }> {
   await requireAdmin();
 
-  const file = formData.get("file");
-  if (!(file instanceof File)) return { error: "No file provided" };
-  if (!ALLOWED_SLIDE_VIDEO_TYPES.has(file.type)) {
-    return { error: "Slide videos must be MP4" };
-  }
-  if (file.size > MAX_SLIDE_VIDEO_BYTES) {
-    return { error: "Slide videos must be under 50 MB" };
-  }
   if (!brandSlug || !/^[a-z0-9-]+$/.test(brandSlug)) {
     return { error: "Invalid brand slug" };
   }
+  if (!allowedTypes.has(contentType)) {
+    return { error: typeMessage };
+  }
+  if (!Number.isFinite(fileSize) || fileSize <= 0) {
+    return { error: "Invalid file size" };
+  }
+  if (fileSize > maxBytes) {
+    return { error: oversizeMessage };
+  }
 
-  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-").slice(0, 80);
-  const path = `${brandSlug}/slides/${Date.now()}-${safeName}`;
+  const safeName = filename.replace(/[^a-zA-Z0-9._-]/g, "-").slice(0, 80);
+  const path = `${brandSlug}/${subdir}/${Date.now()}-${safeName}`;
 
   const core = createCoreClient();
-  const { error: upErr } = await core.storage
+  const { data, error } = await core.storage
     .from(STORAGE_BUCKET)
-    .upload(path, file, {
-      contentType: file.type,
-      cacheControl: "31536000",
-      upsert: false,
-    });
-  if (upErr) return { error: upErr.message };
+    .createSignedUploadUrl(path);
+  if (error || !data) {
+    return { error: error?.message ?? "Failed to create upload URL" };
+  }
 
   const { data: pub } = core.storage.from(STORAGE_BUCKET).getPublicUrl(path);
   if (!pub?.publicUrl) return { error: "Failed to resolve public URL" };
 
-  return { url: pub.publicUrl };
+  return {
+    signedUrl: data.signedUrl,
+    publicUrl: pub.publicUrl,
+    contentType,
+  };
 }
 
 /**
- * Upload an uploaded video file (source: 'upload' in the video config) to
- * brand-assets/{brandSlug}/videos/{ts}-{name}. Separate limits from images
- * because videos are much larger.
+ * Mint a signed upload URL for an MP4 slide video. The client PUTs the
+ * file directly to Supabase Storage at the returned signedUrl, then
+ * records the publicUrl in the slide config.
  */
-export async function uploadStepVideoAction(
+export async function createSlideVideoUploadAction(
   brandSlug: string,
-  formData: FormData,
-): Promise<{ url: string } | { error: string }> {
-  await requireAdmin();
+  filename: string,
+  contentType: string,
+  fileSize: number,
+): Promise<SignedUploadInit | { error: string }> {
+  return createBrandAssetUploadUrl(
+    brandSlug,
+    "slides",
+    filename,
+    contentType,
+    fileSize,
+    ALLOWED_SLIDE_VIDEO_TYPES,
+    MAX_SLIDE_VIDEO_BYTES,
+    "Video files must be under 100 MB. Try compressing or trimming.",
+    "Slide videos must be MP4",
+  );
+}
 
-  const file = formData.get("file");
-  if (!(file instanceof File)) return { error: "No file provided" };
-  if (!ALLOWED_VIDEO_TYPES.has(file.type)) {
-    return { error: "Video must be MP4, MOV, or WebM" };
-  }
-  if (file.size > MAX_VIDEO_BYTES) {
-    return { error: "Video must be under 100 MB" };
-  }
-  if (!brandSlug || !/^[a-z0-9-]+$/.test(brandSlug)) {
-    return { error: "Invalid brand slug" };
-  }
-
-  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-").slice(0, 80);
-  const path = `${brandSlug}/videos/${Date.now()}-${safeName}`;
-
-  const core = createCoreClient();
-  const { error: upErr } = await core.storage
-    .from(STORAGE_BUCKET)
-    .upload(path, file, {
-      contentType: file.type,
-      cacheControl: "31536000",
-      upsert: false,
-    });
-  if (upErr) return { error: upErr.message };
-
-  const { data: pub } = core.storage.from(STORAGE_BUCKET).getPublicUrl(path);
-  if (!pub?.publicUrl) return { error: "Failed to resolve public URL" };
-
-  return { url: pub.publicUrl };
+/**
+ * Mint a signed upload URL for a step-level video (`video` content type
+ * with source 'upload'). Same direct-upload pattern as slide videos.
+ */
+export async function createStepVideoUploadAction(
+  brandSlug: string,
+  filename: string,
+  contentType: string,
+  fileSize: number,
+): Promise<SignedUploadInit | { error: string }> {
+  return createBrandAssetUploadUrl(
+    brandSlug,
+    "videos",
+    filename,
+    contentType,
+    fileSize,
+    ALLOWED_VIDEO_TYPES,
+    MAX_VIDEO_BYTES,
+    "Video files must be under 100 MB. Try compressing or trimming.",
+    "Video must be MP4, MOV, or WebM",
+  );
 }
 
 /**
