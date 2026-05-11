@@ -3739,6 +3739,130 @@ body {
   50%      { opacity: 1; }
 }
 
+/* ---- Subtle animation layer ----
+   Functional animations that confirm state changes without celebrating
+   them. CSS-only — no animation library. Each rule is short, restrained,
+   and respects prefers-reduced-motion (override at the bottom of this
+   file). The brief: "if you notice an animation, it's too much." */
+
+/* A1: question screen entrance. The renderer wraps pickScreen() in a
+   div keyed on idx; React remounts on each step change, replaying this
+   animation as the new screen mounts. 350ms slide-in from the right
+   plus opacity fade — reads as "the form moved you forward" without
+   feeling theatrical. */
+.app-screen-host {
+  animation: question-enter 350ms ease-out;
+}
+@keyframes question-enter {
+  from { opacity: 0; transform: translateX(20px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+/* A3 + A9: section pill state.
+   - is-updating: 200ms opacity dim on every section change (subtle).
+   - is-completing: 1300ms success-color flash + check icon scale-in
+     when the section number actually advances. Acknowledgment without
+     celebration — pill itself does the work, no overlay. */
+.app-meta-section {
+  gap: 4px;
+  transition:
+    opacity 200ms ease-out,
+    background-color 200ms ease-out,
+    color 200ms ease-out,
+    border-color 200ms ease-out;
+}
+.app-meta-section.is-updating {
+  opacity: 0.5;
+}
+.app-meta-section.is-completing {
+  background: color-mix(in srgb, #10b981 14%, #ffffff);
+  color: #047857;
+  border-color: color-mix(in srgb, #10b981 36%, #d1fae5);
+}
+.app-meta-section .section-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 12px;
+  height: 12px;
+  font-size: 11px;
+  line-height: 1;
+  opacity: 0;
+  transform: scale(0.6);
+  transition: opacity 200ms ease-out, transform 200ms ease-out;
+}
+.app-meta-section.is-completing .section-check {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* A6: field validation. Brief horizontal shake + danger border when
+   submission/validation fails. The form's current navigation gates on
+   canAdvance/canSubmit (disabled buttons), so no current call site
+   triggers .is-error — these rules are stylistic provisions ready for
+   a future field-level validator that surfaces failure inline. */
+@keyframes app-field-shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-4px); }
+  75% { transform: translateX(4px); }
+}
+.app-field.is-error {
+  animation: app-field-shake 200ms ease-out;
+  border-color: #dc2626;
+}
+
+/* A7: submit-button loading state. The sign-off submit button renders
+   <span class="app-btn-spinner"> + dimmed label while pending. */
+.app-btn-spinner {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  margin-right: 8px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  vertical-align: -2px;
+  animation: app-btn-spin 0.8s linear infinite;
+  opacity: 0.7;
+}
+.app-btn-loading-label {
+  opacity: 0.6;
+}
+@keyframes app-btn-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* A8: success screen entrance. Two-element sequence — screen rises up
+   600ms, then the check icon scales in 300ms after the screen kicks
+   off (lands ~100ms after the screen finishes). Reads as "you
+   completed something" without ceremony.
+   .app-success is the existing class on success-screen.tsx. */
+.app-success {
+  opacity: 0;
+  animation: app-success-enter 600ms ease-out forwards;
+}
+@keyframes app-success-enter {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.app-success .app-success-icon {
+  opacity: 0;
+  transform: scale(0.8);
+  animation: app-success-icon-in 400ms ease-out 300ms forwards;
+}
+@keyframes app-success-icon-in {
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
 /* Inter-section microcopy — fades in then out, doesn't push layout. */
 .app-section-microcopy {
   position: absolute;
@@ -3867,6 +3991,28 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  /* Subtle animation layer kill-switch. State changes still happen —
+     fields still mark errors (border-color stays for visibility), the
+     spinner still indicates pending, the section pill still flashes
+     its success color (instant, no transition) — but motion is
+     suppressed. */
+  .app-screen-host,
+  .app-success,
+  .app-success .app-success-icon,
+  .app-btn-spinner,
+  .app-field.is-error {
+    animation: none;
+  }
+  .app-meta-section,
+  .app-meta-section .section-check,
+  .app-progress-fill {
+    transition: none;
+  }
+  .app-success,
+  .app-success .app-success-icon {
+    opacity: 1;
+    transform: none;
+  }
   .save-indicator,
   .save-indicator-saving::before,
   .app-section-microcopy,
