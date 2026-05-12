@@ -237,6 +237,17 @@ export function JourneyTimeline({
       const buffer = 24;
       const next: Record<number, "shift-right" | "shift-left"> = {};
       pins.forEach((pin, i) => {
+        // Pin 1 floats in the upper-left of the journey card (PIN_POSITIONS[0]
+        // = x:150 of 1200). The viewport math below detects clipping against
+        // the window edge — but on desktop the card is centered inside a
+        // wider viewport, so pin 1's pinCenter sits comfortably > the buffer
+        // even though its tooltip still extends past the card's left edge.
+        // Force shift-right for this one pin so its tooltip always swings
+        // into the empty canvas to its right rather than past the card.
+        if (i === 0) {
+          next[i + 1] = "shift-right";
+          return;
+        }
         const rect = pin.getBoundingClientRect();
         const pinCenter = rect.left + rect.width / 2;
         if (pinCenter - tooltipHalf < buffer) {
