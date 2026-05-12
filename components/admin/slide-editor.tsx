@@ -48,6 +48,7 @@ function newSlide(): Slide {
     alt: null,
     caption: null,
     caption_size: null,
+    heading: null,
   };
 }
 
@@ -421,6 +422,34 @@ function SlideDrawer({
               maxSizeMB={5}
             />
           )}
+
+          {/* Heading applies to both image and video slides — renders as
+              <h2 class="slide-heading"> above the slide canvas on the
+              candidate-facing portal. Supports two template variables
+              expanded at render time:
+                {{first_name}}            → bare first name
+                {{first_name_greeting}}   → "Hi <name>, " or "" if unknown
+              The raw template syntax persists in the DB; substitution
+              happens in applySlideTemplate() inside the renderer. */}
+          <label className="adm-field">
+            <span className="adm-form-label">Heading</span>
+            <input
+              type="text"
+              className="adm-input"
+              value={slide.heading ?? ""}
+              onChange={(e) =>
+                setSlide({ ...slide, heading: e.target.value || null })
+              }
+              placeholder="Optional. Renders above the slide image."
+            />
+            <span className="adm-form-hint">
+              Optional. Supports template variables:{" "}
+              <code>{`{{first_name}}`}</code> for a bare name, or{" "}
+              <code>{`{{first_name_greeting}}`}</code> for a{" "}
+              &ldquo;Hi <em>Name</em>, &rdquo; prefix that vanishes when
+              the name is unknown.
+            </span>
+          </label>
 
           {!isVideo && (
             <label className="adm-field">
