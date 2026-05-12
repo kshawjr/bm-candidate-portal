@@ -77,15 +77,13 @@ const STAGES: Stage[] = [
 // are in the SVG's viewBox space (1200×600). Tuned by eye so each pin
 // sits at an inflection point along the curve.
 //
-// Pins 1 + 8 were originally hugging the canvas corners (x≈70 and
-// x≈1100). Their popovers had nowhere to go — every positioning fix
-// either clipped the viewport edge or landed mid-canvas overlapping
-// other pins. Moved them inboard (150 and 1050) so the popovers can
-// sit cleanly to the inward side of each. ROAD_PATH endpoints +
-// adjacent control points updated to keep the curve smooth.
+// Pin 1 floats in the upper-left sky and is intentionally NOT on the
+// road — it represents the journey's starting point, sitting apart
+// from the climb. The road begins at pin 2 (bottom-left) and runs up
+// through pin 8. Pin 8's endpoint was pulled inboard (1100 → 1050)
+// so its popover has clearance from the right viewport edge.
 const ROAD_PATH =
-  "M 150 540 " +
-  "C 175 540, 200 500, 220 470 " +
+  "M 220 470 " +
   "C 245 430, 300 420, 330 440 " + // first switchback dip
   "C 370 470, 420 440, 440 400 " +
   "C 470 350, 540 380, 560 350 " + // climb
@@ -95,7 +93,8 @@ const ROAD_PATH =
   "C 1010 130, 1030 130, 1050 100";
 
 const PIN_POSITIONS: Array<{ x: number; y: number }> = [
-  { x: 150, y: 540 },
+  // Pin 1 floats above the road in the upper-left — not on the path.
+  { x: 150, y: 150 },
   { x: 220, y: 470 },
   { x: 350, y: 432 },
   { x: 470, y: 380 },
@@ -615,11 +614,15 @@ export function JourneyTimeline({
               stopOverride?.title.trim() || stage.title;
             const popoverBody =
               stopOverride?.caption.trim() || stage.body;
-            // Stops 1–4 sit in the upper half of the canvas where a
-            // tooltip rendered below the pin can collide with the road
-            // beneath. Flip those to render above the pin; stops 5–8
-            // keep the existing below-the-pin layout from PR #89.
-            const verticalClass = i < 4 ? "is-shift-up" : "";
+            // Vertical flip rationale: pins on the road climb from
+            // bottom-left (y≈470) to top-right (y≈100). Stops 2–4 sit
+            // low on the canvas, so a default below-the-pin tooltip
+            // pushes off the bottom; they get is-shift-up to render
+            // above instead. Stops 5–8 sit high enough that below
+            // works. Pin 1 is the exception — it now floats in the
+            // upper-left sky (y≈150), so is-shift-up would push its
+            // tooltip off the TOP. Render that one below the pin.
+            const verticalClass = i > 0 && i < 4 ? "is-shift-up" : "";
             const cls = [
               "journey-pin",
               isCurrent && "is-current",
