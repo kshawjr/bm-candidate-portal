@@ -13,6 +13,13 @@ export type EventCategory =
 // these in order, never regress.
 export const MILESTONE_EVENTS = [
   "portal_first_visit",
+  // Fires the first time a candidate advances past slide 1 of the
+  // Chapter 1 / Stop 1 brand tour (i.e. they're now viewing slide 2).
+  // Sits between portal_first_visit ("opened the link") and
+  // education_completed ("watched the whole brand pitch") — the gap
+  // between visit and engagement is a sales-team signal distinct from
+  // a 5-second click-and-close.
+  "brand_tour_engaged",
   "education_completed",
   "application_started",
   "application_submitted",
@@ -31,6 +38,7 @@ export type MilestoneEvent = (typeof MILESTONE_EVENTS)[number];
 // module (see DEPLOYMENT.md).
 export const ZOHO_STATUS_BY_MILESTONE: Record<MilestoneEvent, string> = {
   portal_first_visit: "Portal Accessed",
+  brand_tour_engaged: "Brand Tour Engaged",
   education_completed: "Education Complete",
   application_started: "Application Started",
   application_submitted: "Application Submitted",

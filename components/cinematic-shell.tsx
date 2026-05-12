@@ -874,6 +874,23 @@ function StepRenderer({
                 step_id: step.id,
               },
             });
+            // brand_tour_engaged = first time the candidate advances
+            // past slide 1 of the brand tour. portal_first_visit can
+            // fire for a 5-second click-and-close; reaching slide 2
+            // (index 1) means they're actually moving through the
+            // deck. Once-per-candidate idempotency is enforced server-
+            // side in logEvent, so revisiting slide 2 after going back
+            // doesn't refire.
+            if (
+              slideIndex === 1 &&
+              step.chapter_key === "explore" &&
+              step.step_key === "tour"
+            ) {
+              void onLogEvent({
+                category: "milestone",
+                eventType: "brand_tour_engaged",
+              });
+            }
             // PR 60: education_completed = "watched the whole brand
             // pitch". Fires on the last slide of explore/tour
             // specifically, independent of whether the candidate
