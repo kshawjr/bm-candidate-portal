@@ -35,11 +35,26 @@ const PORTAL_HOST_BY_BRAND_SLUG: Record<string, string> = {
 const FALLBACK_REP_ID = "c019d8dd-8ce4-4101-b0b3-35992d520aed";
 
 /**
- * Resolve a Zoho Lead's Owner.email → bmave-core.reps.id. Best-effort:
- * every failure mode (Zoho API down, Owner missing, email not matched,
- * rep inactive) falls back to FALLBACK_REP_ID. Rep assignment is a
- * nice-to-have for the scheduling step; it must never block candidate
- * creation. Errors are logged so a future repair job can re-resolve.
+ * Resolve a Zoho Lead's Owner.email → bmave-core.reps.id.
+ *
+ * Resolution order:
+ *   1. Existing active rep with that email          → return rep.id
+ *   2. Existing inactive rep with that email        → fallback (don't
+ *                                                     auto-reactivate;
+ *                                                     admin owns that
+ *                                                     decision)
+ *   3. No existing rep, Owner email is @bmave.com   → auto-create the
+ *                                                     rep, return new id
+ *   4. No existing rep, Owner email is non-bmave    → fallback (domain
+ *                                                     gate keeps random
+ *                                                     contractor / partner
+ *                                                     emails out of the
+ *                                                     rep roster)
+ *   5. Anything else fails                          → fallback
+ *
+ * Strictly best-effort: rep assignment is a nice-to-have for the
+ * scheduling step. It must never block candidate creation. Errors get
+ * logged so a future repair job can re-resolve.
  */
 async function resolveAssignedRepId(
   zohoLeadId: string,
@@ -47,18 +62,76 @@ async function resolveAssignedRepId(
 ): Promise<string> {
   try {
     const lead = await zohoApi.getLead(zohoLeadId, ["Owner"]);
-    const owner = lead?.Owner as { email?: string } | undefined;
+    const owner = lead?.Owner as
+      | { id?: string; full_name?: string; email?: string }
+      | undefined;
     const ownerEmail = owner?.email?.trim().toLowerCase();
     if (!ownerEmail) return FALLBACK_REP_ID;
 
-    const { data: rep } = await core
+    // Lookup ignores is_active so we can distinguish "no rep" from
+    // "rep exists but deactivated" and route them differently.
+    const { data: existingRep } = await core
       .from("reps")
-      .select("id")
+      .select("id, is_active")
       .eq("email", ownerEmail)
-      .eq("is_active", true)
       .maybeSingle();
 
-    return (rep?.id as string | undefined) ?? FALLBACK_REP_ID;
+    if (existingRep?.is_active) {
+      return existingRep.id as string;
+    }
+
+    if (existingRep && !existingRep.is_active) {
+      console.warn(
+        `[zoho-lead-created] rep ${ownerEmail} exists but is inactive, using fallback`,
+      );
+      return FALLBACK_REP_ID;
+    }
+
+    // No existing rep — only auto-create when the Owner is in the
+    // bmave.com Workspace. The calendar integration only authenticates
+    // against bmave.com mailboxes, so a rep with someone@partner.com
+    // would never have a usable calendar anyway.
+    if (!ownerEmail.endsWith("@bmave.com")) {
+      console.warn(
+        `[zoho-lead-created] Owner ${ownerEmail} not @bmave.com, using fallback`,
+      );
+      return FALLBACK_REP_ID;
+    }
+
+    const fullName = owner?.full_name?.trim() || ownerEmail.split("@")[0];
+    const zohoUserId = owner?.id?.trim() || null;
+
+    const { data: newRep, error: insertErr } = await core
+      .from("reps")
+      .insert({
+        name: fullName,
+        email: ownerEmail,
+        // Calendar email defaults to the same address — admin can edit
+        // in bmave-core later if the rep books with a different account.
+        calendar_email: ownerEmail,
+        role: "Blue Maven Franchise Development",
+        zoho_user_id: zohoUserId,
+        is_active: true,
+      })
+      .select("id")
+      .single();
+
+    if (insertErr || !newRep) {
+      // Most likely cause is a race condition (two webhooks for the
+      // same NEW Owner racing the unique(email) constraint). Second
+      // one falls back gracefully; admin reassigns the orphan in the
+      // candidates table once the first rep row settles.
+      console.error(
+        `[zoho-lead-created] auto-create rep failed for ${ownerEmail}:`,
+        insertErr,
+      );
+      return FALLBACK_REP_ID;
+    }
+
+    console.log(
+      `[zoho-lead-created] auto-created rep ${fullName} (${ownerEmail}) → ${newRep.id}`,
+    );
+    return newRep.id as string;
   } catch (err) {
     console.error(
       "[zoho-lead-created] rep resolution failed, using fallback:",
