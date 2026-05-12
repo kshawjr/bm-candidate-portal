@@ -73,29 +73,36 @@ const STAGES: Stage[] = [
   },
 ];
 
-// PR 45: redesigned road with multiple switchbacks. Path coordinates are
-// in the SVG's viewBox space (1200×600). Tuned by eye so each pin sits
-// at an inflection point along the curve.
+// PR 45: redesigned road with multiple switchbacks. Path coordinates
+// are in the SVG's viewBox space (1200×600). Tuned by eye so each pin
+// sits at an inflection point along the curve.
+//
+// Pins 1 + 8 were originally hugging the canvas corners (x≈70 and
+// x≈1100). Their popovers had nowhere to go — every positioning fix
+// either clipped the viewport edge or landed mid-canvas overlapping
+// other pins. Moved them inboard (150 and 1050) so the popovers can
+// sit cleanly to the inward side of each. ROAD_PATH endpoints +
+// adjacent control points updated to keep the curve smooth.
 const ROAD_PATH =
-  "M 60 540 " +
-  "C 140 540, 200 500, 220 470 " +
+  "M 150 540 " +
+  "C 175 540, 200 500, 220 470 " +
   "C 245 430, 300 420, 330 440 " + // first switchback dip
   "C 370 470, 420 440, 440 400 " +
   "C 470 350, 540 380, 560 350 " + // climb
   "C 600 300, 660 320, 700 290 " +
   "C 750 250, 800 280, 830 250 " + // second switchback
   "C 880 200, 940 220, 970 180 " +
-  "C 1010 130, 1080 150, 1100 100";
+  "C 1010 130, 1030 130, 1050 100";
 
 const PIN_POSITIONS: Array<{ x: number; y: number }> = [
-  { x: 70, y: 540 },
+  { x: 150, y: 540 },
   { x: 220, y: 470 },
   { x: 350, y: 432 },
   { x: 470, y: 380 },
   { x: 605, y: 320 },
   { x: 740, y: 270 },
   { x: 880, y: 220 },
-  { x: 1100, y: 100 },
+  { x: 1050, y: 100 },
 ];
 
 interface BrandTheme {
@@ -613,12 +620,6 @@ export function JourneyTimeline({
             // beneath. Flip those to render above the pin; stops 5–8
             // keep the existing below-the-pin layout from PR #89.
             const verticalClass = i < 4 ? "is-shift-up" : "";
-            // Extra push for the two extreme edge pins: the shift-right
-            // / shift-left anchor from PR #89 still clips against narrow
-            // viewports on stops 1 and 8 specifically. Adding 75% of
-            // tooltip width inward on stop 1, 25% inward on stop 8.
-            const edgeClass =
-              i === 0 ? "is-edge-1" : i === 7 ? "is-edge-8" : "";
             const cls = [
               "journey-pin",
               isCurrent && "is-current",
@@ -670,7 +671,6 @@ export function JourneyTimeline({
                     if (anchor === "shift-right") classes.push("is-shift-right");
                     if (anchor === "shift-left") classes.push("is-shift-left");
                     if (verticalClass) classes.push(verticalClass);
-                    if (edgeClass) classes.push(edgeClass);
                     return classes.join(" ");
                   })()}
                   role="tooltip"
