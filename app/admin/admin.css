@@ -863,6 +863,26 @@
   min-height: 84px;
 }
 
+/* Inline range slider — flex row keeps the live value pinned next
+   to the slider as the admin drags. */
+.adm-range-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.adm-range {
+  flex: 1;
+  accent-color: var(--brand-primary, #2563eb);
+  cursor: pointer;
+}
+.adm-range-value {
+  min-width: 38px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  color: #4b5563;
+}
+
 /* ---- repeatable rows (awards / personas) ---- */
 .adm-repeatable-row {
   border: 1px solid #e5e7eb;

@@ -141,10 +141,14 @@ interface Props {
   /** Optional sub-heading shown under the title. Falls back to the
    *  hardcoded "Here's how the next 6–8 weeks look." when omitted. */
   caption?: string | null;
-  /** Optional per-card background image. Rendered at 30% opacity
-   *  behind the road + markers. Set on the journey_ahead card config
-   *  in the content-card editor; null/undefined = no image. */
+  /** Optional per-card background image. Rendered behind the road
+   *  + markers. Set on the journey_ahead card config in the content-
+   *  card editor; null/undefined = no image. */
   backgroundImageUrl?: string | null;
+  /** Opacity (0–100) applied to the background image. Null/undefined
+   *  → renderer falls back to 30 (matches the prior hardcoded value),
+   *  so existing cards keep their current look without a migration. */
+  backgroundImageOpacity?: number | null;
   /** Per-stop title + caption overrides. Each entry maps to the stop
    *  at the same index in STAGES. null/undefined = use STAGES copy
    *  (the hardcoded default — covers legacy cards pre-migration). */
@@ -183,6 +187,7 @@ export function JourneyTimeline({
   title,
   caption,
   backgroundImageUrl,
+  backgroundImageOpacity,
   stops,
 }: Props) {
   const theme = BRAND_THEMES[brandSlug] ?? FALLBACK_THEME;
@@ -306,15 +311,17 @@ export function JourneyTimeline({
         aria-label="Discovery journey road map"
       >
         {backgroundImageUrl && (
-          /* Sits underneath the SVG scenery + pins. 30% opacity is set in
-             CSS so the road + markers stay readable. Decorative — the
-             roadmap is already labelled on the canvas wrapper above. */
+          /* Sits underneath the SVG scenery + pins. Opacity comes from
+             the card config (0-100, defaulting to 30); the CSS
+             stylesheet also sets a 0.3 fallback for safety. Decorative
+             — the roadmap is already labelled on the canvas wrapper. */
           /* eslint-disable-next-line @next/next/no-img-element */
           <img
             src={backgroundImageUrl}
             alt=""
             aria-hidden="true"
             className="journey-roadmap-bg"
+            style={{ opacity: (backgroundImageOpacity ?? 30) / 100 }}
           />
         )}
         <svg
