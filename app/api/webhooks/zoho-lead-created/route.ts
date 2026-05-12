@@ -29,6 +29,45 @@ const PORTAL_HOST_BY_BRAND_SLUG: Record<string, string> = {
   "cruisin-tikis": "cruisintikisdiscovery.bmave.com",
 };
 
+// Default rep when no Zoho Owner → bmave-core.reps mapping is found.
+// Kevin Shaw — covers test leads, orphaned Owners, transient API
+// failures, and Zoho users not yet seeded into the reps table.
+const FALLBACK_REP_ID = "c019d8dd-8ce4-4101-b0b3-35992d520aed";
+
+/**
+ * Resolve a Zoho Lead's Owner.email → bmave-core.reps.id. Best-effort:
+ * every failure mode (Zoho API down, Owner missing, email not matched,
+ * rep inactive) falls back to FALLBACK_REP_ID. Rep assignment is a
+ * nice-to-have for the scheduling step; it must never block candidate
+ * creation. Errors are logged so a future repair job can re-resolve.
+ */
+async function resolveAssignedRepId(
+  zohoLeadId: string,
+  core: ReturnType<typeof createCoreClient>,
+): Promise<string> {
+  try {
+    const lead = await zohoApi.getLead(zohoLeadId, ["Owner"]);
+    const owner = lead?.Owner as { email?: string } | undefined;
+    const ownerEmail = owner?.email?.trim().toLowerCase();
+    if (!ownerEmail) return FALLBACK_REP_ID;
+
+    const { data: rep } = await core
+      .from("reps")
+      .select("id")
+      .eq("email", ownerEmail)
+      .eq("is_active", true)
+      .maybeSingle();
+
+    return (rep?.id as string | undefined) ?? FALLBACK_REP_ID;
+  } catch (err) {
+    console.error(
+      "[zoho-lead-created] rep resolution failed, using fallback:",
+      err,
+    );
+    return FALLBACK_REP_ID;
+  }
+}
+
 // Zoho Deluge's zoho.encryption.hmacSha256 returns base64; manually-built
 // signatures (Make.com, Postman) often send hex. Try both encodings so the
 // webhook works no matter which side generates the signature.
@@ -201,6 +240,25 @@ export async function POST(request: Request) {
       const message = `candidates upsert failed: ${candidateErr?.message ?? "unknown"}`;
       await finalize("failed", null, message);
       return NextResponse.json({ error: message }, { status: 500 });
+    }
+
+    // Resolve Zoho Lead Owner → bmave-core.reps and assign. Runs as a
+    // separate UPDATE rather than being baked into the upsert above so
+    // failures here can't block candidate creation. The candidate row
+    // already exists and is reachable from this point on; a missing
+    // rep just means scheduling falls back to the default calendar.
+    const assignedRepId = await resolveAssignedRepId(String(Lead_ID), core);
+    const { error: repAssignErr } = await core
+      .from("candidates")
+      .update({ assigned_rep_id: assignedRepId })
+      .eq("id", candidate.id);
+    if (repAssignErr) {
+      // Non-fatal — log and move on. The candidate is usable; the
+      // sidebar advisor card + schedule step will just point at the
+      // brand default until a re-resolution runs.
+      console.warn(
+        `[zoho-lead-created] assigned_rep_id update failed for ${candidate.id}: ${repAssignErr.message}`,
+      );
     }
 
     // Reuse the portal row if one already exists for this candidate
