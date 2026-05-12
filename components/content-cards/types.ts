@@ -62,6 +62,10 @@ export interface JourneyAheadCardData {
   title?: string;
   caption?: string | null;
   background_image_url?: string | null;
+  /** Background image opacity as a 0–100 integer. Null/undefined →
+   *  renderer defaults to 30 (matches the previous hardcoded value),
+   *  so legacy cards keep rendering at 30% without a migration. */
+  background_image_opacity?: number | null;
   stops?: [
     JourneyStop,
     JourneyStop,

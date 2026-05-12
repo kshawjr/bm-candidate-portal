@@ -522,11 +522,39 @@ export function JourneyAheadForm({
         }
         brandSlug={brandSlug}
         onUpload={upload}
-        purpose="Renders at 30% opacity behind the road + stop markers"
+        purpose="Renders behind the road + stop markers; opacity below"
         recommendedSize="1600 × 900 px (16:9)"
         recommendedFormat="JPG or PNG"
         maxSizeMB={5}
       />
+      {value.background_image_url && (
+        <Field label="Background image opacity">
+          <div className="adm-range-row">
+            <input
+              type="range"
+              min={0}
+              max={100}
+              step={5}
+              value={value.background_image_opacity ?? 30}
+              onChange={(e) =>
+                onChange({
+                  ...value,
+                  background_image_opacity: parseInt(e.target.value, 10),
+                })
+              }
+              className="adm-range"
+              aria-label="Background image opacity"
+            />
+            <span className="adm-range-value">
+              {value.background_image_opacity ?? 30}%
+            </span>
+          </div>
+          <span className="adm-form-hint">
+            30% is the default — lower values make the photo more subtle,
+            higher values make it more prominent.
+          </span>
+        </Field>
+      )}
       <p className="adm-form-hint">
         Per-stop copy below. The roadmap scenery (paws, waves, etc.) and
         the &ldquo;You are here&rdquo; pin still render automatically

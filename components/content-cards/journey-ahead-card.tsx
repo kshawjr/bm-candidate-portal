@@ -21,6 +21,7 @@ export function JourneyAheadCard({ card, brandSlug, currentChapterKey }: Props) 
       title={title ?? undefined}
       caption={card.caption ?? null}
       backgroundImageUrl={card.background_image_url ?? null}
+      backgroundImageOpacity={card.background_image_opacity ?? null}
       stops={card.stops ?? null}
     />
   );
