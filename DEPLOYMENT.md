@@ -134,10 +134,10 @@ in CRM.
    fields alongside `Portal_Token` / `Portal_URL`:
    - `Portal_Status` (single-line text — values written by the app
      come from `ZOHO_STATUS_BY_MILESTONE` in
-     `lib/candidate-events.ts`: "Portal Accessed", "Education
-     Complete", "Application Started", "Application Submitted",
-     "Discovery Scheduled", "Discovery Completed", "Verifying",
-     "Verified", "Offer Sent", "Awarded")
+     `lib/candidate-events.ts`: "Portal Accessed", "Brand Tour
+     Engaged", "Education Complete", "Application Started",
+     "Application Submitted", "Discovery Scheduled", "Discovery
+     Completed", "Verifying", "Verified", "Offer Sent", "Awarded")
    - `Last_Active_Date` (date — ISO-8601 timestamps; Zoho stores as
      date+time)
 

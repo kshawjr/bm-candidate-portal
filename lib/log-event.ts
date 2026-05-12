@@ -48,6 +48,27 @@ export async function logEvent(args: LogEventArgs): Promise<void> {
     args.category === "milestone" && isMilestone(args.eventType);
   const syncStatus = milestone ? "pending" : "skipped";
 
+  // Milestone events are once-per-candidate by definition. Pre-insert
+  // check skips the write (and the Zoho round-trip below) when the
+  // milestone has already fired. Catches the common "navigate forward
+  // then back then forward" pattern that would otherwise log the same
+  // milestone twice and double-write Zoho. Non-milestone events skip
+  // this check — they can repeat freely.
+  // Note: there's a tiny race window between SELECT and INSERT for two
+  // concurrent calls, but the Zoho update is idempotent (setting the
+  // same Portal_Status twice is harmless), so duplicates are benign.
+  if (milestone) {
+    const { data: existing } = await supabase
+      .from("candidate_events")
+      .select("id")
+      .eq("candidate_id", args.candidateId)
+      .eq("event_type", args.eventType)
+      .eq("category", "milestone")
+      .limit(1)
+      .maybeSingle();
+    if (existing) return;
+  }
+
   const { data: event, error } = await supabase
     .from("candidate_events")
     .insert({
