@@ -44,15 +44,34 @@ export interface PhotoCardData {
   caption?: string;
 }
 
+export interface JourneyStop {
+  title: string;
+  caption: string;
+}
+
 // The journey-ahead roadmap renders the 8-stage scenery automatically
-// from brand + candidate context. Per-card configurable surface is
-// limited to the optional title and an optional background image that
-// renders at 30% opacity behind the road + markers (per-instance, not
-// per-brand — each placement of the card can have its own image).
+// from brand + candidate context. Per-card configurable surface:
+//   - title:  section heading above the road (defaults to "Your journey ahead")
+//   - caption: line of copy below the title (defaults to current hardcoded sub)
+//   - background_image_url: optional 30%-opacity backdrop (per-card, not per-brand)
+//   - stops: per-pin title + caption, tuple of 8. Renderer falls back to
+//     DEFAULT_JOURNEY_STOPS when this field is missing (legacy cards
+//     that pre-date this PR — seed migration backfills them).
 export interface JourneyAheadCardData {
   type: "journey_ahead";
   title?: string;
+  caption?: string | null;
   background_image_url?: string | null;
+  stops?: [
+    JourneyStop,
+    JourneyStop,
+    JourneyStop,
+    JourneyStop,
+    JourneyStop,
+    JourneyStop,
+    JourneyStop,
+    JourneyStop,
+  ];
 }
 
 export type ContentCard =

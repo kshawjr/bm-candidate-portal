@@ -7,10 +7,11 @@ interface Props {
   currentChapterKey: string | null;
 }
 
-// Wraps the existing 8-stage roadmap so it can sit in the content-card
-// strip alongside other cards. Stage data and brand scenery come from
-// props at render time; the only per-card editable surface is the title
-// (defaults to "Your journey ahead"), forwarded into JourneyTimeline.
+// Wraps the 8-stage roadmap so it can sit in the content-card strip
+// alongside other cards. Editable per-card: title, caption, background
+// image, per-stop title + caption. Structural pieces (which chapter
+// each stop maps to, when "You are here" lights up, brand scenery)
+// stay hardcoded in JourneyTimeline.
 export function JourneyAheadCard({ card, brandSlug, currentChapterKey }: Props) {
   const title = resolveCardTitle(card);
   return (
@@ -18,7 +19,9 @@ export function JourneyAheadCard({ card, brandSlug, currentChapterKey }: Props) 
       brandSlug={brandSlug}
       currentChapterKey={currentChapterKey}
       title={title ?? undefined}
+      caption={card.caption ?? null}
       backgroundImageUrl={card.background_image_url ?? null}
+      stops={card.stops ?? null}
     />
   );
 }

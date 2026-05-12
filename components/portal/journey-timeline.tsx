@@ -73,29 +73,35 @@ const STAGES: Stage[] = [
   },
 ];
 
-// PR 45: redesigned road with multiple switchbacks. Path coordinates are
-// in the SVG's viewBox space (1200×600). Tuned by eye so each pin sits
-// at an inflection point along the curve.
+// PR 45: redesigned road with multiple switchbacks. Path coordinates
+// are in the SVG's viewBox space (1200×600). Tuned by eye so each pin
+// sits at an inflection point along the curve.
+//
+// Pin 1 floats in the upper-left sky and is intentionally NOT on the
+// road — it represents the journey's starting point, sitting apart
+// from the climb. The road begins at pin 2 (bottom-left) and runs up
+// through pin 8. Pin 8's endpoint was pulled inboard (1100 → 1050)
+// so its popover has clearance from the right viewport edge.
 const ROAD_PATH =
-  "M 60 540 " +
-  "C 140 540, 200 500, 220 470 " +
+  "M 220 470 " +
   "C 245 430, 300 420, 330 440 " + // first switchback dip
   "C 370 470, 420 440, 440 400 " +
   "C 470 350, 540 380, 560 350 " + // climb
   "C 600 300, 660 320, 700 290 " +
   "C 750 250, 800 280, 830 250 " + // second switchback
   "C 880 200, 940 220, 970 180 " +
-  "C 1010 130, 1080 150, 1100 100";
+  "C 1010 130, 1030 130, 1050 100";
 
 const PIN_POSITIONS: Array<{ x: number; y: number }> = [
-  { x: 70, y: 540 },
+  // Pin 1 floats above the road in the upper-left — not on the path.
+  { x: 150, y: 150 },
   { x: 220, y: 470 },
   { x: 350, y: 432 },
   { x: 470, y: 380 },
   { x: 605, y: 320 },
   { x: 740, y: 270 },
   { x: 880, y: 220 },
-  { x: 1100, y: 100 },
+  { x: 1050, y: 100 },
 ];
 
 interface BrandTheme {
@@ -122,6 +128,8 @@ const FALLBACK_THEME: BrandTheme = {
   pathDescription: "Connecting path between stages.",
 };
 
+import type { JourneyStop } from "@/components/content-cards/types";
+
 interface Props {
   brandSlug: string;
   /** chapter_key the candidate is currently on — used to mark the
@@ -130,10 +138,28 @@ interface Props {
   /** Optional override for the section heading. Falls back to "Your
    *  journey ahead" when omitted. */
   title?: string;
+  /** Optional sub-heading shown under the title. Falls back to the
+   *  hardcoded "Here's how the next 6–8 weeks look." when omitted. */
+  caption?: string | null;
   /** Optional per-card background image. Rendered at 30% opacity
    *  behind the road + markers. Set on the journey_ahead card config
    *  in the content-card editor; null/undefined = no image. */
   backgroundImageUrl?: string | null;
+  /** Per-stop title + caption overrides. Each entry maps to the stop
+   *  at the same index in STAGES. null/undefined = use STAGES copy
+   *  (the hardcoded default — covers legacy cards pre-migration). */
+  stops?:
+    | readonly [
+        JourneyStop,
+        JourneyStop,
+        JourneyStop,
+        JourneyStop,
+        JourneyStop,
+        JourneyStop,
+        JourneyStop,
+        JourneyStop,
+      ]
+    | null;
 }
 
 /**
@@ -155,7 +181,9 @@ export function JourneyTimeline({
   brandSlug,
   currentChapterKey,
   title,
+  caption,
   backgroundImageUrl,
+  stops,
 }: Props) {
   const theme = BRAND_THEMES[brandSlug] ?? FALLBACK_THEME;
   const isHT = brandSlug === "hounds-town-usa";
@@ -209,6 +237,17 @@ export function JourneyTimeline({
       const buffer = 24;
       const next: Record<number, "shift-right" | "shift-left"> = {};
       pins.forEach((pin, i) => {
+        // Pin 1 floats in the upper-left of the journey card (PIN_POSITIONS[0]
+        // = x:150 of 1200). The viewport math below detects clipping against
+        // the window edge — but on desktop the card is centered inside a
+        // wider viewport, so pin 1's pinCenter sits comfortably > the buffer
+        // even though its tooltip still extends past the card's left edge.
+        // Force shift-right for this one pin so its tooltip always swings
+        // into the empty canvas to its right rather than past the card.
+        if (i === 0) {
+          next[i + 1] = "shift-right";
+          return;
+        }
         const rect = pin.getBoundingClientRect();
         const pinCenter = rect.left + rect.width / 2;
         if (pinCenter - tooltipHalf < buffer) {
@@ -254,7 +293,7 @@ export function JourneyTimeline({
           {title?.trim() || "Your journey ahead"}
         </h2>
         <p className="journey-roadmap-sub">
-          Here&apos;s how the next 6–8 weeks look.{" "}
+          {caption?.trim() || "Here\u2019s how the next 6\u20138 weeks look."}{" "}
           <span className="journey-roadmap-tap">
             Tap a stop to see what happens there.
           </span>
@@ -579,6 +618,22 @@ export function JourneyTimeline({
             const pos = PIN_POSITIONS[i];
             const isCurrent = stage.num === currentStageNum;
             const isPast = stage.num < currentStageNum;
+            // Per-stop admin overrides — fall back to the hardcoded
+            // STAGES copy when the card hasn't been migrated yet.
+            const stopOverride = stops?.[i];
+            const popoverTitle =
+              stopOverride?.title.trim() || stage.title;
+            const popoverBody =
+              stopOverride?.caption.trim() || stage.body;
+            // Vertical flip rationale: pins on the road climb from
+            // bottom-left (y≈470) to top-right (y≈100). Stops 2–4 sit
+            // low on the canvas, so a default below-the-pin tooltip
+            // pushes off the bottom; they get is-shift-up to render
+            // above instead. Stops 5–8 sit high enough that below
+            // works. Pin 1 is the exception — it now floats in the
+            // upper-left sky (y≈150), so is-shift-up would push its
+            // tooltip off the TOP. Render that one below the pin.
+            const verticalClass = i > 0 && i < 4 ? "is-shift-up" : "";
             const cls = [
               "journey-pin",
               isCurrent && "is-current",
@@ -595,7 +650,7 @@ export function JourneyTimeline({
                 className={cls}
                 role="listitem"
                 aria-current={isCurrent ? "step" : undefined}
-                aria-label={`Stage ${stage.num} — ${stage.title}, ${stage.weeks}`}
+                aria-label={`Stage ${stage.num} — ${popoverTitle}, ${stage.weeks}`}
                 style={{
                   left: `${(pos.x / 1200) * 100}%`,
                   top: `${(pos.y / 600) * 100}%`,
@@ -626,19 +681,17 @@ export function JourneyTimeline({
                 <div
                   className={(() => {
                     const anchor = pinAnchors[stage.num];
-                    if (anchor === "shift-right") {
-                      return "journey-pin-tooltip is-shift-right";
-                    }
-                    if (anchor === "shift-left") {
-                      return "journey-pin-tooltip is-shift-left";
-                    }
-                    return "journey-pin-tooltip";
+                    const classes = ["journey-pin-tooltip"];
+                    if (anchor === "shift-right") classes.push("is-shift-right");
+                    if (anchor === "shift-left") classes.push("is-shift-left");
+                    if (verticalClass) classes.push(verticalClass);
+                    return classes.join(" ");
                   })()}
                   role="tooltip"
                 >
                   <div className="journey-pin-tooltip-weeks">{stage.weeks}</div>
-                  <div className="journey-pin-tooltip-title">{stage.title}</div>
-                  <p className="journey-pin-tooltip-body">{stage.body}</p>
+                  <div className="journey-pin-tooltip-title">{popoverTitle}</div>
+                  <p className="journey-pin-tooltip-body">{popoverBody}</p>
                   <span className="journey-pin-tooltip-tip" aria-hidden="true" />
                 </div>
               </button>

@@ -10,10 +10,12 @@ import {
   type ContentCard,
   type FactCardData,
   type JourneyAheadCardData,
+  type JourneyStop,
   type PersonasCardData,
   type PhotoCardData,
   type QuoteCardData,
 } from "@/components/content-cards/types";
+import { DEFAULT_JOURNEY_STOPS } from "@/components/content-cards/journey-defaults";
 import { ImageUpload } from "./image-upload";
 
 const PERSONAS_MAX = 12;
@@ -479,6 +481,18 @@ export function JourneyAheadForm({
   value: JourneyAheadCardData;
   onChange: (v: JourneyAheadCardData) => void;
 } & CommonProps) {
+  // Legacy cards (pre-PR-stops) don't have a `stops` array; surface the
+  // hardcoded defaults so the admin sees the existing copy and edits
+  // from there. As soon as the admin touches any stop field, the full
+  // 8-tuple gets persisted on the card.
+  const stops = (value.stops ?? DEFAULT_JOURNEY_STOPS) as readonly JourneyStop[];
+  const updateStop = (idx: number, patch: Partial<JourneyStop>) => {
+    const next = stops.map((s, i) => (i === idx ? { ...s, ...patch } : s));
+    onChange({
+      ...value,
+      stops: next as JourneyAheadCardData["stops"],
+    });
+  };
   return (
     <>
       <CardTitleField
@@ -486,6 +500,20 @@ export function JourneyAheadForm({
         value={value.title}
         onChange={(title) => onChange({ ...value, title })}
       />
+      <Field label="Caption (optional)">
+        <textarea
+          className="adm-textarea"
+          rows={2}
+          value={value.caption ?? ""}
+          onChange={(e) =>
+            onChange({ ...value, caption: e.target.value || null })
+          }
+          placeholder="Here's how the next 6–8 weeks look."
+        />
+        <span className="adm-form-hint">
+          Shown under the card title. Leave blank to use the default.
+        </span>
+      </Field>
       <ImageUpload
         label="Background image (optional)"
         value={value.background_image_url ?? null}
@@ -500,12 +528,41 @@ export function JourneyAheadForm({
         maxSizeMB={5}
       />
       <p className="adm-form-hint">
-        The roadmap stages and brand scenery (paws, waves, etc.) render
-        automatically from the candidate&apos;s progress. Use the
-        reorder controls in the card list to move this card within the
-        step.
+        Per-stop copy below. The roadmap scenery (paws, waves, etc.) and
+        the &ldquo;You are here&rdquo; pin still render automatically
+        from the candidate&apos;s progress.
       </p>
+      {stops.map((stop, i) => (
+        <div key={i} className="adm-repeatable-row">
+          <div className="adm-repeatable-head">
+            <span className="adm-repeatable-label">Stop {i + 1}</span>
+          </div>
+          <Field label="Title" required>
+            <input
+              type="text"
+              className="adm-input"
+              value={stop.title}
+              onChange={(e) => updateStop(i, { title: e.target.value })}
+            />
+          </Field>
+          <Field label="Caption" required>
+            <textarea
+              className="adm-textarea"
+              rows={2}
+              value={stop.caption}
+              onChange={(e) => updateStop(i, { caption: e.target.value })}
+            />
+          </Field>
+        </div>
+      ))}
     </>
+  );
+}
+
+export function isJourneyAheadValid(v: JourneyAheadCardData): boolean {
+  const stops = v.stops ?? DEFAULT_JOURNEY_STOPS;
+  return stops.every(
+    (s) => s.title.trim().length > 0 && s.caption.trim().length > 0,
   );
 }
 
@@ -524,7 +581,7 @@ export function isCardValid(card: ContentCard): boolean {
     case "photo":
       return isPhotoValid(card);
     case "journey_ahead":
-      return true;
+      return isJourneyAheadValid(card);
   }
 }
 
@@ -546,7 +603,10 @@ export function defaultCardFor(type: ContentCard["type"]): ContentCard {
     case "photo":
       return { type: "photo", image_url: "" };
     case "journey_ahead":
-      return { type: "journey_ahead" };
+      return {
+        type: "journey_ahead",
+        stops: DEFAULT_JOURNEY_STOPS.map((s) => ({ ...s })) as JourneyAheadCardData["stops"],
+      };
   }
 }
 
