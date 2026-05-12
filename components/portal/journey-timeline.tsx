@@ -172,14 +172,16 @@ interface Props {
  *
  * The whole composition is inline SVG — no external image asset. Layered
  * back-to-front:
- *   1. Sky gradient + sun + clouds
- *   2. Distant + mid mountains (silhouettes)
- *   3. Foreground (grass for HT, sand+water for CT)
- *   4. Brand-specific scenery (dog house / boat / palms)
- *   5. Road shadow → asphalt body → yellow centerline
- *   6. Path-side brand sprinkles (paws / wave dashes)
- *   7. Numbered pins overlaid as HTML buttons (kept outside the SVG so
- *      tooltips can use absolute positioning + flex)
+ *   1. Sky gradient (or background image, if set on the card config)
+ *   2. Clouds
+ *   3. Distant + mid mountains (silhouettes)
+ *   4. Foreground (grass for HT, sand+water for CT)
+ *   5. Brand characters (small dog silhouette for HT, boat for CT)
+ *   6. Road shadow → asphalt body → yellow centerline
+ *   7. Path-side brand sprinkles (paws / wave dashes)
+ *   8. Numbered pins overlaid as HTML buttons. Pin 8 swaps the
+ *      numbered circle for a "New Townie" award ribbon since it
+ *      represents the franchise-award milestone, not a routine stop.
  */
 export function JourneyTimeline({
   brandSlug,
@@ -349,11 +351,6 @@ export function JourneyTimeline({
                 </>
               )}
             </linearGradient>
-            <radialGradient id="jr-sun" cx="50%" cy="50%" r="50%">
-              <stop offset="0%" stopColor="#fff7d6" stopOpacity="1" />
-              <stop offset="60%" stopColor="#ffd97a" stopOpacity="0.8" />
-              <stop offset="100%" stopColor="#ffd97a" stopOpacity="0" />
-            </radialGradient>
             <linearGradient id="jr-mountains-far" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="rgba(80, 110, 130, 0.55)" />
               <stop offset="100%" stopColor="rgba(80, 110, 130, 0.25)" />
@@ -401,13 +398,7 @@ export function JourneyTimeline({
             <rect x="0" y="0" width="1200" height="600" fill="url(#jr-sky)" />
           )}
 
-          {/* 2. Sun */}
-          <g className="jr-sun">
-            <circle cx="900" cy="120" r="80" fill="url(#jr-sun)" />
-            <circle cx="900" cy="120" r="34" fill="#fff7d6" />
-          </g>
-
-          {/* 3. Clouds — slow drift via CSS animation */}
+          {/* 2. Clouds — slow drift via CSS animation */}
           <g className="jr-cloud" transform="translate(150, 90)">
             <ellipse cx="40" cy="20" rx="50" ry="14" fill="rgba(255,255,255,0.92)" />
             <ellipse cx="80" cy="14" rx="36" ry="12" fill="rgba(255,255,255,0.95)" />
@@ -457,16 +448,8 @@ export function JourneyTimeline({
           {/* 7. Brand foreground decorations — sit between ground and road */}
           {isHT && (
             <>
-              {/* Dog house in the distance */}
-              <g
-                className="jr-decor jr-decor-doghouse"
-                transform="translate(380, 470)"
-              >
-                <polygon points="0,12 18,0 36,12 36,30 0,30" fill="#a25c2e" />
-                <polygon points="-3,12 18,-3 39,12" fill="#7b3f1c" />
-                <rect x="14" y="16" width="8" height="14" rx="3" fill="#3b2515" />
-              </g>
-              {/* Tiny dog silhouette near the start, looking up the road */}
+              {/* Tiny dog silhouette near the start, looking up the road.
+                  Brand character, kept after the scenery cleanup. */}
               <g
                 className="jr-decor jr-decor-dog"
                 transform="translate(28, 528)"
@@ -476,15 +459,6 @@ export function JourneyTimeline({
                 <rect x="6" y="13" width="3" height="7" fill="#4a3024" />
                 <rect x="20" y="13" width="3" height="7" fill="#4a3024" />
                 <path d="M 28 4 L 32 -1 L 30 6 Z" fill="#4a3024" />
-              </g>
-              {/* Fire hydrant beside the road, mid-journey */}
-              <g
-                className="jr-decor jr-decor-hydrant"
-                transform="translate(540, 470)"
-              >
-                <rect x="0" y="6" width="12" height="22" fill="#cf3e2a" rx="2" />
-                <rect x="-3" y="2" width="18" height="6" fill="#cf3e2a" rx="2" />
-                <circle cx="6" cy="14" r="2" fill="#7a1c0e" />
               </g>
               {/* Paw prints scattered along the path */}
               {[
@@ -504,51 +478,13 @@ export function JourneyTimeline({
 
           {isCT && (
             <>
-              {/* Boat on the horizon */}
+              {/* Boat on the horizon — brand character, kept after the
+                  scenery cleanup. */}
               <g className="jr-decor jr-decor-boat" transform="translate(180, 360)">
                 <polygon points="0,0 60,0 50,12 10,12" fill="#f86e4f" />
                 <rect x="20" y="-18" width="20" height="18" fill="#fff" />
                 <polygon points="30,-30 30,-18 44,-18" fill="#1edee4" />
               </g>
-              {/* Tiki torches along the path */}
-              {[
-                { x: 360, y: 480 },
-                { x: 750, y: 290 },
-              ].map((p, i) => (
-                <g
-                  key={i}
-                  className="jr-decor jr-decor-torch"
-                  transform={`translate(${p.x}, ${p.y})`}
-                >
-                  <rect x="-2" y="0" width="4" height="36" fill="#7b4f24" />
-                  <ellipse cx="0" cy="-2" rx="6" ry="4" fill="#a55b22" />
-                  <path
-                    className="jr-flame"
-                    d="M 0 -4 C -6 -10, -4 -18, 0 -22 C 4 -18, 6 -10, 0 -4 Z"
-                    fill="#ffb347"
-                  />
-                </g>
-              ))}
-              {/* Palm trees in the foreground */}
-              {[
-                { x: 90, y: 540 },
-                { x: 1060, y: 535 },
-              ].map((p, i) => (
-                <g
-                  key={i}
-                  className="jr-decor jr-decor-palm"
-                  transform={`translate(${p.x}, ${p.y})`}
-                >
-                  <rect x="-3" y="-44" width="6" height="44" fill="#7b4f24" rx="2" />
-                  <path
-                    d="M 0 -42 C -22 -58, -34 -50, -32 -38 M 0 -42 C 22 -58, 34 -50, 32 -38 M 0 -42 C -10 -64, 6 -68, 12 -58 M 0 -42 C 12 -68, -6 -68, -12 -58"
-                    stroke="#1a8c4a"
-                    strokeWidth="3"
-                    fill="none"
-                    strokeLinecap="round"
-                  />
-                </g>
-              ))}
               {/* Wave dashes along the path */}
               {[
                 { x: 130, y: 560 },
@@ -677,14 +613,18 @@ export function JourneyTimeline({
                     <span className="journey-pin-here-tip" />
                   </span>
                 )}
-                <span className="journey-pin-circle">
-                  <span className="journey-pin-sheen" aria-hidden="true" />
-                  {isPast ? (
-                    <span aria-hidden="true">✓</span>
-                  ) : (
-                    <span>{stage.num}</span>
-                  )}
-                </span>
+                {i === 7 ? (
+                  <NewTownieRibbon />
+                ) : (
+                  <span className="journey-pin-circle">
+                    <span className="journey-pin-sheen" aria-hidden="true" />
+                    {isPast ? (
+                      <span aria-hidden="true">✓</span>
+                    ) : (
+                      <span>{stage.num}</span>
+                    )}
+                  </span>
+                )}
                 <div
                   className={(() => {
                     const anchor = pinAnchors[stage.num];
@@ -709,6 +649,81 @@ export function JourneyTimeline({
 
       <p className="sr-only">{theme.pathDescription}</p>
     </section>
+  );
+}
+
+/**
+ * "New Townie" award ribbon used in place of the numbered circle on
+ * pin 8. The last stop is the award milestone, so it gets a distinct
+ * badge treatment instead of "8 in a circle". First-pass inline SVG —
+ * orange rosette + light-blue scalloped border + dark-blue ribbon
+ * tails with a "New Townie" wordmark across the center. Swap in a
+ * designed asset later if you want a refined version.
+ */
+function NewTownieRibbon() {
+  return (
+    <span className="journey-pin-ribbon" aria-label="New Townie award">
+      <svg viewBox="0 0 60 80" width="100%" height="100%" aria-hidden="true">
+        {/* Ribbon tails — drawn first so the rosette sits over them. */}
+        <polygon points="18,42 18,76 26,68 30,76 34,68 26,68 26,42" fill="#1c3a78" />
+        <polygon points="42,42 42,76 34,68 30,76 26,68 34,68 34,42" fill="#2b4a8a" />
+        {/* Scalloped outer ring — 12 small overlapping bumps around
+            the rim to suggest a ribbon rosette without modelling each
+            ruffle precisely. Light blue. */}
+        {Array.from({ length: 12 }).map((_, i) => {
+          const angle = (i / 12) * Math.PI * 2 - Math.PI / 2;
+          const cx = 30 + Math.cos(angle) * 25;
+          const cy = 30 + Math.sin(angle) * 25;
+          return (
+            <circle
+              key={i}
+              cx={cx}
+              cy={cy}
+              r={6}
+              fill="#a5cfeb"
+            />
+          );
+        })}
+        {/* Inner light-blue disk */}
+        <circle cx="30" cy="30" r="24" fill="#a5cfeb" />
+        {/* Orange center */}
+        <circle cx="30" cy="30" r="20" fill="#ec7a3a" />
+        {/* Thin highlight ring */}
+        <circle
+          cx="30"
+          cy="30"
+          r="20"
+          fill="none"
+          stroke="rgba(255,255,255,0.35)"
+          strokeWidth="1.2"
+        />
+        {/* Wordmark — two lines so it reads at this size */}
+        <text
+          x="30"
+          y="27"
+          textAnchor="middle"
+          fontSize="6.5"
+          fontWeight="700"
+          fill="#fff"
+          fontFamily="var(--font-heading, system-ui)"
+          letterSpacing="0.04em"
+        >
+          NEW
+        </text>
+        <text
+          x="30"
+          y="37"
+          textAnchor="middle"
+          fontSize="6.5"
+          fontWeight="700"
+          fill="#fff"
+          fontFamily="var(--font-heading, system-ui)"
+          letterSpacing="0.04em"
+        >
+          TOWNIE
+        </text>
+      </svg>
+    </span>
   );
 }
 
