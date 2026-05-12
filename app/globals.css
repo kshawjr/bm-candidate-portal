@@ -476,14 +476,24 @@ body {
   margin-bottom: 16px;
 }
 .cine-hero-strip-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  /* Flex so any number of stats (1–5 in practice, more if ever added)
+     spreads across the row width. `space-between` keeps the outer
+     stats anchored at the edges and distributes the rest evenly,
+     which reads better than `space-around`/`space-evenly` for an odd
+     count next to the brand-name heading above. */
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
   gap: 24px;
 }
 .cine-hero-strip-stat {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  /* Each stat takes its content width; flex distributes the leftover
+     space between them. min-width keeps very-short numbers from
+     looking cramped while still letting wider labels grow. */
+  min-width: 0;
 }
 .cine-hero-strip-num {
   font-family: var(--font-heading);
@@ -504,8 +514,12 @@ body {
     padding: 22px 24px 20px;
   }
   .cine-hero-strip-grid {
-    grid-template-columns: repeat(2, 1fr);
+    /* Mobile: let each stat take ~50% width so wrap puts two per row;
+       the flex-wrap above handles the actual wrapping. */
     gap: 16px;
+  }
+  .cine-hero-strip-stat {
+    flex: 0 0 calc(50% - 8px);
   }
   .cine-hero-strip-num {
     font-size: 28px;

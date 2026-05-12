@@ -100,6 +100,36 @@ function pickText(rows: PortalContentRow[], key: string, fallback = ""): string 
   return rows.find((r) => r.content_key === key)?.body ?? fallback;
 }
 
+/** Read the JSONB `data` column for a portal_content row. Returns
+ *  null when the row is missing or its data is null. */
+function pickJson(rows: PortalContentRow[], key: string): unknown {
+  const row = rows.find((r) => r.content_key === key);
+  return row ? row.data : null;
+}
+
+interface HeroStat {
+  num: string;
+  label: string;
+}
+
+/** Validate + normalize an unknown JSON value into a HeroStat[] array.
+ *  Expects shape `[{num: string, label: string}, ...]`. Drops entries
+ *  with empty num (matches the legacy filter). Returns null if the
+ *  shape doesn't match, so callers fall back to the legacy row reader. */
+function parseHeroStats(raw: unknown): HeroStat[] | null {
+  if (!Array.isArray(raw)) return null;
+  const out: HeroStat[] = [];
+  for (const entry of raw) {
+    if (!entry || typeof entry !== "object") continue;
+    const e = entry as { num?: unknown; label?: unknown };
+    const num = typeof e.num === "string" ? e.num.trim() : "";
+    const label = typeof e.label === "string" ? e.label.trim() : "";
+    if (num.length === 0) continue;
+    out.push({ num, label });
+  }
+  return out;
+}
+
 function resolveTypography(overrides: FontOverrides | null | undefined): BrandTypography {
   const o = overrides ?? {};
   return {
@@ -311,13 +341,22 @@ export default async function PortalTokenPage({
     email: pickText(content, "leader_email", ""),
   };
 
-  // Chapter 1 hero strip — 4 stats. Empty num drops the row.
-  const heroStats = [1, 2, 3, 4]
-    .map((n) => ({
-      num: pickText(content, `hero_stat_${n}_num`),
-      label: pickText(content, `hero_stat_${n}_label`),
-    }))
-    .filter((s) => s.num.length > 0);
+  // Chapter 1 hero strip. Preferred source is the new JSON-array
+  // format: portal_content row with content_key='hero_stats' carries
+  // an array of {num, label} in its `data` column. Falls back to the
+  // legacy per-row format (hero_stat_1_num, hero_stat_1_label, ...
+  // through 4) when the new row is missing or empty — keeps brands
+  // that haven't migrated yet rendering as before.
+  const heroStatsFromJson = parseHeroStats(pickJson(content, "hero_stats"));
+  const heroStats: HeroStat[] =
+    heroStatsFromJson && heroStatsFromJson.length > 0
+      ? heroStatsFromJson
+      : [1, 2, 3, 4]
+          .map((n) => ({
+            num: pickText(content, `hero_stat_${n}_num`),
+            label: pickText(content, `hero_stat_${n}_label`),
+          }))
+          .filter((s) => s.num.length > 0);
   const heroStripHeading = pickText(
     content,
     "hero_strip_heading",
