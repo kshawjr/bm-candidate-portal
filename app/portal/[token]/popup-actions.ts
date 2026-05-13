@@ -284,3 +284,54 @@ export async function dismissStepTransition(
   }
   return { success: true };
 }
+
+/**
+ * Mirror of dismissStepTransition for the new step transition VIDEO
+ * sequence. Appends to dismissed_step_transition_videos so the next
+ * render of the step doesn't replay the video. Same no-revalidation
+ * pattern — these fire often (potentially once per step) and we don't
+ * want to thrash the page tree on every dismiss.
+ */
+export async function dismissStepTransitionVideo(
+  token: string,
+  stepId: string,
+): Promise<{ success: boolean }> {
+  if (!stepId || typeof stepId !== "string") {
+    return { success: false };
+  }
+
+  const app = createAppServiceClient();
+  const { data: row, error: readErr } = await app
+    .from("candidates_in_portal")
+    .select("id, dismissed_step_transition_videos")
+    .eq("token", token)
+    .maybeSingle();
+  if (readErr || !row) {
+    return { success: false };
+  }
+
+  const existing: unknown = row.dismissed_step_transition_videos;
+  const list: string[] = Array.isArray(existing)
+    ? (existing as unknown[]).filter((v): v is string => typeof v === "string")
+    : [];
+
+  if (list.includes(stepId)) {
+    await app
+      .from("candidates_in_portal")
+      .update({ last_activity_at: new Date().toISOString() })
+      .eq("id", row.id);
+    return { success: true };
+  }
+
+  const { error: updErr } = await app
+    .from("candidates_in_portal")
+    .update({
+      dismissed_step_transition_videos: [...list, stepId],
+      last_activity_at: new Date().toISOString(),
+    })
+    .eq("id", row.id);
+  if (updErr) {
+    return { success: false };
+  }
+  return { success: true };
+}

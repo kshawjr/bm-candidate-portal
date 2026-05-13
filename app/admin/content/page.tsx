@@ -29,6 +29,11 @@ import {
   saveStepTransitionAction,
   deleteStepTransitionAction,
 } from "./transition-actions";
+import {
+  saveStepTransitionVideoAction,
+  deleteStepTransitionVideoAction,
+  createStepTransitionVideoUploadAction,
+} from "./step-video-actions";
 import { isGCalConfigured } from "@/lib/google-calendar";
 
 export const dynamic = "force-dynamic";
@@ -75,26 +80,34 @@ export default async function ContentEditorPage({ searchParams }: Props) {
     brands.find((b) => b.slug === requestedSlug) ?? brands[0]!;
 
   const app = createAppServiceClient();
-  const [{ data: chaptersRows }, { data: stepsRows }, { data: transitionRows }] =
-    await Promise.all([
-      app
-        .from("chapters_config")
-        .select("id, chapter_key, position, label, name, is_archived")
-        .eq("brand_id", brand.id)
-        .order("position"),
-      app
-        .from("steps_config")
-        .select(
-          "id, chapter_key, position, step_key, label, description, content_type, content_cards, config, is_archived",
-        )
-        .eq("brand_id", brand.id)
-        .order("chapter_key")
-        .order("position"),
-      app
-        .from("step_transition_popups")
-        .select("step_id, heading, body_md, cta_label, is_active")
-        .eq("brand_id", brand.id),
-    ]);
+  const [
+    { data: chaptersRows },
+    { data: stepsRows },
+    { data: transitionRows },
+    { data: transitionVideoRows },
+  ] = await Promise.all([
+    app
+      .from("chapters_config")
+      .select("id, chapter_key, position, label, name, is_archived")
+      .eq("brand_id", brand.id)
+      .order("position"),
+    app
+      .from("steps_config")
+      .select(
+        "id, chapter_key, position, step_key, label, description, content_type, content_cards, config, is_archived",
+      )
+      .eq("brand_id", brand.id)
+      .order("chapter_key")
+      .order("position"),
+    app
+      .from("step_transition_popups")
+      .select("step_id, heading, body_md, cta_label, is_active")
+      .eq("brand_id", brand.id),
+    app
+      .from("step_transition_videos")
+      .select("step_id, video_url, poster_url, has_sound, is_active")
+      .eq("brand_id", brand.id),
+  ]);
 
   const transitionByStepId: Record<
     string,
@@ -105,6 +118,27 @@ export default async function ContentEditorPage({ searchParams }: Props) {
       heading: (row.heading as string) ?? "",
       bodyMd: (row.body_md as string | null) ?? null,
       ctaLabel: (row.cta_label as string | null) ?? "Continue",
+      isActive: Boolean(row.is_active),
+    };
+  }
+
+  const transitionVideoByStepId: Record<
+    string,
+    {
+      videoUrl: string;
+      posterUrl: string | null;
+      hasSound: boolean | null;
+      isActive: boolean;
+    }
+  > = {};
+  for (const row of transitionVideoRows ?? []) {
+    transitionVideoByStepId[row.step_id as string] = {
+      videoUrl: (row.video_url as string) ?? "",
+      posterUrl: (row.poster_url as string | null) ?? null,
+      hasSound:
+        typeof row.has_sound === "boolean"
+          ? (row.has_sound as boolean)
+          : null,
       isActive: Boolean(row.is_active),
     };
   }
@@ -142,6 +176,7 @@ export default async function ContentEditorPage({ searchParams }: Props) {
       config,
       is_archived: !!row.is_archived,
       transition_popup: transitionByStepId[row.id] ?? null,
+      transition_video: transitionVideoByStepId[row.id] ?? null,
     };
     (stepsByChapter[row.chapter_key] ??= []).push(step);
   }
@@ -210,6 +245,9 @@ export default async function ContentEditorPage({ searchParams }: Props) {
       reorderSteps={reorderStepsAction}
       saveStepTransition={saveStepTransitionAction}
       deleteStepTransition={deleteStepTransitionAction}
+      saveStepTransitionVideo={saveStepTransitionVideoAction}
+      deleteStepTransitionVideo={deleteStepTransitionVideoAction}
+      uploadStepTransitionVideo={createStepTransitionVideoUploadAction}
     />
   );
 }

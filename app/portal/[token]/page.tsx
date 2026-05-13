@@ -36,11 +36,13 @@ import type {
 } from "@/components/portal/chapter-intro-popup";
 import type { ChapterIntroBannerConfig } from "@/components/portal/chapter-intro-banner";
 import type { StepTransitionPopupConfig } from "@/components/portal/step-transition-popup";
+import type { StepTransitionVideoConfig } from "@/components/portal/step-transition-video-popup";
 import type { ChapterCompletePopupConfig } from "@/components/portal/chapter-complete-popup";
 import {
   dismissChapterVideo,
   dismissChapterIntro,
   dismissStepTransition,
+  dismissStepTransitionVideo,
   completeChapterAndAdvance,
 } from "./popup-actions";
 import { submitBookingUnavailableAction } from "./booking-actions";
@@ -149,7 +151,7 @@ export default async function PortalTokenPage({
   const { data: session } = await app
     .from("candidates_in_portal")
     .select(
-      "id, candidate_id, current_chapter, current_step, is_app_submitted, last_activity_at, dismissed_chapter_videos, dismissed_chapter_intros, dismissed_step_transitions, dismissed_chapter_completes, prefilled_zip, prefilled_phone",
+      "id, candidate_id, current_chapter, current_step, is_app_submitted, last_activity_at, dismissed_chapter_videos, dismissed_chapter_intros, dismissed_step_transitions, dismissed_step_transition_videos, dismissed_chapter_completes, prefilled_zip, prefilled_phone",
     )
     .eq("token", params.token)
     .maybeSingle();
@@ -256,6 +258,7 @@ export default async function PortalTokenPage({
     { data: chapterVideoRows },
     { data: chapterIntroRows },
     { data: stepTransitionRows },
+    { data: stepTransitionVideoRows },
     { data: chapterCompleteRows },
   ] = await Promise.all([
     core
@@ -306,6 +309,11 @@ export default async function PortalTokenPage({
     app
       .from("step_transition_popups")
       .select("step_id, heading, body_md, cta_label, is_active")
+      .eq("brand_id", brand.id)
+      .eq("is_active", true),
+    app
+      .from("step_transition_videos")
+      .select("step_id, video_url, poster_url, has_sound, is_active")
       .eq("brand_id", brand.id)
       .eq("is_active", true),
     app
@@ -767,9 +775,40 @@ export default async function PortalTokenPage({
       )
     : [];
 
+  // Step transition videos — admin-configured rows only. No auto-
+  // generated fallback like step popups; if no row exists, no video
+  // fires. is_active=false rows are already filtered out by the query.
+  const transitionVideosByStepId: Record<string, StepTransitionVideoConfig> = {};
+  for (const row of stepTransitionVideoRows ?? []) {
+    const stepId = row.step_id as string;
+    if (!stepId) continue;
+    const videoUrl = (row.video_url as string) ?? "";
+    if (!videoUrl) continue;
+    transitionVideosByStepId[stepId] = {
+      stepId,
+      videoUrl,
+      posterUrl: (row.poster_url as string | null) ?? null,
+      hasSound:
+        typeof row.has_sound === "boolean"
+          ? (row.has_sound as boolean)
+          : null,
+    };
+  }
+  const dismissedStepTransitionVideos: string[] = Array.isArray(
+    session.dismissed_step_transition_videos,
+  )
+    ? (session.dismissed_step_transition_videos as unknown[]).filter(
+        (v): v is string => typeof v === "string",
+      )
+    : [];
+
   const onDismissChapterVideo = dismissChapterVideo.bind(null, params.token);
   const onDismissChapterIntro = dismissChapterIntro.bind(null, params.token);
   const onDismissStepTransition = dismissStepTransition.bind(
+    null,
+    params.token,
+  );
+  const onDismissStepTransitionVideo = dismissStepTransitionVideo.bind(
     null,
     params.token,
   );
@@ -870,6 +909,9 @@ export default async function PortalTokenPage({
         transitionsByStepId={transitionsByStepId}
         initialDismissedStepTransitions={dismissedStepTransitions}
         onDismissStepTransition={onDismissStepTransition}
+        transitionVideosByStepId={transitionVideosByStepId}
+        initialDismissedStepTransitionVideos={dismissedStepTransitionVideos}
+        onDismissStepTransitionVideo={onDismissStepTransitionVideo}
         currentChapterCompletedSteps={currentChapterCompletedSteps}
         onLogEvent={onLogEvent}
       />
