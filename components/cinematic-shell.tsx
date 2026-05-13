@@ -826,6 +826,23 @@ export function CinematicShell({
                 onBookSlot={onBookSlot}
                 onCancelBooking={onCancelBooking}
                 onSubmitBookingUnavailable={onSubmitBookingUnavailable}
+                stepTransitionVideo={(() => {
+                  // Inline trigger for the slides handoff. Reuses the
+                  // same transitionVideosByStepId map + local
+                  // dismissedStepVideoIds set the cinematic-shell's
+                  // effect-based trigger uses, so the two paths stay
+                  // consistent. If the video has already been
+                  // dismissed (server seed + this session's local
+                  // dismisses), pass null and the slides renderer
+                  // calls onComplete directly.
+                  const cfg = transitionVideosByStepId[selectedStep.id];
+                  if (!cfg) return null;
+                  if (dismissedStepVideoIds.has(selectedStep.id)) return null;
+                  return cfg;
+                })()}
+                onDismissStepTransitionVideo={
+                  handleTransitionVideoDismiss
+                }
               />
               <ContentCardStrip
                 cards={selectedStep.content_cards}
@@ -933,6 +950,8 @@ function StepRenderer({
   onBookSlot,
   onCancelBooking,
   onSubmitBookingUnavailable,
+  stepTransitionVideo,
+  onDismissStepTransitionVideo,
 }: {
   step: Step;
   stepsInChapter: Step[];
@@ -987,6 +1006,10 @@ function StepRenderer({
     availableTimes: string,
     notes: string,
   ) => Promise<{ success: boolean; error?: string }>;
+  stepTransitionVideo: StepTransitionVideoConfig | null;
+  onDismissStepTransitionVideo: (
+    stepId: string,
+  ) => Promise<{ success: boolean }>;
 }) {
   if (step.content_type === "slides") {
     const raw = step.config?.slides;
@@ -1004,6 +1027,8 @@ function StepRenderer({
           nextStepLabel={nextStep?.label ?? null}
           nextStepIsApplication={nextStep?.content_type === "application"}
           candidate={candidate}
+          stepTransitionVideo={stepTransitionVideo}
+          onDismissStepTransitionVideo={onDismissStepTransitionVideo}
           onSlideViewed={(slideId, slideIndex) => {
             void onLogEvent({
               category: "engagement",
