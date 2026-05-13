@@ -287,8 +287,14 @@ function PickerView({
     });
   };
 
-  const heading = advisorName
-    ? `Book your call with ${advisorName} from ${brandShortName}`
+  // Conversational copy gets the first name only — "Book your call
+  // with Sierra from Hounds Town" reads better than "...with Sierra
+  // Jones from Hounds Town". Calendar invite text (ICS title +
+  // description in BookedView below) still uses the full name since
+  // it lands in a formal calendar entry.
+  const advisorFirstName = advisorName?.split(/\s+/)[0] ?? null;
+  const heading = advisorFirstName
+    ? `Book your call with ${advisorFirstName} from ${brandShortName}`
     : `Book your call with ${brandShortName}`;
 
   const hasAnySlots = (slots?.length ?? 0) > 0;
@@ -397,8 +403,9 @@ function PickerView({
             </p>
             <p className="schedule-confirm-meta">
               {config.duration_minutes}-minute video call
-              {advisorName ? ` with ${advisorName}` : ""}. You&apos;ll get
-              a calendar invite with the Google Meet link right away.
+              {advisorFirstName ? ` with ${advisorFirstName}` : ""}.
+              You&apos;ll get a calendar invite with the Google Meet
+              link right away.
             </p>
             {bookError && (
               <div className="adm-form-error adm-form-error-inline">
@@ -460,6 +467,9 @@ function BookedView({
   const [rescheduling, startReschedule] = useTransition();
 
   const eventLabelLower = eventLabel.toLowerCase();
+  // First name for in-page confirmation copy; full name for the ICS
+  // event that lands in the candidate's calendar (formal context).
+  const advisorFirstName = advisorName?.split(/\s+/)[0] ?? null;
   const icsTitle = advisorName
     ? `${brandShortName} ${eventLabel} with ${advisorName}`
     : `${brandShortName} ${eventLabel}`;
@@ -492,10 +502,10 @@ function BookedView({
       <h3>You&apos;re on the calendar</h3>
       <p className="schedule-booked-primary">
         Your {eventLabelLower}
-        {advisorName ? (
+        {advisorFirstName ? (
           <>
             {" "}
-            with <strong>{advisorName}</strong>
+            with <strong>{advisorFirstName}</strong>
           </>
         ) : null}{" "}
         from {brandShortName}

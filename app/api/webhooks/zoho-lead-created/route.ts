@@ -98,8 +98,38 @@ async function resolveAssignedRepId(
       return FALLBACK_REP_ID;
     }
 
-    const fullName = owner?.full_name?.trim() || ownerEmail.split("@")[0];
+    // The Owner object on a Lead response usually doesn't carry
+    // first_name / last_name. Fetch the full user record from Zoho's
+    // Users API so the auto-created rep gets a proper display name
+    // ("Sierra Jones") instead of an email-prefix placeholder
+    // ("s.jones") that leaks into candidate-facing copy.
     const zohoUserId = owner?.id?.trim() || null;
+    let fullName: string;
+    if (zohoUserId) {
+      try {
+        const user = await zohoApi.getUser(zohoUserId);
+        const userRecord = user as
+          | { full_name?: string; first_name?: string; last_name?: string }
+          | null;
+        const apiFullName = userRecord?.full_name?.trim();
+        const composed =
+          userRecord?.first_name && userRecord?.last_name
+            ? `${userRecord.first_name.trim()} ${userRecord.last_name.trim()}`
+            : null;
+        fullName = apiFullName || composed || ownerEmail.split("@")[0];
+      } catch (err) {
+        // Users API failure — log and fall back to email-prefix so the
+        // rep still gets created. Admin can edit the name later in
+        // bmave-core if it matters.
+        console.warn(
+          `[zoho-lead-created] Users API failed for ${zohoUserId}, using email prefix fallback:`,
+          err,
+        );
+        fullName = ownerEmail.split("@")[0];
+      }
+    } else {
+      fullName = ownerEmail.split("@")[0];
+    }
 
     const { data: newRep, error: insertErr } = await core
       .from("reps")
