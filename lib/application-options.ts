@@ -34,6 +34,21 @@ export const CREDIT_SCORE_RANGES: ApplicationOption[] = [
   { value: "750_plus",  label: "750+" },
 ];
 
+// Sentinel value used by the "Other" chip on opening_timeline /
+// involvement_level / growth_plan / motivation questions. When the
+// candidate picks Other, the renderer routes their free-text into a
+// dedicated *_other_text application_responses key.
+export const OTHER_VALUE = "other";
+
+export const OPENING_TIMELINE: ApplicationOption[] = [
+  { value: "asap",         label: "As soon as possible" },
+  { value: "3_6_months",   label: "3–6 months" },
+  { value: "6_12_months",  label: "6–12 months" },
+  { value: "12_plus",      label: "12+ months" },
+  { value: "figuring_out", label: "Still figuring it out" },
+  { value: OTHER_VALUE,    label: "Other" },
+];
+
 export const AGE_RANGES: ApplicationOption[] = [
   { value: "25_34",   label: "25–34" },
   { value: "35_44",   label: "35–44" },

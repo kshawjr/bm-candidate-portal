@@ -30,24 +30,20 @@ import { ChapterIntroScreen } from "@/components/application/chapter-intro-scree
 import { FinancialCheckScreen } from "@/components/application/financial-check-screen";
 import { SignOffScreen } from "@/components/application/sign-off-screen";
 import { SuccessScreen } from "@/components/application/success-screen";
-import { MOTIVATIONS } from "@/lib/application-options";
+import {
+  MOTIVATIONS,
+  OPENING_TIMELINE,
+  OTHER_VALUE,
+} from "@/lib/application-options";
 import { brandClosingQuestion } from "@/lib/brand-closing-questions";
 
 // ---------- Option sets ----------
 //
 // PR 37 added an "Other" chip to opening_timeline / involvement_level /
 // growth_plan and routes its free-text into a dedicated *_other_text key.
-
-const OTHER_VALUE = "other";
-
-const OPENING_TIMELINE: SelectOption[] = [
-  { value: "asap",         label: "As soon as possible" },
-  { value: "3_6_months",   label: "3–6 months" },
-  { value: "6_12_months",  label: "6–12 months" },
-  { value: "12_plus",      label: "12+ months" },
-  { value: "figuring_out", label: "Still figuring it out" },
-  { value: OTHER_VALUE,    label: "Other" },
-];
+// OPENING_TIMELINE + OTHER_VALUE moved to lib/application-options.ts
+// so server code (log-event.ts → Zoho field writes) can import them
+// without crossing a "use client" boundary.
 
 const INVOLVEMENT_LEVELS: SelectOption[] = [
   {
