@@ -151,7 +151,7 @@ export default async function PortalTokenPage({
   const { data: session } = await app
     .from("candidates_in_portal")
     .select(
-      "id, candidate_id, current_chapter, current_step, is_app_submitted, last_activity_at, dismissed_chapter_videos, dismissed_chapter_intros, dismissed_step_transitions, dismissed_step_transition_videos, dismissed_chapter_completes, prefilled_zip, prefilled_phone",
+      "id, candidate_id, current_chapter, current_step, is_app_submitted, last_activity_at, dismissed_chapter_videos, dismissed_chapter_intros, dismissed_step_transitions, dismissed_step_transition_videos, dismissed_chapter_completes, last_visited_step_id, prefilled_zip, prefilled_phone",
     )
     .eq("token", params.token)
     .maybeSingle();
@@ -802,6 +802,25 @@ export default async function PortalTokenPage({
       )
     : [];
 
+  // Server-side trigger for step transition videos that the shell
+  // can't catch via its in-memory effect — happens when the candidate
+  // hits an in-content Next, the advance action calls
+  // router.refresh(), and the shell remounts (so lastStepIdRef
+  // resets and the "previous step" departure trigger evaporates).
+  //
+  // advanceStepAction / completeTourAction write the OLD step id to
+  // candidates_in_portal.last_visited_step_id before bumping
+  // current_step. Here we surface it as a one-shot prop iff an
+  // active, not-yet-dismissed video is attached to that step.
+  const lastVisitedStepId =
+    (session.last_visited_step_id as string | null) ?? null;
+  const pendingTransitionVideoStepId: string | null =
+    lastVisitedStepId &&
+    transitionVideosByStepId[lastVisitedStepId] &&
+    !dismissedStepTransitionVideos.includes(lastVisitedStepId)
+      ? lastVisitedStepId
+      : null;
+
   const onDismissChapterVideo = dismissChapterVideo.bind(null, params.token);
   const onDismissChapterIntro = dismissChapterIntro.bind(null, params.token);
   const onDismissStepTransition = dismissStepTransition.bind(
@@ -912,6 +931,7 @@ export default async function PortalTokenPage({
         transitionVideosByStepId={transitionVideosByStepId}
         initialDismissedStepTransitionVideos={dismissedStepTransitionVideos}
         onDismissStepTransitionVideo={onDismissStepTransitionVideo}
+        pendingTransitionVideoStepId={pendingTransitionVideoStepId}
         currentChapterCompletedSteps={currentChapterCompletedSteps}
         onLogEvent={onLogEvent}
       />
