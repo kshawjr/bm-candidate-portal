@@ -15,9 +15,14 @@ import {
   TransitionPopupEditor,
   type TransitionPopupInitial,
 } from "./transition-popup-editor";
+import {
+  StepTransitionVideoEditor,
+  type StepTransitionVideoInitial,
+} from "./step-transition-video-editor";
 import type { VideoConfig } from "@/components/content-types/video-renderer";
 import type { ScheduleConfig } from "@/lib/schedule-shared";
 import type { StepTransitionFormData } from "@/app/admin/content/transition-actions";
+import type { StepTransitionVideoFormData } from "@/app/admin/content/step-video-actions";
 
 type UploadFn = (
   brandSlug: string,
@@ -56,6 +61,7 @@ export interface AdminStep {
   config: Record<string, unknown>;
   is_archived: boolean;
   transition_popup: TransitionPopupInitial | null;
+  transition_video: StepTransitionVideoInitial | null;
 }
 
 interface Props {
@@ -109,6 +115,14 @@ interface Props {
   deleteStepTransition: (
     stepId: string,
   ) => Promise<{ success: boolean; error?: string }>;
+  saveStepTransitionVideo: (
+    stepId: string,
+    data: StepTransitionVideoFormData,
+  ) => Promise<{ success: boolean; error?: string }>;
+  deleteStepTransitionVideo: (
+    stepId: string,
+  ) => Promise<{ success: boolean; error?: string }>;
+  uploadStepTransitionVideo: VideoUploadInitFn;
 }
 
 // "Add card" picker. journey_ahead is intentionally excluded — there is
@@ -167,6 +181,9 @@ export function ContentEditor({
   reorderSteps,
   saveStepTransition,
   deleteStepTransition,
+  saveStepTransitionVideo,
+  deleteStepTransitionVideo,
+  uploadStepTransitionVideo,
 }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -531,12 +548,23 @@ export function ContentEditor({
             />
 
             <TransitionPopupEditor
-              key={selectedStep.id}
+              key={`popup-${selectedStep.id}`}
               stepId={selectedStep.id}
               stepLabel={selectedStep.label}
               initial={selectedStep.transition_popup}
               onSave={saveStepTransition}
               onDelete={deleteStepTransition}
+            />
+
+            <StepTransitionVideoEditor
+              key={`video-${selectedStep.id}`}
+              brandSlug={brandSlug}
+              stepId={selectedStep.id}
+              stepLabel={selectedStep.label}
+              initial={selectedStep.transition_video}
+              onSave={saveStepTransitionVideo}
+              onDelete={deleteStepTransitionVideo}
+              uploadVideo={uploadStepTransitionVideo}
             />
           </>
         ) : selectedChapter ? (

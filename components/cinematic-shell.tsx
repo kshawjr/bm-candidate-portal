@@ -44,6 +44,10 @@ import {
   StepTransitionPopup,
   type StepTransitionPopupConfig,
 } from "@/components/portal/step-transition-popup";
+import {
+  StepTransitionVideoPopup,
+  type StepTransitionVideoConfig,
+} from "@/components/portal/step-transition-video-popup";
 import { YoureCurrentScreen } from "@/components/portal/youre-current-screen";
 import type { ClientLogEventArgs } from "@/app/portal/[token]/event-actions";
 
@@ -191,6 +195,17 @@ export interface ShellProps {
     stepId: string,
   ) => Promise<{ success: boolean }>;
   /**
+   * Per-step transition VIDEO config, keyed by step_id. Plays full-screen
+   * before the matching popup (if both are configured for the same step).
+   * Dismissed via Continue button and tracked in
+   * initialDismissedStepTransitionVideos.
+   */
+  transitionVideosByStepId: Record<string, StepTransitionVideoConfig>;
+  initialDismissedStepTransitionVideos: string[];
+  onDismissStepTransitionVideo: (
+    stepId: string,
+  ) => Promise<{ success: boolean }>;
+  /**
    * Steps completed within the candidate's CURRENT chapter — derived from
    * server-side current_step (clamped). Drives the chapter progress bar in
    * the sidebar.
@@ -245,6 +260,9 @@ export function CinematicShell({
   transitionsByStepId,
   initialDismissedStepTransitions,
   onDismissStepTransition,
+  transitionVideosByStepId,
+  initialDismissedStepTransitionVideos,
+  onDismissStepTransitionVideo,
   currentChapterCompletedSteps,
   onLogEvent,
 }: ShellProps) {
@@ -264,8 +282,13 @@ export function CinematicShell({
   const [dismissedStepIds, setDismissedStepIds] = useState<Set<string>>(
     () => new Set(initialDismissedStepTransitions),
   );
+  const [dismissedStepVideoIds, setDismissedStepVideoIds] = useState<
+    Set<string>
+  >(() => new Set(initialDismissedStepTransitionVideos));
   const [activeTransition, setActiveTransition] =
     useState<StepTransitionPopupConfig | null>(null);
+  const [activeTransitionVideo, setActiveTransitionVideo] =
+    useState<StepTransitionVideoConfig | null>(null);
   const isFirstStepRender = useRef(true);
   // Track which step we last landed on, so navigating back to the same step
   // (within a chapter) doesn't refire. Seeded with the initial step id so
@@ -282,11 +305,27 @@ export function CinematicShell({
     if (lastStepIdRef.current === selectedStep.id) return;
     lastStepIdRef.current = selectedStep.id;
 
-    const config = transitionsByStepId[selectedStep.id];
-    if (!config) return;
+    // Step transitions: VIDEO first, then popup. Each has its own
+    // independent dismissal state. If only a popup is configured, it
+    // fires directly; if a video is configured, the popup gets queued
+    // until the video dismisses (see handleTransitionVideoDismissed).
+    const videoConfig = transitionVideosByStepId[selectedStep.id];
+    if (videoConfig && !dismissedStepVideoIds.has(selectedStep.id)) {
+      setActiveTransitionVideo(videoConfig);
+      return;
+    }
+
+    const popupConfig = transitionsByStepId[selectedStep.id];
+    if (!popupConfig) return;
     if (dismissedStepIds.has(selectedStep.id)) return;
-    setActiveTransition(config);
-  }, [selectedStep, transitionsByStepId, dismissedStepIds]);
+    setActiveTransition(popupConfig);
+  }, [
+    selectedStep,
+    transitionsByStepId,
+    transitionVideosByStepId,
+    dismissedStepIds,
+    dismissedStepVideoIds,
+  ]);
 
   const handleTransitionDismiss = async (stepId: string) => {
     // Optimistic local state — once dismissed, never re-fire this session.
@@ -297,6 +336,28 @@ export function CinematicShell({
       return next;
     });
     return onDismissStepTransition(stepId);
+  };
+
+  const handleTransitionVideoDismiss = async (stepId: string) => {
+    setDismissedStepVideoIds((prev) => {
+      if (prev.has(stepId)) return prev;
+      const next = new Set(prev);
+      next.add(stepId);
+      return next;
+    });
+    return onDismissStepTransitionVideo(stepId);
+  };
+
+  const handleTransitionVideoDismissed = () => {
+    // Capture the step the video was attached to before clearing it,
+    // so the popup chain looks up the right config.
+    const videoStepId = activeTransitionVideo?.stepId ?? null;
+    setActiveTransitionVideo(null);
+    if (!videoStepId) return;
+    const popupConfig = transitionsByStepId[videoStepId];
+    if (popupConfig && !dismissedStepIds.has(videoStepId)) {
+      setActiveTransition(popupConfig);
+    }
   };
 
   // PR 54: tracking. Fire `step_viewed` whenever the candidate lands on a
@@ -746,6 +807,15 @@ export function CinematicShell({
           )}
         </div>
       </section>
+
+      {activeTransitionVideo && (
+        <StepTransitionVideoPopup
+          key={`video-${activeTransitionVideo.stepId}`}
+          config={activeTransitionVideo}
+          onDismiss={handleTransitionVideoDismiss}
+          onDismissed={handleTransitionVideoDismissed}
+        />
+      )}
 
       {activeTransition && (
         <StepTransitionPopup
