@@ -70,3 +70,16 @@ export function humanizeOption(
   if (match) return match.label;
   return `${value} (legacy)`;
 }
+
+// Strict label lookup with no fallback — returns null when the value
+// doesn't match any current option. Used for Zoho picklist writes,
+// where sending "200_500k (legacy)" would either fail validation or
+// land as a free-text value that breaks list filters. The caller is
+// expected to skip the write when this returns null.
+export function findOptionLabel(
+  options: ApplicationOption[],
+  value: string | null | undefined,
+): string | null {
+  if (!value) return null;
+  return options.find((opt) => opt.value === value)?.label ?? null;
+}
