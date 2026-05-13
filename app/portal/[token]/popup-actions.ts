@@ -303,7 +303,7 @@ export async function dismissStepTransitionVideo(
   const app = createAppServiceClient();
   const { data: row, error: readErr } = await app
     .from("candidates_in_portal")
-    .select("id, dismissed_step_transition_videos")
+    .select("id, dismissed_step_transition_videos, last_visited_step_id")
     .eq("token", token)
     .maybeSingle();
   if (readErr || !row) {
@@ -315,10 +315,20 @@ export async function dismissStepTransitionVideo(
     ? (existing as unknown[]).filter((v): v is string => typeof v === "string")
     : [];
 
+  // Clear last_visited_step_id only when it matches the step being
+  // dismissed — a concurrent advance in another tab may have already
+  // rotated it to a newer departure, and we don't want to clobber
+  // that. The clear here prevents a hard refresh from re-firing the
+  // same video the candidate just dismissed.
+  const shouldClearLastVisited = row.last_visited_step_id === stepId;
+
   if (list.includes(stepId)) {
     await app
       .from("candidates_in_portal")
-      .update({ last_activity_at: new Date().toISOString() })
+      .update({
+        last_activity_at: new Date().toISOString(),
+        ...(shouldClearLastVisited ? { last_visited_step_id: null } : {}),
+      })
       .eq("id", row.id);
     return { success: true };
   }
@@ -328,6 +338,7 @@ export async function dismissStepTransitionVideo(
     .update({
       dismissed_step_transition_videos: [...list, stepId],
       last_activity_at: new Date().toISOString(),
+      ...(shouldClearLastVisited ? { last_visited_step_id: null } : {}),
     })
     .eq("id", row.id);
   if (updErr) {

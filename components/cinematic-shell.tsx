@@ -206,6 +206,15 @@ export interface ShellProps {
     stepId: string,
   ) => Promise<{ success: boolean }>;
   /**
+   * Server-supplied "fire this video on mount" hint. Set by the portal
+   * page when candidates_in_portal.last_visited_step_id points at a
+   * step with an active, not-yet-dismissed transition video. Needed
+   * because the in-content Next path calls router.refresh() which
+   * remounts the shell — the in-memory step-change effect can't
+   * observe the departure across that boundary.
+   */
+  pendingTransitionVideoStepId: string | null;
+  /**
    * Steps completed within the candidate's CURRENT chapter — derived from
    * server-side current_step (clamped). Drives the chapter progress bar in
    * the sidebar.
@@ -263,6 +272,7 @@ export function CinematicShell({
   transitionVideosByStepId,
   initialDismissedStepTransitionVideos,
   onDismissStepTransitionVideo,
+  pendingTransitionVideoStepId,
   currentChapterCompletedSteps,
   onLogEvent,
 }: ShellProps) {
@@ -351,6 +361,38 @@ export function CinematicShell({
     transitionVideosByStepId,
     dismissedStepIds,
     dismissedStepVideoIds,
+  ]);
+
+  // Mount-time companion to the step-change effect above. The in-memory
+  // effect can't fire the video when the advance was driven by a server
+  // action that calls router.refresh() — the shell remounts, the
+  // isFirstStepRender guard short-circuits, and the departure step
+  // info is lost. The portal page detects that case server-side via
+  // candidates_in_portal.last_visited_step_id and surfaces it here as
+  // pendingTransitionVideoStepId. This effect consumes it exactly once
+  // per mount.
+  const pendingVideoConsumedRef = useRef(false);
+  useEffect(() => {
+    if (pendingVideoConsumedRef.current) return;
+    if (!pendingTransitionVideoStepId) return;
+    const videoConfig =
+      transitionVideosByStepId[pendingTransitionVideoStepId];
+    if (!videoConfig) return;
+    if (dismissedStepVideoIds.has(pendingTransitionVideoStepId)) return;
+
+    pendingVideoConsumedRef.current = true;
+    // The pending step is the DEPARTURE step. Capture the current
+    // selected step as the arrival so the dismiss chain can still
+    // queue a matching popup if one is configured.
+    if (selectedStep) {
+      pendingTransitionPopupStepIdRef.current = selectedStep.id;
+    }
+    setActiveTransitionVideo(videoConfig);
+  }, [
+    pendingTransitionVideoStepId,
+    transitionVideosByStepId,
+    dismissedStepVideoIds,
+    selectedStep,
   ]);
 
   const handleTransitionDismiss = async (stepId: string) => {

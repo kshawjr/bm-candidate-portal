@@ -50,15 +50,81 @@ async function resolveCandidateAndBrand(
  * Generic "advance the candidate past the step they just finished" — bumps
  * current_step only, no chapter-wide flags. Used by video and schedule steps.
  */
+/**
+ * Resolve the step row id that corresponds to the candidate's CURRENT
+ * (chapter_index, step_index) position. Used by the advance actions to
+ * capture which step the candidate is leaving before bumping current_step,
+ * so the next page render can fire that step's transition video even
+ * after the router.refresh-induced shell remount.
+ *
+ * Returns null on any lookup miss — the caller treats that as "no
+ * transition video to queue" and proceeds with the bump unchanged.
+ */
+async function resolveCurrentStepIdFromSession(
+  token: string,
+): Promise<string | null> {
+  try {
+    const app = createAppServiceClient();
+    const { data: session } = await app
+      .from("candidates_in_portal")
+      .select("candidate_id, current_chapter, current_step")
+      .eq("token", token)
+      .maybeSingle();
+    if (!session) return null;
+
+    const core = createCoreClient();
+    const { data: candidate } = await core
+      .from("candidates")
+      .select("brand_id")
+      .eq("id", session.candidate_id as string)
+      .maybeSingle();
+    if (!candidate?.brand_id) return null;
+
+    const { data: chapters } = await app
+      .from("chapters_config")
+      .select("chapter_key, position")
+      .eq("brand_id", candidate.brand_id as string)
+      .eq("is_archived", false)
+      .order("position");
+    const chapterIdx = (session.current_chapter as number | null) ?? 0;
+    const chapterKey = chapters?.[chapterIdx]?.chapter_key as
+      | string
+      | undefined;
+    if (!chapterKey) return null;
+
+    const { data: steps } = await app
+      .from("steps_config")
+      .select("id, position")
+      .eq("brand_id", candidate.brand_id as string)
+      .eq("chapter_key", chapterKey)
+      .eq("is_archived", false)
+      .order("position");
+    const stepIdx = (session.current_step as number | null) ?? 0;
+    return (steps?.[stepIdx]?.id as string | undefined) ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export async function advanceStepAction(
   token: string,
   nextStepIdx: number,
 ): Promise<void> {
+  // Capture the step the candidate is LEAVING before we update the
+  // session. The page reads this on next render to queue any
+  // transition video attached to that step — needed because the
+  // in-content Next path follows up with router.refresh(), which
+  // remounts the shell and would otherwise lose the in-memory
+  // departure-step tracking. Best-effort: a resolution miss falls
+  // through to a no-op, the advance itself still happens.
+  const previousStepId = await resolveCurrentStepIdFromSession(token);
+
   const app = createAppServiceClient();
   const { error } = await app
     .from("candidates_in_portal")
     .update({
       current_step: nextStepIdx,
+      last_visited_step_id: previousStepId,
       last_activity_at: new Date().toISOString(),
     })
     .eq("token", token);
@@ -87,12 +153,19 @@ export async function completeTourAction(
   chapterKey: string,
 ): Promise<void> {
   void chapterKey;
+  // Same departure-step tracking as advanceStepAction — the tour-
+  // complete flow also follows up with router.refresh() so the shell
+  // remount needs a server-supplied hint to fire the matching
+  // transition video. Best-effort.
+  const previousStepId = await resolveCurrentStepIdFromSession(token);
+
   const app = createAppServiceClient();
   const { error } = await app
     .from("candidates_in_portal")
     .update({
       is_tour_complete: true,
       current_step: nextStepIdx,
+      last_visited_step_id: previousStepId,
       last_activity_at: new Date().toISOString(),
     })
     .eq("token", token);
