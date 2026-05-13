@@ -9,6 +9,12 @@ import {
 } from "@/lib/candidate-events";
 import { getTransitionIdForMilestone } from "@/lib/zoho-blueprint-transitions";
 import { zohoApi } from "@/lib/zoho-api";
+import {
+  CREDIT_SCORE_RANGES,
+  LIQUID_CAPITAL_RANGES,
+  NET_WORTH_RANGES,
+  findOptionLabel,
+} from "@/lib/application-options";
 
 // Zoho's DateTime fields reject the `Z` suffix and millisecond precision
 // that `toISOString()` produces — they want `YYYY-MM-DDTHH:mm:ss±hh:mm`.
@@ -177,80 +183,28 @@ async function syncMilestoneToZoho(
   let tagSyncStatus: "success" | "failed" | null = null;
   let tagSyncError: string | null = null;
   if (args.eventType === "application_submitted") {
-    // PR 62: in production the DateTime PUT to CQ_Received returns 200
-    // but the field stays empty — Last_Active_Date works fine with the
-    // exact same formatZohoDateTime() value, so the format itself is
-    // not the problem (likely API-name mismatch, layout permission,
-    // or workflow side-effect). To localize the cause, write +
-    // verify-via-GET. If the DateTime form doesn't take, fall back to
-    // a date-only string (Zoho DateTime fields often accept a bare
-    // date and convert internally) and verify again. The fetch-back
-    // is permanent for now since this milestone is currently broken;
-    // a follow-up PR can drop it once the root cause is fixed.
-    const now = new Date();
-    const attempts: { format: "datetime" | "date"; value: string }[] = [
-      { format: "datetime", value: formatZohoDateTime(now) },
-      { format: "date", value: now.toISOString().slice(0, 10) },
-    ];
-
-    let cqApplied = false;
-    let cqLastError: string | null = null;
-    for (const attempt of attempts) {
-      console.log(
-        `[log-event] CQ_Received attempt event=${eventId} format=${attempt.format} value=${attempt.value}`,
-      );
-      try {
-        await zohoApi.updateLead(candidate.zoho_lead_id, {
-          CQ_Received: attempt.value,
-        });
-      } catch (err) {
-        cqLastError = err instanceof Error ? err.message : String(err);
-        console.warn(
-          `[log-event] CQ_Received PUT threw event=${eventId} format=${attempt.format}:`,
-          cqLastError,
-        );
-        continue;
-      }
-
-      // Read it back and check whether the value actually landed.
-      // A null/empty stored value with a 200 PUT is the signature of
-      // a silent rejection — log enough to diagnose without flooding.
-      try {
-        const verify = await zohoApi.getLead(candidate.zoho_lead_id, [
-          "CQ_Received",
-        ]);
-        const stored = (verify?.CQ_Received ?? null) as unknown;
-        console.log(
-          `[log-event] CQ_Received verify event=${eventId} format=${attempt.format} stored=${JSON.stringify(stored)}`,
-        );
-        if (
-          stored !== null &&
-          stored !== undefined &&
-          stored !== "" &&
-          !(typeof stored === "string" && stored.trim() === "")
-        ) {
-          cqApplied = true;
-          break;
-        }
-        cqLastError = `200 OK but field stayed empty after format=${attempt.format}`;
-      } catch (err) {
-        cqLastError = err instanceof Error ? err.message : String(err);
-        console.warn(
-          `[log-event] CQ_Received verify GET failed event=${eventId} format=${attempt.format}:`,
-          cqLastError,
-        );
-      }
-    }
-
-    cqSyncStatus = cqApplied ? "success" : "failed";
-    cqSyncError = cqApplied ? null : cqLastError;
-    if (!cqApplied) {
+    // Single-format datetime PUT. PR 62 added a dual-format retry +
+    // verify-via-GET loop to diagnose silent failures; both formats
+    // wrote 200 OK with empty read-backs, so the diagnostic ruled out
+    // the date format itself. The remaining suspects (field API-name,
+    // layout permission, workflow rule) are Zoho-admin territory — the
+    // code can't fix them. Dropped the loop and committed to the
+    // datetime form that matches every other Zoho DateTime field.
+    const cqValue = formatZohoDateTime(new Date());
+    console.log(
+      `[log-event] CQ_Received write event=${eventId} value=${cqValue}`,
+    );
+    try {
+      await zohoApi.updateLead(candidate.zoho_lead_id, {
+        CQ_Received: cqValue,
+      });
+      cqSyncStatus = "success";
+    } catch (err) {
+      cqSyncStatus = "failed";
+      cqSyncError = err instanceof Error ? err.message : String(err);
       console.warn(
-        `[log-event] CQ_Received never took for event ${eventId} ` +
-          `(zoho_lead_id=${candidate.zoho_lead_id}). Both formats wrote ` +
-          `200 OK but the field stayed empty on read-back. Likely cause: ` +
-          `field API name mismatch, layout-level permission, or a ` +
-          `workflow rule that wipes the value — not the date format.`,
+        `[log-event] CQ_Received write failed event=${eventId}:`,
+        cqSyncError,
       );
     }
 
@@ -263,6 +217,101 @@ async function syncMilestoneToZoho(
       console.warn(
         `[log-event] addTags failed for event ${eventId}:`,
         tagSyncError,
+      );
+    }
+
+    // Financial answers → six Zoho fields (a text + picklist twin for
+    // each of liquid capital / net worth / credit score). The picklist
+    // copies (Liquid_Capital_2, Net_Worth_2, Credit_Score_2) drive
+    // sales-team list filters; the plain text fields stay for legacy
+    // reports that read free-text. All six land in a single PUT so
+    // there's only one round-trip overhead.
+    //
+    // Source of truth is application_responses (per-question rows) in
+    // the candidate-portal DB, keyed by candidate_in_portal_id —
+    // joined here through candidates_in_portal.candidate_id.
+    //
+    // Best-effort: any failure (DB lookup, label miss, Zoho PUT) is
+    // logged and the milestone flow continues. The Portal_Status leg
+    // already succeeded by this point.
+    try {
+      const { data: portal } = await supabase
+        .from("candidates_in_portal")
+        .select("id")
+        .eq("candidate_id", args.candidateId)
+        .maybeSingle();
+
+      if (portal?.id) {
+        const { data: responses } = await supabase
+          .from("application_responses")
+          .select("field_key, field_value")
+          .eq("candidate_in_portal_id", portal.id as string)
+          .in("field_key", [
+            "liquid_capital_range",
+            "net_worth_range",
+            "credit_score_range",
+          ]);
+
+        const byKey: Record<string, string> = {};
+        for (const r of responses ?? []) {
+          const v = r.field_value;
+          if (typeof v === "string" && v.trim().length > 0) {
+            byKey[r.field_key as string] = v.trim();
+          }
+        }
+
+        const liquidLabel = findOptionLabel(
+          LIQUID_CAPITAL_RANGES,
+          byKey.liquid_capital_range,
+        );
+        const netWorthLabel = findOptionLabel(
+          NET_WORTH_RANGES,
+          byKey.net_worth_range,
+        );
+        const creditScoreLabel = findOptionLabel(
+          CREDIT_SCORE_RANGES,
+          byKey.credit_score_range,
+        );
+
+        // Only include fields where a current option label resolved.
+        // Legacy values (older bucket schemes) skip — better to write
+        // nothing than to write "200_500k (legacy)" to a picklist.
+        const fieldsToWrite: Record<string, string> = {};
+        if (liquidLabel) {
+          fieldsToWrite.Liquid = liquidLabel;
+          fieldsToWrite.Liquid_Capital_2 = liquidLabel;
+        }
+        if (netWorthLabel) {
+          fieldsToWrite.Net_Worth = netWorthLabel;
+          fieldsToWrite.Net_Worth_2 = netWorthLabel;
+        }
+        if (creditScoreLabel) {
+          fieldsToWrite.Credit_Score = creditScoreLabel;
+          fieldsToWrite.Credit_Score_2 = creditScoreLabel;
+        }
+
+        if (Object.keys(fieldsToWrite).length > 0) {
+          try {
+            await zohoApi.updateLead(candidate.zoho_lead_id, fieldsToWrite);
+            console.log(
+              `[log-event] financial fields written event=${eventId} fields=${Object.keys(fieldsToWrite).join(",")}`,
+            );
+          } catch (err) {
+            console.warn(
+              `[log-event] financial fields write failed event=${eventId}:`,
+              err instanceof Error ? err.message : err,
+            );
+          }
+        } else {
+          console.log(
+            `[log-event] financial fields skipped event=${eventId} — no resolvable labels`,
+          );
+        }
+      }
+    } catch (err) {
+      console.warn(
+        `[log-event] financial fields lookup failed event=${eventId}:`,
+        err instanceof Error ? err.message : err,
       );
     }
   }
