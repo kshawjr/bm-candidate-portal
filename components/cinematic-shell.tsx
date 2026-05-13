@@ -295,6 +295,14 @@ export function CinematicShell({
   // a fresh page load never fires.
   const lastStepIdRef = useRef<string | null>(selectedStep?.id ?? null);
 
+  // When a video fires on a step transition, remember which step the
+  // candidate was ARRIVING AT so the chained popup (handled in
+  // handleTransitionVideoDismissed below) keys on that step rather
+  // than the step the video was attached to. The video itself is
+  // attached to — and dismissed for — the step the candidate is
+  // LEAVING (see effect below).
+  const pendingTransitionPopupStepIdRef = useRef<string | null>(null);
+
   useEffect(() => {
     if (!selectedStep) return;
     if (isFirstStepRender.current) {
@@ -303,14 +311,32 @@ export function CinematicShell({
       return;
     }
     if (lastStepIdRef.current === selectedStep.id) return;
+
+    // Capture which step we're LEAVING before we update the ref to the
+    // new one. Step transition videos are attached to the step the
+    // candidate is DEPARTING from — fire it between steps, not on
+    // arrival. This matches chapter video semantics and the original
+    // "between steps" intent.
+    const previousStepId = lastStepIdRef.current;
     lastStepIdRef.current = selectedStep.id;
 
-    // Step transitions: VIDEO first, then popup. Each has its own
-    // independent dismissal state. If only a popup is configured, it
-    // fires directly; if a video is configured, the popup gets queued
-    // until the video dismisses (see handleTransitionVideoDismissed).
-    const videoConfig = transitionVideosByStepId[selectedStep.id];
-    if (videoConfig && !dismissedStepVideoIds.has(selectedStep.id)) {
+    if (!previousStepId) {
+      // No previous step (shouldn't happen after the first-render
+      // guard, but belt-and-suspenders). Fall through to popup-only.
+      const popupConfig = transitionsByStepId[selectedStep.id];
+      if (popupConfig && !dismissedStepIds.has(selectedStep.id)) {
+        setActiveTransition(popupConfig);
+      }
+      return;
+    }
+
+    // Step transitions: VIDEO first (attached to the step we're
+    // leaving), then popup (attached to the step we're arriving at).
+    const videoConfig = transitionVideosByStepId[previousStepId];
+    if (videoConfig && !dismissedStepVideoIds.has(previousStepId)) {
+      // Remember the arrival step so the dismiss chain can look up
+      // the right popup config after the video closes.
+      pendingTransitionPopupStepIdRef.current = selectedStep.id;
       setActiveTransitionVideo(videoConfig);
       return;
     }
@@ -349,13 +375,16 @@ export function CinematicShell({
   };
 
   const handleTransitionVideoDismissed = () => {
-    // Capture the step the video was attached to before clearing it,
-    // so the popup chain looks up the right config.
-    const videoStepId = activeTransitionVideo?.stepId ?? null;
+    // Video is keyed on the DEPARTURE step (see effect above), but the
+    // popup is keyed on the ARRIVAL step — that's what the candidate
+    // is about to see. Use the arrival step id captured when the
+    // video fired, not activeTransitionVideo.stepId.
+    const arrivalStepId = pendingTransitionPopupStepIdRef.current;
+    pendingTransitionPopupStepIdRef.current = null;
     setActiveTransitionVideo(null);
-    if (!videoStepId) return;
-    const popupConfig = transitionsByStepId[videoStepId];
-    if (popupConfig && !dismissedStepIds.has(videoStepId)) {
+    if (!arrivalStepId) return;
+    const popupConfig = transitionsByStepId[arrivalStepId];
+    if (popupConfig && !dismissedStepIds.has(arrivalStepId)) {
       setActiveTransition(popupConfig);
     }
   };
