@@ -221,6 +221,44 @@ class ZohoApiClient {
     };
     return data.data?.[0] ?? null;
   }
+
+  /**
+   * Read a single Zoho CRM user by ID. Used by the lead-created webhook
+   * to look up an Owner's full_name when auto-creating a rep — the
+   * Owner object embedded in a Lead response often lacks first_name /
+   * last_name, but the /users/{id} endpoint always returns them.
+   *
+   * Response wrapper is `{ users: [...] }`, not `data` — quirk of the
+   * users endpoint vs the module record endpoints. Returns null on
+   * 204 / 304, throws on other non-2xx, matching getLead behavior.
+   */
+  async getUser(
+    userId: string,
+  ): Promise<Record<string, unknown> | null> {
+    const id = String(userId);
+    const token = await this.getAccessToken();
+    const response = await fetch(
+      `${API_DOMAIN}/crm/v3/users/${encodeURIComponent(id)}`,
+      {
+        method: "GET",
+        headers: {
+          Authorization: `Zoho-oauthtoken ${token}`,
+        },
+      },
+    );
+
+    if (response.status === 204 || response.status === 304) {
+      return null;
+    }
+    if (!response.ok) {
+      const body = await response.text();
+      throw new Error(`Zoho getUser ${response.status}: ${body}`);
+    }
+    const data = (await response.json()) as {
+      users?: Record<string, unknown>[];
+    };
+    return data.users?.[0] ?? null;
+  }
 }
 
 export const zohoApi = new ZohoApiClient();
