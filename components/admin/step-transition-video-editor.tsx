@@ -46,9 +46,10 @@ const STEP_VIDEO_ALLOWED_TYPES = new Set([
  * editor on /admin/content — same accordion shape so the step row
  * stays compact when nothing's configured.
  *
- * Plays the first time a candidate advances past the step it's
- * attached to. Sequences before any step transition popup configured
- * for the same step (video first, then popup).
+ * Plays the first time a candidate DEPARTS this step (i.e. between
+ * this step and the next one), not on arrival. If the next step also
+ * has a transition popup configured, the video plays first, then the
+ * popup. Matches chapter video "between transitions" semantics.
  */
 export function StepTransitionVideoEditor({
   brandSlug,
