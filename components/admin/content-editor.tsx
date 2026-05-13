@@ -453,33 +453,15 @@ export function ContentEditor({
               switch (selectedStep.content_type) {
                 case "slides":
                   return (
-                    <>
-                      <SlideEditor
-                        key={selectedStep.id}
-                        brandSlug={brandSlug}
-                        stepId={selectedStep.id}
-                        initialSlides={selectedStep.slides}
-                        saveSlides={saveSlides}
-                        upload={uploadSlide}
-                        uploadVideo={uploadSlideVideo}
-                      />
-                      <CardsSection
-                        contentType={selectedStep.content_type}
-                        cards={selectedStep.content_cards}
-                        onEdit={(card, idx) =>
-                          setEditorState({ mode: "edit", card, cardIndex: idx })
-                        }
-                        onDelete={handleDelete}
-                        onReorder={handleReorder}
-                        deleting={deleting}
-                        addMenuOpen={addMenuOpen}
-                        setAddMenuOpen={setAddMenuOpen}
-                        onPickType={(type) => {
-                          setEditorState({ mode: "create", type });
-                          setAddMenuOpen(false);
-                        }}
-                      />
-                    </>
+                    <SlideEditor
+                      key={selectedStep.id}
+                      brandSlug={brandSlug}
+                      stepId={selectedStep.id}
+                      initialSlides={selectedStep.slides}
+                      saveSlides={saveSlides}
+                      upload={uploadSlide}
+                      uploadVideo={uploadSlideVideo}
+                    />
                   );
                 case "video":
                   return (
@@ -515,30 +497,38 @@ export function ContentEditor({
                 case "application":
                   return <ApplicationNotice />;
                 case "static":
-                  return (
-                    <CardsSection
-                      contentType={selectedStep.content_type}
-                      cards={selectedStep.content_cards}
-                      onEdit={(card, idx) =>
-                        setEditorState({ mode: "edit", card, cardIndex: idx })
-                      }
-                      onDelete={handleDelete}
-                      onReorder={handleReorder}
-                      deleting={deleting}
-                      addMenuOpen={addMenuOpen}
-                      setAddMenuOpen={setAddMenuOpen}
-                      onPickType={(type) => {
-                        setEditorState({ mode: "create", type });
-                        setAddMenuOpen(false);
-                      }}
-                    />
-                  );
+                  // Static has no primary editor — its only content is
+                  // the CardsSection below. Returning null here keeps the
+                  // primary slot empty but lets CardsSection still render.
+                  return null;
                 default:
                   return (
                     <UnknownTypeNotice contentType={selectedStep.content_type} />
                   );
               }
             })()}
+
+            {/* Content cards render for every step type. They're a
+                supplemental UI layer — they sit BELOW the primary
+                content (slides, application notice, schedule widget,
+                video, etc.) and never replace it. Lifting this out of
+                the per-type switch means admins can attach cards to
+                any step regardless of content_type. */}
+            <CardsSection
+              cards={selectedStep.content_cards}
+              onEdit={(card, idx) =>
+                setEditorState({ mode: "edit", card, cardIndex: idx })
+              }
+              onDelete={handleDelete}
+              onReorder={handleReorder}
+              deleting={deleting}
+              addMenuOpen={addMenuOpen}
+              setAddMenuOpen={setAddMenuOpen}
+              onPickType={(type) => {
+                setEditorState({ mode: "create", type });
+                setAddMenuOpen(false);
+              }}
+            />
 
             <TransitionPopupEditor
               key={selectedStep.id}
@@ -571,25 +561,22 @@ export function ContentEditor({
         ) : null}
       </section>
 
-      {editorState &&
-        selectedStep &&
-        (selectedStep.content_type === "slides" ||
-          selectedStep.content_type === "static") && (
-          <CardEditor
-            brandSlug={brandSlug}
-            initial={
-              editorState.mode === "create"
-                ? { type: editorState.type, create: true }
-                : editorState.card
-            }
-            cardIndex={
-              editorState.mode === "edit" ? editorState.cardIndex : undefined
-            }
-            onSave={handleSave}
-            onCancel={() => setEditorState(null)}
-            upload={upload}
-          />
-        )}
+      {editorState && selectedStep && (
+        <CardEditor
+          brandSlug={brandSlug}
+          initial={
+            editorState.mode === "create"
+              ? { type: editorState.type, create: true }
+              : editorState.card
+          }
+          cardIndex={
+            editorState.mode === "edit" ? editorState.cardIndex : undefined
+          }
+          onSave={handleSave}
+          onCancel={() => setEditorState(null)}
+          upload={upload}
+        />
+      )}
 
       {toast && <div className="adm-toast">{toast}</div>}
     </div>
@@ -695,13 +682,15 @@ function summarize(card: ContentCard): string {
   }
 }
 
-// ----- cards section (slides + static) -----
+// ----- cards section -----
 //
-// Pulled out of the inline conditional so the dispatch switch's `slides`
-// and `static` branches can share it without re-inlining ~50 lines twice.
+// Renders below every step's primary editor regardless of content_type.
+// Content cards are a supplemental layer — they coexist with slides,
+// the application form, schedule widget, video player, etc. The
+// section wrapper + "Content cards" eyebrow render universally so the
+// label reads consistently across step types.
 
 interface CardsSectionProps {
-  contentType: "slides" | "static";
   cards: ContentCard[];
   onEdit: (card: ContentCard, idx: number) => void;
   onDelete: (idx: number) => void;
@@ -713,7 +702,6 @@ interface CardsSectionProps {
 }
 
 function CardsSection({
-  contentType,
   cards,
   onEdit,
   onDelete,
@@ -723,12 +711,9 @@ function CardsSection({
   setAddMenuOpen,
   onPickType,
 }: CardsSectionProps) {
-  const isSlides = contentType === "slides";
   return (
-    <div className={isSlides ? "adm-cards-section" : undefined}>
-      {isSlides && (
-        <div className="adm-cards-section-eyebrow">Content cards</div>
-      )}
+    <div className="adm-cards-section">
+      <div className="adm-cards-section-eyebrow">Content cards</div>
       <CardList
         cards={cards}
         onEdit={onEdit}
