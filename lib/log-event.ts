@@ -1,6 +1,7 @@
 import "server-only";
 import { createAppServiceClient } from "@/lib/supabase-app";
 import { createCoreClient } from "@/lib/core-client";
+import { createFlightdeckClient } from "@/lib/flightdeck-client";
 import {
   isMilestone,
   ZOHO_STATUS_BY_MILESTONE,
@@ -13,6 +14,7 @@ import {
   CREDIT_SCORE_RANGES,
   LIQUID_CAPITAL_RANGES,
   NET_WORTH_RANGES,
+  OPENING_TIMELINE,
   findOptionLabel,
 } from "@/lib/application-options";
 
@@ -311,6 +313,84 @@ async function syncMilestoneToZoho(
     } catch (err) {
       console.warn(
         `[log-event] financial fields lookup failed event=${eventId}:`,
+        err instanceof Error ? err.message : err,
+      );
+    }
+
+    // Location + timing → four Zoho fields. Source is the
+    // flightdeck-side candidate_applications row (different table /
+    // different Supabase project from the financial-fields source —
+    // city/state/opening_timeline land there directly via the submit
+    // action's INSERT, not as per-question rows). Sits in its own
+    // try block so a flightdeck failure can't disturb the financial
+    // writes above.
+    //
+    // Field mapping:
+    //   city                                       → City (text)
+    //   state                                      → State (text)
+    //   city + ", " + state                        → Interested_DMA
+    //   opening_timeline label OR "Other: <free>"  → How_soon
+    try {
+      const flightdeck = createFlightdeckClient();
+      const { data: appData } = await flightdeck
+        .from("candidate_applications")
+        .select("city, state, opening_timeline")
+        .eq("zoho_lead_id", candidate.zoho_lead_id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (appData) {
+        const city = (appData.city as string | null)?.trim() || null;
+        const state = (appData.state as string | null)?.trim() || null;
+        const dma = city && state ? `${city}, ${state}` : null;
+
+        // Two shapes for opening_timeline in storage:
+        //   "asap" / "3_6_months" / ...   → look up label
+        //   "Other: <free text>"          → keep as-is (already
+        //                                    human-readable; the submit
+        //                                    action collapses
+        //                                    opening_timeline_other_text
+        //                                    into this prefixed form
+        //                                    via resolveOther).
+        const rawTimeline =
+          (appData.opening_timeline as string | null)?.trim() || null;
+        let howSoonLabel: string | null = null;
+        if (rawTimeline) {
+          if (rawTimeline.startsWith("Other:")) {
+            howSoonLabel = rawTimeline;
+          } else {
+            howSoonLabel = findOptionLabel(OPENING_TIMELINE, rawTimeline);
+          }
+        }
+
+        const locationFields: Record<string, string> = {};
+        if (city) locationFields.City = city;
+        if (state) locationFields.State = state;
+        if (dma) locationFields.Interested_DMA = dma;
+        if (howSoonLabel) locationFields.How_soon = howSoonLabel;
+
+        if (Object.keys(locationFields).length > 0) {
+          try {
+            await zohoApi.updateLead(candidate.zoho_lead_id, locationFields);
+            console.log(
+              `[log-event] location/timing fields written event=${eventId} fields=${Object.keys(locationFields).join(",")}`,
+            );
+          } catch (err) {
+            console.warn(
+              `[log-event] location/timing fields write failed event=${eventId}:`,
+              err instanceof Error ? err.message : err,
+            );
+          }
+        } else {
+          console.log(
+            `[log-event] location/timing fields skipped event=${eventId} — no resolvable values`,
+          );
+        }
+      }
+    } catch (err) {
+      console.warn(
+        `[log-event] location/timing lookup failed event=${eventId}:`,
         err instanceof Error ? err.message : err,
       );
     }
