@@ -12,6 +12,11 @@ import {
 } from "react";
 import { SlidesRenderer, type Slide } from "@/components/content-types/slides-renderer";
 import {
+  WaitingRenderer,
+  type WaitingConfig,
+} from "@/components/content-types/waiting-renderer";
+import { formatBookingDateLong } from "@/lib/booking-details";
+import {
   ApplicationRenderer,
   type ApplicationCandidate,
 } from "@/components/content-types/application-renderer";
@@ -70,7 +75,8 @@ export type ContentType =
   | "schedule"
   | "video"
   | "document"
-  | "checklist";
+  | "checklist"
+  | "waiting";
 
 export interface Chapter {
   chapter_key: string;
@@ -171,6 +177,17 @@ export interface ShellProps {
    *  prefilledZip — application's verification screen pre-populates and
    *  shows a "Prefilled from your record" hint. */
   prefilledPhone: string | null;
+  // Waiting content-type inputs (PR for waiting + unlock system).
+  //
+  // candidates_in_portal.id, used by the waiting renderer to subscribe to
+  // realtime UPDATEs on its own row when Portal_Unlocks changes upstream
+  // in Zoho. Distinct from bmave-core.candidates.id — the portal session
+  // row is the realtime channel, not the cross-project identity row.
+  candidateInPortalId: string;
+  /** Snapshot of unlocked_keys at server-render time. The realtime
+   *  subscription on the waiting renderer takes over from this once it
+   *  connects, so the prop only matters for the initial render. */
+  initialUnlockedKeys: string[];
   // Schedule content-type inputs
   bookingsByStepId: Record<string, ExistingBooking>;
   hasAssignedRep: boolean;
@@ -261,6 +278,8 @@ export function CinematicShell({
   isApplicationSubmitted,
   prefilledZip,
   prefilledPhone,
+  candidateInPortalId,
+  initialUnlockedKeys,
   bookingsByStepId,
   hasAssignedRep,
   advisorName,
@@ -816,6 +835,8 @@ export function CinematicShell({
                 isApplicationSubmitted={isApplicationSubmitted}
                 prefilledZip={prefilledZip}
                 prefilledPhone={prefilledPhone}
+                candidateInPortalId={candidateInPortalId}
+                initialUnlockedKeys={initialUnlockedKeys}
                 brandSlug={brandSlug}
                 onSaveApplicationAnswer={onSaveApplicationAnswer}
                 onSubmitApplication={onSubmitApplication}
@@ -943,6 +964,8 @@ function StepRenderer({
   isApplicationSubmitted,
   prefilledZip,
   prefilledPhone,
+  candidateInPortalId,
+  initialUnlockedKeys,
   brandSlug,
   onSaveApplicationAnswer,
   onSubmitApplication,
@@ -980,6 +1003,8 @@ function StepRenderer({
   isApplicationSubmitted: boolean;
   prefilledZip: string | null;
   prefilledPhone: string | null;
+  candidateInPortalId: string;
+  initialUnlockedKeys: string[];
   brandSlug: string;
   onSaveApplicationAnswer: (
     fieldKey: string,
@@ -1125,6 +1150,53 @@ function StepRenderer({
         onCancel={onCancelBooking}
         onSubmitUnavailable={onSubmitBookingUnavailable}
         onComplete={onStepAdvance}
+      />
+    );
+  }
+  if (step.content_type === "waiting") {
+    // Find the discovery-call context by looking at the schedule step in
+    // the same chapter. The waiting step doesn't own a booking — it
+    // borrows from the chapter's schedule step so "show_booking_details"
+    // can render the candidate's actual booked time. If the chapter has
+    // no schedule step, booking/scheduleConfig fall back to null and the
+    // renderer shows the empty-booking notice.
+    const scheduleStep = stepsInChapter.find(
+      (s) => s.content_type === "schedule",
+    );
+    const scheduleBooking = scheduleStep
+      ? bookingsByStepId[scheduleStep.id] ?? null
+      : null;
+    const scheduleConfig = scheduleStep
+      ? (scheduleStep.config as unknown as ScheduleConfig)
+      : null;
+    const repFirstName = advisorName?.split(/\s+/)[0] ?? null;
+    return (
+      <WaitingRenderer
+        config={step.config as unknown as WaitingConfig}
+        candidateInPortalId={candidateInPortalId}
+        initialUnlockedKeys={initialUnlockedKeys}
+        templateContext={{
+          call_type: scheduleConfig?.event_label ?? "Discovery Call",
+          duration: scheduleConfig
+            ? `${scheduleConfig.duration_minutes} minutes`
+            : null,
+          rep_first_name: repFirstName,
+          brand_short_name: brandShortName,
+          candidate_first_name: candidate.first_name ?? null,
+          discovery_call_date:
+            scheduleBooking && scheduleConfig
+              ? formatBookingDateLong(
+                  scheduleBooking.start_time,
+                  scheduleConfig.timezone,
+                )
+              : "",
+        }}
+        booking={scheduleBooking}
+        scheduleConfig={scheduleConfig}
+        brandShortName={brandShortName}
+        advisorName={advisorName}
+        onCancelBooking={onCancelBooking}
+        onContinue={onStepAdvance}
       />
     );
   }

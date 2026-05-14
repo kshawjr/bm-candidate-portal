@@ -11,6 +11,7 @@ import { SlideEditor } from "./slide-editor";
 import { StepsManager, type AdminStepRow } from "./steps-manager";
 import { VideoEditor } from "./video-editor";
 import { ScheduleEditor } from "./schedule-editor";
+import { WaitingEditor } from "./waiting-editor";
 import {
   TransitionPopupEditor,
   type TransitionPopupInitial,
@@ -21,6 +22,7 @@ import {
 } from "./step-transition-video-editor";
 import type { VideoConfig } from "@/components/content-types/video-renderer";
 import type { ScheduleConfig } from "@/lib/schedule-shared";
+import type { WaitingConfig } from "@/components/content-types/waiting-renderer";
 import type { StepTransitionFormData } from "@/app/admin/content/transition-actions";
 import type { StepTransitionVideoFormData } from "@/app/admin/content/step-video-actions";
 
@@ -518,6 +520,22 @@ export function ContentEditor({
                   // the CardsSection below. Returning null here keeps the
                   // primary slot empty but lets CardsSection still render.
                   return null;
+                case "waiting":
+                  return (
+                    <WaitingEditor
+                      key={selectedStep.id}
+                      stepId={selectedStep.id}
+                      initialConfig={
+                        selectedStep.config as unknown as WaitingConfig
+                      }
+                      saveConfig={(stepId, config) =>
+                        saveStepConfig(
+                          stepId,
+                          config as unknown as Record<string, unknown>,
+                        )
+                      }
+                    />
+                  );
                 default:
                   return (
                     <UnknownTypeNotice contentType={selectedStep.content_type} />
