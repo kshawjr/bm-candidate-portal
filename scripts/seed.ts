@@ -37,7 +37,7 @@ const STAGE_CONTENT: Record<string, Record<string, string>> = {
     headline: "Get to know us",
     body: "Two things in this first stage — a short brand tour and a light application so we get to know each other. Both save as you go.",
     button: "Open the tour →",
-    meta: "About 15 minutes total",
+    meta: "Less than 5 minutes",
     completedTitle: "Brand tour & application done",
     completedSub: "Stage 1 complete — you're officially in the process",
     lockedTitle: "Get to know us",
@@ -926,8 +926,8 @@ async function seedChapterIntros(brandId: string, code: BrandCode) {
       body_md:
         "This first chapter is light. Walk through who we are, then a short application so we can get to know you. Both save as you go — close the tab whenever, pick up where you left off.",
       bullets: [
-        { icon: "✨", text: "Brand tour — about 5 minutes" },
-        { icon: "📝", text: "Light application — about 10 minutes" },
+        { icon: "✨", text: "Brand tour — less than 5 minutes" },
+        { icon: "📝", text: "Light application — less than 5 minutes" },
         { icon: "💾", text: "Auto-saves on every screen" },
       ],
       cta: "Show me around",

@@ -52,8 +52,8 @@ const INVOLVEMENT_LEVELS: SelectOption[] = [
     desc: "I want to run this day to day",
   },
   {
-    value: "semi_absentee",
-    label: "Semi-absentee",
+    value: "semi_active",
+    label: "Semi-active",
     desc: "I'll be involved, but I'll hire a manager",
   },
   {
@@ -88,6 +88,10 @@ interface Props {
   /** Brand slug for the candidate's brand. Drives the per-brand closing
    *  question (PR 37). Unknown slugs fall back to a generic chip set. */
   brandSlug: string;
+  /** Brand display name (bmave-core.brands.name). Threaded into the
+   *  financial-intro copy so it reads "invest in your own {brand}
+   *  location" rather than a generic placeholder. */
+  brandName: string;
   /** Optional ZIP prefilled at candidate creation time. When set, the
    *  ZIP step skips the cold-input box and lands on the confirmation
    *  card. Null/empty → existing cold flow. */
@@ -106,20 +110,23 @@ interface Props {
 
 // ---------- Screen indices ----------
 //
-//   0  verification
-//   1  Q1  current_role            (Chapter 1 of 4 · About you)
-//   2  Q2  zip-location
-//   3  Q3  motivation (multi)
-//   4  Q4  motivation elaboration  ← own question per PR 37 counter
-//   5  Chapter 2 intro             (Chapter 2 of 4 · The money conversation)
-//   6  Q5  quick financial check
-//   7  Q6  bankruptcy              (Background check sub-section)
-//   8  Q7  felony
-//   9  Q8  opening_timeline        (Chapter 3 of 4 · Your plans)
-//   10 Q9  involvement_level
-//   11 Q10 growth_plan
-//   12 Q11 brand-specific closing  (Chapter 4 of 4 · One last thing)
-//   13 sign-off
+// Section labels (PR 39) are the source of truth — see SECTION_BY_IDX
+// below. Keep this comment aligned with that map.
+//
+//   0  verification                       (Section 1 of 7 · Personal info)
+//   1  Q1  current_role                   (Section 1 of 7 · Personal info)
+//   2  Q2  zip-location                   (Section 2 of 7 · Location)
+//   3  Q3  motivation (multi)             (Section 3 of 7 · Motivation)
+//   4  Q4  motivation elaboration         (Section 3 of 7 · Motivation)
+//   5  Section 4 intro                    (Section 4 of 7 · Financial)
+//   6  Q5  quick financial check          (Section 4 of 7 · Financial)
+//   7  Q6  bankruptcy                     (Section 5 of 7 · Background)
+//   8  Q7  felony                         (Section 5 of 7 · Background)
+//   9  Q8  opening_timeline               (Section 6 of 7 · Practical)
+//   10 Q9  involvement_level              (Section 6 of 7 · Practical)
+//   11 Q10 growth_plan                    (Section 6 of 7 · Practical)
+//   12 Q11 brand-specific closing         (Section 7 of 7 · Closing)
+//   13 sign-off                           (Section 7 of 7 · Closing)
 //   14 success
 const SUCCESS_IDX = 14;
 const LAST_INTERACTIVE_IDX = 13;
@@ -179,16 +186,19 @@ const SECTION_BY_IDX: Record<number, SectionDef> = {
 };
 const SECTION_TOTAL = 7;
 
-// Static decreasing time estimate, keyed by sections completed (0..7).
-// Real timer would be anxiety-inducing; this is a vibe-based heuristic.
+// PR 112 (Ashly app review): drop the per-section decreasing estimate
+// in favor of a single "Less than 5 minutes" cap. Confident, doesn't
+// ramble, and matches the framing on the journey card. Keyed map kept
+// (vs. a single constant) only so the consumer at app-meta-time
+// doesn't need to change.
 const TIME_LEFT_BY_SECTIONS_DONE: Record<number, string> = {
-  0: "About 10 minutes",
-  1: "About 8 minutes",
-  2: "About 7 minutes",
-  3: "About 5 minutes",
-  4: "About 4 minutes",
-  5: "About 3 minutes",
-  6: "About 2 minutes",
+  0: "Less than 5 minutes",
+  1: "Less than 5 minutes",
+  2: "Less than 5 minutes",
+  3: "Less than 5 minutes",
+  4: "Less than 5 minutes",
+  5: "Less than 5 minutes",
+  6: "Less than 5 minutes",
 };
 
 function sectionForIdx(idx: number): SectionDef {
@@ -276,6 +286,7 @@ export function ApplicationRenderer({
   candidate,
   leaderName,
   brandSlug,
+  brandName,
   prefilledZip,
   prefilledPhone,
   initialAnswers,
@@ -600,6 +611,7 @@ export function ApplicationRenderer({
         onChange={(patch) => setA(patch)}
         progressPct={p}
         eyebrow={`Chapter 2 of 4 · Question 5 of ${TOTAL_QUESTIONS}`}
+        brandName={brandName}
         onBack={goBack}
         onNext={() =>
           advanceWithSave([

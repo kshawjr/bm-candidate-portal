@@ -1020,18 +1020,16 @@ function StepRenderer({
   if (step.content_type === "slides") {
     const raw = step.config?.slides;
     const slides = (Array.isArray(raw) ? raw : []) as Slide[];
-    // PR 39: pass next-step context so the slides renderer can show a
-    // handoff card after the last image slide that previews where the
-    // candidate is heading.
-    const nextStep = stepsInChapter[step.position + 1] ?? null;
+    // PR 112: the virtual handoff card was removed, so we no longer pass
+    // nextStepLabel / nextStepIsApplication. The candidate goes from the
+    // last image slide straight into finish() — step transition video, if
+    // any, then onComplete.
     return (
       <>
         <SlidesRenderer
           slides={slides}
           onComplete={onTourComplete}
           disabled={tourPending}
-          nextStepLabel={nextStep?.label ?? null}
-          nextStepIsApplication={nextStep?.content_type === "application"}
           candidate={candidate}
           stepTransitionVideo={stepTransitionVideo}
           onDismissStepTransitionVideo={onDismissStepTransitionVideo}
@@ -1087,6 +1085,7 @@ function StepRenderer({
         candidate={candidate}
         leaderName={leaderName}
         brandSlug={brandSlug}
+        brandName={brandName}
         prefilledZip={prefilledZip}
         prefilledPhone={prefilledPhone}
         initialAnswers={initialApplicationAnswers}
