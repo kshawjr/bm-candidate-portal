@@ -9,6 +9,10 @@ import {
   type CaptionSize,
   type Slide,
 } from "./slide-types";
+import {
+  StepTransitionVideoPopup,
+  type StepTransitionVideoConfig,
+} from "@/components/portal/step-transition-video-popup";
 
 // Re-export so existing client-side imports of these symbols from
 // `slides-renderer` keep resolving. Server-side code (e.g.
@@ -37,6 +41,18 @@ interface Props {
   /** PR 58: candidate context used by `applySlideTemplate` to resolve
    *  `{{first_name}}` in heading/caption text. */
   candidate?: { first_name?: string | null };
+  /** Transition video to play between the handoff click and onComplete.
+   *  Null = no video configured, or already dismissed (filtered upstream
+   *  in app/portal/[token]/page.tsx). The renderer just trusts the
+   *  passed config and fires if non-null. Inline trigger replaces the
+   *  cinematic-shell's effect-based trigger from PRs 102–104, which was
+   *  brittle across router.refresh boundaries. */
+  stepTransitionVideo?: StepTransitionVideoConfig | null;
+  /** Dismissal binding for the inline video. Server-bound in page.tsx;
+   *  forwarded into StepTransitionVideoPopup. */
+  onDismissStepTransitionVideo?: (
+    stepId: string,
+  ) => Promise<{ success: boolean }>;
 }
 
 const HANDOFF_LOADING_MS = 700;
@@ -49,8 +65,12 @@ export function SlidesRenderer({
   nextStepIsApplication = false,
   onSlideViewed,
   candidate,
+  stepTransitionVideo = null,
+  onDismissStepTransitionVideo,
 }: Props) {
   const [idx, setIdx] = useState(0);
+  const [pendingVideo, setPendingVideo] =
+    useState<StepTransitionVideoConfig | null>(null);
   const reduceMotion = useReducedMotion();
 
   // Fire slide_viewed once per index change. Skips the handoff index
@@ -102,8 +122,35 @@ export function SlidesRenderer({
     }
   };
 
+  // The handoff CTA does one of two things:
+  //   1. If a step transition video is configured for this step and
+  //      hasn't been dismissed yet, surface it inline before advancing.
+  //      The "Setting things up…" loader stays out of the way until
+  //      after the video closes — the video itself is the loading
+  //      gesture in that case.
+  //   2. Otherwise fall through to the existing 700ms loader → advance.
   const finish = () => {
     if (transitioning || disabled) return;
+    if (stepTransitionVideo && !pendingVideo) {
+      setPendingVideo(stepTransitionVideo);
+      return;
+    }
+    setTransitioning(true);
+    window.setTimeout(() => {
+      onComplete();
+    }, HANDOFF_LOADING_MS);
+  };
+
+  const handleTransitionVideoDismiss = async (stepId: string) => {
+    if (!onDismissStepTransitionVideo) return { success: false };
+    return onDismissStepTransitionVideo(stepId);
+  };
+
+  const handleTransitionVideoDismissed = () => {
+    setPendingVideo(null);
+    // Fire the loader → advance chain immediately. The video already
+    // bridged the visual gap, so we don't need the 700ms wait here —
+    // the candidate just clicked Continue and expects motion.
     setTransitioning(true);
     window.setTimeout(() => {
       onComplete();
@@ -253,6 +300,15 @@ export function SlidesRenderer({
           </button>
         )}
       </div>
+
+      {pendingVideo && (
+        <StepTransitionVideoPopup
+          key={pendingVideo.stepId}
+          config={pendingVideo}
+          onDismiss={handleTransitionVideoDismiss}
+          onDismissed={handleTransitionVideoDismissed}
+        />
+      )}
     </div>
   );
 }
