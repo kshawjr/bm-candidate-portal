@@ -2,13 +2,15 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 
-// 10 seconds of "candidate has been present with the content" is enough
+// 25 seconds of "candidate has been present with the content" is enough
 // commitment signal to release the Continue button. Stronger than
 // "always visible" (skips without engagement), weaker than "wait for
 // ended" (punishes long videos). Timer is on POPUP MOUNT time, not
-// playback time — pausing the video still releases the button at 10s,
+// playback time — pausing the video still releases the button at 25s,
 // because the signal we want is presence, not strict watch-through.
-const DISMISS_GATE_MS = 10_000;
+// PR 124 bumped from 10s → 25s for stronger engagement on the
+// transition videos that frame each step's purpose.
+const DISMISS_GATE_MS = 25_000;
 
 export interface StepTransitionVideoConfig {
   stepId: string;

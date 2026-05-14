@@ -5,9 +5,9 @@ import { parseVideoSource, type VideoProvider } from "@/lib/video-source";
 
 // Match the step-transition-video popup's presence gate. Chapter videos
 // are iframe embeds (YouTube / Vimeo), so we can't read playback state
-// to decide engagement — the 10s wall-clock timer is the uniform
-// signal across both popup types.
-const DISMISS_GATE_MS = 10_000;
+// to decide engagement — the 25s wall-clock timer is the uniform
+// signal across both popup types. PR 124 bumped 10s → 25s.
+const DISMISS_GATE_MS = 25_000;
 
 export interface ChapterVideoConfig {
   chapterKey: string;
