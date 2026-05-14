@@ -233,11 +233,11 @@ export function SlidesRenderer({
       {idx === 0 && (
         <div className="slide-tap-hint-wrap" aria-hidden="true">
           <div className="slide-tap-hint">
-            <span className="slide-tap-hint-label">Tap to continue</span>
+            <span className="slide-tap-hint-label">Start here</span>
             <svg
               className="slide-tap-hint-arrow"
-              width="32"
-              height="32"
+              width="40"
+              height="40"
               viewBox="0 0 32 32"
               fill="none"
               stroke="currentColor"
@@ -245,7 +245,7 @@ export function SlidesRenderer({
               strokeLinecap="round"
               strokeLinejoin="round"
             >
-              <path d="M6 16 L24 16 M18 10 L24 16 L18 22" />
+              <path d="M16 6 L16 24 M10 18 L16 24 L22 18" />
             </svg>
           </div>
         </div>
