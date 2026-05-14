@@ -85,12 +85,26 @@ export async function createOrResetTestCandidate(
   }
   const brandId = brand.id as string;
 
-  const { data: rep } = await core
-    .from("reps")
-    .select("id")
-    .eq("brand_id", brandId)
-    .limit(1)
+  // Preserve any existing rep assignment across resets. The previous
+  // brand_id-based lookup didn't actually work — bmave-core.reps has
+  // no brand_id column — so `rep` was always null and the upsert
+  // clobbered assigned_rep_id to null on every reset, breaking the
+  // schedule step (no rep → no calendar). Reading the current value
+  // by email here lets a one-time manual assignment survive resets:
+  // admins SQL-update once and it sticks.
+  //
+  // First-time creation: no existing row → preservedRepId is null →
+  // candidate created with assigned_rep_id null, matching the prior
+  // behavior for new candidates. Production candidates that come
+  // through the zoho-lead-created webhook are unaffected; they don't
+  // pass through this path.
+  const { data: existingCandidate } = await core
+    .from("candidates")
+    .select("assigned_rep_id")
+    .eq("email", config.email)
     .maybeSingle();
+  const preservedRepId =
+    (existingCandidate?.assigned_rep_id as string | null) ?? null;
 
   const { data: candidate, error: cErr } = await core
     .from("candidates")
@@ -101,7 +115,7 @@ export async function createOrResetTestCandidate(
         last_name: config.lastName,
         brand_id: brandId,
         lifecycle_stage: "candidate",
-        assigned_rep_id: (rep?.id as string | undefined) ?? null,
+        assigned_rep_id: preservedRepId,
       },
       { onConflict: "email" },
     )
