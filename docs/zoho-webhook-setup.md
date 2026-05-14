@@ -20,6 +20,14 @@ and is reachable at `POST /api/webhooks/zoho-lead-updated` under
 whichever host the portal is deployed at
 (`cpflightdeck.bmave.com/api/webhooks/zoho-lead-updated` for prod).
 
+The route URL is historical — the implementation is **module-agnostic**.
+The Deluge function below sends a `module` field with each payload, so
+the same function (and the same webhook URL) can be wired to Contacts
+or Deals workflow rules later without code changes on this side. Today
+only `module: "Leads"` is fully implemented; `Contacts` and `Deals` are
+dispatched but return `501 not_implemented` until their upstream
+automations exist.
+
 ---
 
 ## Step 1 — Create the `Portal_Unlocks` picklist
@@ -72,11 +80,15 @@ Zoho CRM → Setup → Automation → Workflow Rules → **Create Rule**:
 - **Method:** POST
 - **Body Type:** Form-Data → Custom (raw JSON)
 - **Custom body** — paste this template (Zoho replaces `${...}` with
-  the field values at fire time):
+  the field values at fire time). The `module` field is a static
+  string the workflow rule sets; the webhook routes on it so the same
+  endpoint can later serve Contacts and Deals rules without code
+  changes here:
 
   ```json
   {
-    "lead_id": "${Leads.Lead Id}",
+    "record_id": "${Leads.Lead Id}",
+    "module": "Leads",
     "modified_time": "${Leads.Modified Time}",
     "Portal_Unlocks": ${Leads.Portal_Unlocks},
     "Owner": {
@@ -105,6 +117,62 @@ either:
   setting `ZOHO_WEBHOOK_SECRET=""` (the webhook returns 500 in this
   case — don't ship this).
 
+### Deluge custom function (module-agnostic)
+
+The Workflow Rule action is set to *Custom Function* and calls
+`notifyPortalUnlocksWebhook(recordId, moduleName)`. For the Leads rule,
+pass `recordId = ${Leads.Lead Id}` (mapped via the rule's argument
+mapping) and `moduleName = "Leads"` as a static value. Future rules on
+Contacts / Deals call the same function with `moduleName = "Contacts"`
+or `"Deals"` — no code change on this side.
+
+```deluge
+void automation.notifyPortalUnlocksWebhook(int recordId, string moduleName)
+{
+    record = zoho.crm.getRecordById(moduleName, recordId);
+
+    unlocksRaw = ifnull(record.get("Portal_Unlocks"), "");
+    unlocksList = list();
+    if(unlocksRaw != "")
+    {
+        unlocksList = unlocksRaw.toList(";");
+    }
+
+    ownerMap = ifnull(record.get("Owner"), map());
+    ownerEmail = ifnull(ownerMap.get("email"), "");
+    ownerId = ifnull(ownerMap.get("id"), "");
+
+    payload = map();
+    payload.put("record_id", recordId.toString());
+    payload.put("module", moduleName);
+    payload.put("modified_time", zoho.currenttime.toString("yyyy-MM-dd'T'HH:mm:ssXXX"));
+    payload.put("Portal_Unlocks", unlocksList);
+
+    ownerPayload = map();
+    ownerPayload.put("email", ownerEmail);
+    ownerPayload.put("id", ownerId);
+    payload.put("Owner", ownerPayload);
+
+    headers = map();
+    headers.put("Content-Type", "application/json");
+
+    response = invokeurl
+    [
+        url: "https://cpflightdeck.bmave.com/api/webhooks/zoho-lead-updated"
+        type: POST
+        parameters: payload.toString()
+        headers: headers
+    ];
+
+    info "Webhook response: " + response.toString();
+}
+```
+
+To add HMAC signing, extend the function to compute
+`zoho.encryption.hmacSha256(secret, payload.toString())` and put it on
+the `X-Zoho-Webhook-Signature` header. The portal webhook accepts both
+hex and base64 encodings.
+
 The HMAC verification accepts both hex and base64 encodings — see
 `verifySignature` in the route file.
 
@@ -124,19 +192,56 @@ After creating the rule:
    `event_type = 'zoho_lead_updated'`, `status = 'success'`, and an
    `error_message` summarizing the applied updates.
 
+### Direct POST test
+
+Useful for verifying the webhook path without going through Zoho.
+Replace `<sig>` with a valid HMAC (or unset `ZOHO_WEBHOOK_SECRET`
+locally):
+
+```bash
+curl -X POST https://cpflightdeck.bmave.com/api/webhooks/zoho-lead-updated \
+  -H "Content-Type: application/json" \
+  -H "X-Zoho-Webhook-Signature: <sig>" \
+  -d '{
+    "record_id": "5380286000072096013",
+    "module": "Leads",
+    "modified_time": "2026-05-14T12:00:00-04:00",
+    "Portal_Unlocks": ["webinar_unlocked"],
+    "Owner": {"email": "kevin@bmave.com", "id": "123"}
+  }'
+```
+
+Expected: `200 { ok: true, candidate_id, updates: [...] }`.
+
 ### Dedup test
 
-POST the same payload twice in quick succession (use `curl` against
-the webhook URL with `--header 'X-Zoho-Webhook-Signature: <sig>'`).
-The second response should be `{ ok: true, dedup: true }` with no DB
-writes. Re-edit the Lead (which bumps `modified_time`) and the
-webhook processes normally — the dedup key is `lead_id-modified_time`.
+POST the same payload twice in quick succession. The second response
+should be `{ ok: true, dedup: true }` with no DB writes. The dedup
+key is `module-record_id-modified_time`, so a Lead and a Contact
+with the same numeric ID won't collide once Contacts comes online.
+Re-edit the Lead in Zoho (which bumps `modified_time`) and the
+webhook processes normally.
 
 ### Invalid-key test
 
 Set `Portal_Unlocks` in Zoho to include `webniar_unlocked` (typo).
 The webhook should drop the typo and not write it to `unlocked_keys`.
 Confirm via the `webhook_events` row and a direct DB check.
+
+### Unimplemented-module test
+
+Send a payload with `module: "Contacts"` (or `"Deals"`). The
+dispatcher returns `501 { ok: false, reason: "not_implemented",
+module: "Contacts" }` cleanly — no crash, no DB writes, audit row
+gets `status = "noop"` with `error_message = "module_not_implemented:Contacts"`.
+
+### Old-payload-shape test
+
+Send a payload with the old `lead_id` field instead of `record_id`.
+The webhook returns `400 { error: "Missing required fields:
+record_id and modified_time" }`. The shape changed in a clean break
+— there's no grace period for the old payload. Update the Deluge
+function to send `record_id` + `module`.
 
 ---
 
