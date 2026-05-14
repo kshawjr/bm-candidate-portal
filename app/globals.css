@@ -1339,6 +1339,30 @@ html::-webkit-scrollbar-thumb:hover {
   flex-wrap: wrap;
 }
 
+/* PR 123: Continue button restored after PR 113 added the waiting
+   step. Sits below the closing card to give the candidate a clear
+   way to advance from book → wait. Right-aligned on desktop to match
+   the slides handoff CTA; full-width on mobile so it's an easy tap
+   target. Border-top separator keeps it distinct from the closing
+   card framing above. */
+.schedule-booked-continue {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 24px;
+  margin-top: 24px;
+  border-top: 1px solid var(--border-strong);
+  padding-bottom: max(0px, var(--safe-area-inset-bottom));
+}
+@media (max-width: 768px) {
+  .schedule-booked-continue {
+    justify-content: stretch;
+  }
+  .schedule-booked-continue .slide-nav-btn {
+    width: 100%;
+    justify-self: stretch;
+  }
+}
+
 /* ---- application content type ---- */
 .app-screen {
   max-width: 640px;

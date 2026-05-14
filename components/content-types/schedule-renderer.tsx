@@ -452,6 +452,7 @@ function BookedView({
   advisorName,
   brandShortName,
   onReschedule,
+  onContinue,
 }: {
   booking: ExistingBooking;
   timezone: string;
@@ -459,9 +460,11 @@ function BookedView({
   advisorName: string | null;
   brandShortName: string;
   onReschedule: () => Promise<void>;
-  /** Retained in the parent's call site for back-compat with PR 39's
-   *  step-advance plumbing, but no longer rendered as a button. The
-   *  portal effectively ends at booking for now (PR 43). */
+  /** Advance to the next step (typically the waiting screen). Re-added
+   *  as a visible button after PR #113 introduced the waiting step —
+   *  the prop existed since PR #39 but PR #43 deliberately hid the
+   *  button because at the time the portal ended at booking. That's
+   *  no longer true; book → wait is the canonical Chapter 2 flow. */
   onContinue: () => void;
 }) {
   const [rescheduling, startReschedule] = useTransition();
@@ -547,15 +550,27 @@ function BookedView({
         </button>
       </div>
 
-      {/* PR 43: closing card replaces the old "Continue →" button. The
-          portal effectively ends at booking — there's no next step yet,
-          and pretending there is read as broken UX. */}
+      {/* PR 43 added this closing card to fill the dead space when
+          booking was the last step. PR 113 introduced the waiting
+          step after this one, so the "Continue →" button below now
+          handles the advance — the closing copy stays as soft framing
+          before the candidate moves on. */}
       <div className="schedule-booked-closing">
         <h4>You&apos;re all set.</h4>
         <p>
           Your Growth Director will be in touch after the call to discuss
           next steps.
         </p>
+      </div>
+
+      <div className="schedule-booked-continue">
+        <button
+          type="button"
+          className="slide-nav-btn primary"
+          onClick={onContinue}
+        >
+          Continue →
+        </button>
       </div>
     </div>
   );
