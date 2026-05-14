@@ -57,6 +57,9 @@ export interface ChapterVideoInitial {
   ctaDismissLabel: string;
   isActive: boolean;
   updatedAt: string | null;
+  /** PR 127: admin-picked sound flag. See ChapterVideoFormData in
+   *  app/admin/structure/popup-actions.ts for the tri-state semantics. */
+  hasSound: boolean | null;
 }
 
 export interface ChapterCompleteInitial {
@@ -1627,6 +1630,7 @@ function ChapterVideoDrawer({
     description: initial?.description ?? "",
     ctaDismissLabel: initial?.ctaDismissLabel ?? "Got it",
     isActive: initial?.isActive ?? true,
+    hasSound: initial?.hasSound ?? null,
   }));
   const [pending, startTransition] = useTransition();
   const [uploading, setUploading] = useState(false);
@@ -1874,6 +1878,50 @@ function ChapterVideoDrawer({
               placeholder="Optional caption shown below the video."
             />
           </label>
+
+          {/* PR 127: sound behavior. Three-state radio matches the unified
+              playback rule the renderer applies (PR 125):
+                true  → paused with controls, candidate taps play with sound
+                false → autoplay muted, no controls (explicit ambient)
+                null  → use default (renderer treats null as ambient too,
+                        but stored as null so legacy/unset reads consistently
+                        with the rest of the system). */}
+          <fieldset className="adm-field">
+            <legend className="adm-form-label">Sound behavior</legend>
+            <div className="adm-radio-row">
+              <label className="adm-radio">
+                <input
+                  type="radio"
+                  name={`chapter-video-has-sound-${chapter.chapter_key}`}
+                  checked={form.hasSound === true}
+                  onChange={() => setForm({ ...form, hasSound: true })}
+                />
+                <span>Has sound — paused with controls, candidate taps play</span>
+              </label>
+              <label className="adm-radio">
+                <input
+                  type="radio"
+                  name={`chapter-video-has-sound-${chapter.chapter_key}`}
+                  checked={form.hasSound === false}
+                  onChange={() => setForm({ ...form, hasSound: false })}
+                />
+                <span>Silent — autoplays muted (ambient)</span>
+              </label>
+              <label className="adm-radio">
+                <input
+                  type="radio"
+                  name={`chapter-video-has-sound-${chapter.chapter_key}`}
+                  checked={form.hasSound === null || form.hasSound === undefined}
+                  onChange={() => setForm({ ...form, hasSound: null })}
+                />
+                <span>Use default (silent)</span>
+              </label>
+            </div>
+            <span className="adm-form-hint">
+              &ldquo;Has sound&rdquo; videos require a user tap on mobile
+              (browser policy). Silent videos autoplay automatically.
+            </span>
+          </fieldset>
 
           <label className="adm-field">
             <span className="adm-form-label">Dismiss button label</span>

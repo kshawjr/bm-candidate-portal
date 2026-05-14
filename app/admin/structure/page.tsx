@@ -88,7 +88,7 @@ export default async function StructurePage({ searchParams }: Props) {
     app
       .from("chapter_videos")
       .select(
-        "chapter_key, title, video_url, video_provider, description, cta_dismiss_label, is_active, updated_at",
+        "chapter_key, title, video_url, video_provider, description, cta_dismiss_label, is_active, updated_at, has_sound",
       )
       .eq("brand_id", brand.id),
     app
@@ -185,6 +185,7 @@ export default async function StructurePage({ searchParams }: Props) {
       ctaDismissLabel: (row.cta_dismiss_label as string | null) ?? "Got it",
       isActive: Boolean(row.is_active),
       updatedAt: (row.updated_at as string | null) ?? null,
+      hasSound: (row as { has_sound?: boolean | null }).has_sound ?? null,
     };
   }
 

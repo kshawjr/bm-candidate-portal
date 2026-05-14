@@ -18,12 +18,10 @@ export interface ChapterVideoConfig {
   ctaDismissLabel: string;
   /** PR 125 — unified video playback rule (shared with SlideVideo and
    *  StepTransitionVideoPopup). true → paused with controls, candidate
-   *  taps play with sound. false / null / undefined → ambient autoplay
-   *  muted. The chapter_videos table doesn't have a has_sound column
-   *  today; every existing row reads as undefined here, which the
-   *  unified rule treats as ambient. A future schema migration + admin
-   *  field can let admins opt individual chapter videos into has_sound
-   *  = true ("watch this with sound") without further code changes. */
+   *  taps play with sound. false / null → ambient autoplay muted.
+   *  Wired end-to-end as of PR 127: chapter_videos.has_sound column +
+   *  admin radio group in /admin/structure → ChapterVideoDrawer +
+   *  loader thread-through in app/portal/[token]/page.tsx. */
   hasSound?: boolean | null;
 }
 
