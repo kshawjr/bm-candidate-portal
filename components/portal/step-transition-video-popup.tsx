@@ -8,8 +8,8 @@ import { useEffect, useRef, useState, useTransition } from "react";
 // ended" (punishes long videos). Timer is on POPUP MOUNT time, not
 // playback time — pausing the video still releases the button at 25s,
 // because the signal we want is presence, not strict watch-through.
-// (Value also bumped to 25s in PR 124 — same destination, safe to
-// merge in either order.)
+// PR 124 bumped from 10s → 25s for stronger engagement on the
+// transition videos that frame each step's purpose.
 const DISMISS_GATE_MS = 25_000;
 
 export interface StepTransitionVideoConfig {

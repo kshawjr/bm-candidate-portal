@@ -824,14 +824,22 @@ export function CinematicShell({
           </div>
         )}
 
-        {bannersByChapterKey[selectedChapter.chapter_key] && (
-          <ChapterIntroBanner
-            // Re-key per chapter so collapse/expand state resets when the
-            // candidate moves between chapters.
-            key={selectedChapter.chapter_key}
-            config={bannersByChapterKey[selectedChapter.chapter_key]}
-          />
-        )}
+        {bannersByChapterKey[selectedChapter.chapter_key] &&
+          selectedStep?.content_type !== "application" && (
+            <ChapterIntroBanner
+              // Re-key per chapter so collapse/expand state resets when the
+              // candidate moves between chapters.
+              key={selectedChapter.chapter_key}
+              config={bannersByChapterKey[selectedChapter.chapter_key]}
+            />
+          )}
+        {/* PR 124: skip the chapter intro banner on the application step.
+            The banner is designed to be persistent throughout the chapter
+            for context, but on the application screen it's redundant with
+            the application's own intro chrome and pushes the question
+            content down. Same banner still renders on the brand tour
+            (chapter 1 step 1), the schedule step (chapter 2 step 1), and
+            every other non-application step within their chapter. */}
 
         <div className="cine-step-content">
           {selectedStep ? (

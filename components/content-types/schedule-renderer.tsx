@@ -12,6 +12,8 @@ import {
   type Slot,
 } from "@/lib/schedule-shared";
 import { CantScheduleForm } from "@/components/portal/cant-schedule-form";
+import { BottomSheet } from "@/components/ui/bottom-sheet";
+import { useIsMobile } from "@/lib/hooks/use-is-mobile";
 
 const WEEKDAY_HEADERS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -198,6 +200,12 @@ function PickerView({
   const [confirming, setConfirming] = useState<Slot | null>(null);
   const [booking, startBooking] = useTransition();
   const [bookError, setBookError] = useState<string | null>(null);
+  // PR 124: drives the modal-vs-BottomSheet branch below. null (SSR /
+  // pre-mount) falls through the desktop modal branch — matches the
+  // pre-PR-119 hydration pattern. Brief flash of the desktop overlay
+  // on mobile devices is acceptable since the confirm modal is opened
+  // by an explicit slot tap, not on initial paint.
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     let cancelled = false;
@@ -393,45 +401,96 @@ function PickerView({
       )}
 
       {confirming && (
-        <div className="adm-drawer-backdrop" role="dialog" aria-modal="true">
-          <div className="schedule-confirm">
-            <h4>Confirm this time?</h4>
-            <p className="schedule-confirm-time">
-              {formatDayLabel(confirming.start, config.timezone)} at{" "}
-              {formatTimeLabel(confirming.start, config.timezone)}{" "}
-              {formatTzAbbrev(confirming.start, config.timezone)}
-            </p>
-            <p className="schedule-confirm-meta">
-              {config.duration_minutes}-minute video call
-              {advisorFirstName ? ` with ${advisorFirstName}` : ""}.
-              You&apos;ll get a calendar invite with the Google Meet
-              link right away.
-            </p>
-            {bookError && (
-              <div className="adm-form-error adm-form-error-inline">
-                {bookError}
+        isMobile ? (
+          /* PR 124: full-screen overlay is cramped on phones — slide the
+             confirm content up as a BottomSheet instead. Backdrop tap,
+             Escape, and drag-down-to-close all map to setConfirming(null).
+             Desktop modal (else-branch below) unchanged. */
+          <BottomSheet
+            isOpen={true}
+            onClose={() => setConfirming(null)}
+            ariaLabel="Confirm booking"
+            maxHeightPercent={75}
+          >
+            <div className="schedule-confirm schedule-confirm--bottomsheet">
+              <h4>Confirm this time?</h4>
+              <p className="schedule-confirm-time">
+                {formatDayLabel(confirming.start, config.timezone)} at{" "}
+                {formatTimeLabel(confirming.start, config.timezone)}{" "}
+                {formatTzAbbrev(confirming.start, config.timezone)}
+              </p>
+              <p className="schedule-confirm-meta">
+                {config.duration_minutes}-minute video call
+                {advisorFirstName ? ` with ${advisorFirstName}` : ""}.
+                You&apos;ll get a calendar invite with the Google Meet
+                link right away.
+              </p>
+              {bookError && (
+                <div className="adm-form-error adm-form-error-inline">
+                  {bookError}
+                </div>
+              )}
+              <div className="schedule-confirm-actions">
+                <button
+                  type="button"
+                  className="slide-nav-btn"
+                  onClick={() => setConfirming(null)}
+                  disabled={booking}
+                >
+                  Back
+                </button>
+                <button
+                  type="button"
+                  className="slide-nav-btn primary"
+                  onClick={handleConfirmBook}
+                  disabled={booking}
+                >
+                  {booking ? "Booking…" : "Confirm"}
+                </button>
               </div>
-            )}
-            <div className="schedule-confirm-actions">
-              <button
-                type="button"
-                className="slide-nav-btn"
-                onClick={() => setConfirming(null)}
-                disabled={booking}
-              >
-                Back
-              </button>
-              <button
-                type="button"
-                className="slide-nav-btn primary"
-                onClick={handleConfirmBook}
-                disabled={booking}
-              >
-                {booking ? "Booking…" : "Confirm"}
-              </button>
+            </div>
+          </BottomSheet>
+        ) : (
+          <div className="adm-drawer-backdrop" role="dialog" aria-modal="true">
+            <div className="schedule-confirm">
+              <h4>Confirm this time?</h4>
+              <p className="schedule-confirm-time">
+                {formatDayLabel(confirming.start, config.timezone)} at{" "}
+                {formatTimeLabel(confirming.start, config.timezone)}{" "}
+                {formatTzAbbrev(confirming.start, config.timezone)}
+              </p>
+              <p className="schedule-confirm-meta">
+                {config.duration_minutes}-minute video call
+                {advisorFirstName ? ` with ${advisorFirstName}` : ""}.
+                You&apos;ll get a calendar invite with the Google Meet
+                link right away.
+              </p>
+              {bookError && (
+                <div className="adm-form-error adm-form-error-inline">
+                  {bookError}
+                </div>
+              )}
+              <div className="schedule-confirm-actions">
+                <button
+                  type="button"
+                  className="slide-nav-btn"
+                  onClick={() => setConfirming(null)}
+                  disabled={booking}
+                >
+                  Back
+                </button>
+                <button
+                  type="button"
+                  className="slide-nav-btn primary"
+                  onClick={handleConfirmBook}
+                  disabled={booking}
+                >
+                  {booking ? "Booking…" : "Confirm"}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
+        )
       )}
 
       <CantScheduleForm

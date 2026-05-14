@@ -819,7 +819,13 @@ html::-webkit-scrollbar-thumb:hover {
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
   gap: 16px;
-  margin-top: 24px;
+  /* PR 124: floor the gap between the slide canvas (or caption) and
+     the footer so the layout doesn't change shape based on whether a
+     slide has a caption. With caption the caption's own bottom margin
+     dominates; without caption this is what keeps Next from feeling
+     wedged against the image. vh scales the floor on larger displays
+     without inflating on phones. */
+  margin-top: max(40px, 4vh);
 }
 .slide-nav-btn {
   font-family: var(--font-body);
@@ -3286,6 +3292,29 @@ html::-webkit-scrollbar-thumb:hover {
   font-weight: 600;
   color: #111827;
 }
+/* PR 124: see .cine-intro-banner-prose comment — same heading + bullet
+   support in the popup variant. */
+.pp-popup-prose h4 {
+  font-family: var(--font-heading, var(--font-body, system-ui));
+  font-weight: var(--heading-weight, 600);
+  font-size: 15px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: #111827;
+  margin: 16px 0 8px;
+}
+.pp-popup-prose h4:first-child {
+  margin-top: 0;
+}
+.pp-popup-prose ul {
+  margin: 8px 0 14px;
+  padding-left: 22px;
+  list-style: disc;
+}
+.pp-popup-prose li {
+  margin: 4px 0;
+  line-height: 1.55;
+}
 .pp-popup-bullets {
   list-style: none;
   margin: 18px 0 0;
@@ -3691,6 +3720,31 @@ html::-webkit-scrollbar-thumb:hover {
 .cine-intro-banner-prose strong {
   font-weight: 600;
   color: #111827;
+}
+/* PR 124: mini-markdown now renders ## headings as <h4> and "- " lines
+   as <ul><li>. Style them inside the prose container so admin-authored
+   body_md (chapter-intro banner / popup, step transition popup) doesn't
+   leak raw "## What we'll cover" or "- bullet" text to candidates. */
+.cine-intro-banner-prose h4 {
+  font-family: var(--font-heading, var(--font-body, system-ui));
+  font-weight: var(--heading-weight, 600);
+  font-size: 14px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: #111827;
+  margin: 14px 0 6px;
+}
+.cine-intro-banner-prose h4:first-child {
+  margin-top: 0;
+}
+.cine-intro-banner-prose ul {
+  margin: 6px 0 12px;
+  padding-left: 20px;
+  list-style: disc;
+}
+.cine-intro-banner-prose li {
+  margin: 2px 0;
+  line-height: 1.55;
 }
 .cine-intro-banner-prose.is-clamped {
   position: relative;
