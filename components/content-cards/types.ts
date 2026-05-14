@@ -6,6 +6,23 @@
 // hardcoded section label (or shows it as a new label above the card for
 // types that didn't have one before). Blank/null falls back to the
 // per-type default. See DEFAULT_CARD_TITLES below.
+//
+// Every card also supports optional unlock-gating fields (PR for content
+// card unlock gating). When `unlock_key` is set, the card only renders
+// for candidates whose unlocked_keys array contains that key. By default
+// a locked card is hidden entirely; setting `show_locked_teaser: true`
+// renders a placeholder LockedTeaserCard with `locked_teaser_text` (or
+// "Unlocks soon" if absent) instead. See lib/card-visibility.ts for the
+// resolution logic.
+
+import type { UnlockKey } from "@/lib/unlock-keys";
+
+/** Optional fields applied to every card variant via intersection. */
+export interface CardGating {
+  unlock_key?: UnlockKey;
+  show_locked_teaser?: boolean;
+  locked_teaser_text?: string;
+}
 
 export interface FactCardData {
   type: "fact";
@@ -78,13 +95,19 @@ export interface JourneyAheadCardData {
   ];
 }
 
-export type ContentCard =
+// Intersection with CardGating means TS narrowing on `card.type` still
+// works (each variant remains distinguishable by its `type` discriminator),
+// but all variants get the three optional gating fields without per-variant
+// declarations.
+export type ContentCard = (
   | FactCardData
   | QuoteCardData
   | AwardsCardData
   | PersonasCardData
   | PhotoCardData
-  | JourneyAheadCardData;
+  | JourneyAheadCardData
+) &
+  CardGating;
 
 /**
  * Per-type default labels. Awards, personas, and journey_ahead each show

@@ -1965,6 +1965,58 @@ html::-webkit-scrollbar-thumb:hover {
   font-family: var(--font-body);
 }
 
+/* Locked-teaser placeholder. Same outer dimensions as a real card so
+   the strip layout doesn't jump when the unlock fires. Subtle shimmer
+   on the background to hint "something's coming"; turned off under
+   prefers-reduced-motion. */
+.cc-locked-teaser {
+  background:
+    linear-gradient(
+      110deg,
+      var(--surface-soft) 0%,
+      color-mix(in srgb, var(--brand-primary) 4%, var(--surface-soft)) 50%,
+      var(--surface-soft) 100%
+    );
+  background-size: 200% 100%;
+  border: 1px dashed var(--cin-border);
+  color: var(--text-muted);
+  min-height: 88px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: cc-locked-shimmer 3.5s ease-in-out infinite;
+}
+.cc-locked-teaser-inner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.cc-locked-teaser-icon {
+  color: var(--text-muted);
+  opacity: 0.7;
+  flex-shrink: 0;
+}
+.cc-locked-teaser-text {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+@keyframes cc-locked-shimmer {
+  0%,
+  100% {
+    background-position: 100% 50%;
+  }
+  50% {
+    background-position: 0% 50%;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cc-locked-teaser {
+    animation: none !important;
+    background: var(--surface-soft);
+  }
+}
+
 /* Small-caps label used by cards with internal section headers
    (personas, awards). Standardized so it reads consistently. */
 .cc-card-section-label {

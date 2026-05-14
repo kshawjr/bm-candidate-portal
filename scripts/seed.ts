@@ -254,6 +254,35 @@ const BRAND_MARKETING: Record<BrandCode, BrandMarketing> = {
 // gets cards in PR 8; every other step's content_cards column stays [].
 // Card schema: see components/content-cards/types.ts.
 type SeedContentCard = Record<string, unknown>;
+
+// Demo cards for Chapter 2 (first_chat / book). Both gate on
+// `discovery_call_unlocked` so a rep adding that to the candidate's
+// Zoho Lead via Portal_Unlocks flips both cards on at once. One shows
+// a placeholder teaser while locked; the other stays hidden until the
+// unlock so candidates don't see action-items copy that has nothing
+// to act on yet. Brand-agnostic — no brand-specific variants.
+const POST_CALL_DEMO_CARDS: SeedContentCard[] = [
+  {
+    type: "fact",
+    title: "Your call recording",
+    headline: "Recording posts here within an hour",
+    body: "We'll drop a Loom link here once our team's wrap-up is done.",
+    unlock_key: "discovery_call_unlocked",
+    show_locked_teaser: true,
+    locked_teaser_text: "Available after your call",
+  },
+  {
+    type: "fact",
+    title: "What we discussed",
+    headline: "Action items from your call",
+    body: "Your franchise guide will note any next steps here.",
+    unlock_key: "discovery_call_unlocked",
+    // No `show_locked_teaser` → card stays hidden until unlocked. Avoids
+    // candidates seeing an empty action-items prompt before they've had
+    // the call.
+  },
+];
+
 const BRAND_TOUR_CONTENT_CARDS: Record<BrandCode, SeedContentCard[]> = {
   ht: [
     // Marker card — the journey-ahead roadmap. Sits at index 0 so the
@@ -730,10 +759,16 @@ async function seedSteps(brandId: string, code: BrandCode) {
       }
       // Only Chapter 1 Step 1 (explore/tour) ships with content cards in PR 8.
       // Every other step gets [] so the strip renders nothing.
-      const cards: SeedContentCard[] =
-        chapterKey === "explore" && step.key === "tour"
-          ? BRAND_TOUR_CONTENT_CARDS[code]
-          : [];
+      // Exception: Chapter 2's schedule step seeds two demo gated cards
+      // so the unlock-gating system has something to show in the live
+      // demo. Both gate on `discovery_call_unlocked` — one with teaser,
+      // one hidden entirely until unlocked.
+      let cards: SeedContentCard[] = [];
+      if (chapterKey === "explore" && step.key === "tour") {
+        cards = BRAND_TOUR_CONTENT_CARDS[code];
+      } else if (chapterKey === "first_chat" && step.key === "book") {
+        cards = POST_CALL_DEMO_CARDS;
+      }
       rows.push({
         brand_id: brandId,
         chapter_key: chapterKey,

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
-import { createAppAnonClient } from "@/lib/supabase-app";
+import { useCandidateUnlocks } from "@/lib/hooks/use-candidate-unlocks";
 import { useReducedMotion } from "@/lib/use-reduced-motion";
 import { resolveTemplate, type TemplateContext } from "@/lib/template-resolver";
 import type { UnlockKey } from "@/lib/unlock-keys";
@@ -36,13 +36,14 @@ export interface WaitingConfig {
 
 interface Props {
   config: WaitingConfig;
-  /** candidates_in_portal.id — used for the realtime subscription
-   *  filter (`id=eq.${candidateInPortalId}`). Distinct from
-   *  bmave-core.candidates.id; the unlocked_keys column lives on the
-   *  portal session table. */
-  candidateInPortalId: string;
-  /** Snapshot of unlocked_keys at server-render time. The realtime
-   *  subscription takes over from this once it connects. */
+  /** bmave-core.candidates.id. The shared useCandidateUnlocks hook
+   *  filters candidates_in_portal by `candidate_id=eq.${candidateId}`
+   *  so every renderer using the hook (waiting, card strip, future
+   *  consumers) keys off the same stable identifier. */
+  candidateId: string;
+  /** Snapshot of unlocked_keys at server-render time. Seeds the hook's
+   *  state so the first paint matches the candidate's actual unlock
+   *  state — no flash from [] → real value. */
   initialUnlockedKeys: string[];
   templateContext: TemplateContext;
   /** The candidate's upcoming discovery-call booking, or null. Pulled
@@ -77,7 +78,7 @@ const FADE_IN_DELAY_MS = 100; // stagger between fade-out and fade-in start
 
 export function WaitingRenderer({
   config,
-  candidateInPortalId,
+  candidateId,
   initialUnlockedKeys,
   templateContext,
   booking,
@@ -91,51 +92,36 @@ export function WaitingRenderer({
   const reduceMotion = useReducedMotion();
   const initialUnlocked = initialUnlockedKeys.includes(config.unlock_key);
 
+  // Pass null when in admin preview so the hook skips its subscription
+  // — the admin doesn't have a candidate context to read live unlocks
+  // from. Real candidates always pass a real ID.
+  const { unlocks } = useCandidateUnlocks(
+    previewState ? null : candidateId,
+    initialUnlockedKeys,
+  );
+
   // Three visible states: parked, fading (parked→unlocked transition),
   // unlocked. previewState overrides the realtime path so the admin
   // editor can toggle between states without touching the DB.
   const [unlocked, setUnlocked] = useState(initialUnlocked);
   const [fading, setFading] = useState(false);
 
-  // Guard against double-triggers when realtime fires multiple UPDATEs
+  // Guard against double-triggers when the hook fires multiple UPDATEs
   // in quick succession (Zoho re-fires happen).
   const triggeredRef = useRef(initialUnlocked);
 
-  // Realtime subscription on candidates_in_portal. Skipped when
-  // previewState is set (admin editor) — preview is fully local.
+  // React to the hook's `unlocks` array changing — first time it gains
+  // our unlock_key, run the transition. Identical behavior to the old
+  // inline subscription, just sourced from the shared hook.
   useEffect(() => {
     if (previewState) return;
-    if (triggeredRef.current) return; // already unlocked at mount, no need
-
-    const supabase = createAppAnonClient();
-    const channel = supabase
-      .channel(`candidate-${candidateInPortalId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "candidates_in_portal",
-          filter: `id=eq.${candidateInPortalId}`,
-        },
-        (payload) => {
-          const incoming = payload.new as { unlocked_keys?: unknown };
-          const keys = Array.isArray(incoming.unlocked_keys)
-            ? (incoming.unlocked_keys as string[])
-            : [];
-          if (!triggeredRef.current && keys.includes(config.unlock_key)) {
-            triggeredRef.current = true;
-            triggerUnlock();
-          }
-        },
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    if (triggeredRef.current) return;
+    if (unlocks.includes(config.unlock_key)) {
+      triggeredRef.current = true;
+      triggerUnlock();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [candidateInPortalId, config.unlock_key, previewState]);
+  }, [unlocks, config.unlock_key, previewState]);
 
   const triggerUnlock = () => {
     if (reduceMotion) {
