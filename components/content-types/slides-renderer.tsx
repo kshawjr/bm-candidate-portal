@@ -74,22 +74,30 @@ export function SlidesRenderer({
   const reduceMotion = useReducedMotion();
   // Skip the initial-mount scroll: candidates lifting into the slides
   // step may have intentional scroll position (e.g., reading the
-  // journey card below); jumping them to the top on mount would feel
-  // jarring. Subsequent slide changes are the ones we want to reset.
+  // journey card below); jumping them on mount would feel jarring.
+  // Subsequent slide changes are the ones we want to recenter.
   const didInitialMountRef = useRef(false);
+  const slideCanvasRef = useRef<HTMLDivElement | null>(null);
 
-  // Reset scroll on every slide change. The page itself is the
-  // scroller (verified via DOM inspection — no inner scrollable
-  // container holds the slides), so scroll the window directly
-  // rather than walking refs. PR 107 used scrollIntoView on a
-  // renderer ref but picked up a sr-only <p> inside as the
-  // scrollable ancestor, which moved the wrong element.
+  // Center the slide image (.slide-canvas) in the viewport on every
+  // slide change. Caption length no longer affects slide visibility
+  // — the image always lands in the same comfortable position with
+  // chapter nav above and Next button below. Smooth behavior so the
+  // transition feels intentional. PR 108 used window.scrollTo({ top:
+  // 0 }) but that pinned to absolute top, which felt jolting and
+  // pushed the image off-screen when captions were long. The
+  // handoff slide has no .slide-canvas, so the optional-chained ref
+  // silently no-ops there — leftover scroll position from the prior
+  // slide is fine for that short sentinel screen.
   useEffect(() => {
     if (!didInitialMountRef.current) {
       didInitialMountRef.current = true;
       return;
     }
-    window.scrollTo({ top: 0, behavior: "auto" });
+    slideCanvasRef.current?.scrollIntoView({
+      block: "center",
+      behavior: "smooth",
+    });
   }, [idx]);
 
   // Fire slide_viewed once per index change. Skips the handoff index
@@ -218,7 +226,7 @@ export function SlidesRenderer({
               {applySlideTemplate(slide!.heading, candidate ?? {})}
             </h2>
           )}
-          <div className="slide-canvas">
+          <div className="slide-canvas" ref={slideCanvasRef}>
             {slide!.media_type === "video" && slide!.video_url ? (
               <SlideVideo
                 key={slide!.id}
