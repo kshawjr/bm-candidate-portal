@@ -423,7 +423,7 @@ export function WaitingEditor({ stepId, initialConfig, saveConfig }: Props) {
           <div className="adm-preview-frame">
             <WaitingRenderer
               config={config}
-              candidateInPortalId="preview-only"
+              candidateId="preview-only"
               initialUnlockedKeys={[]}
               templateContext={{
                 call_type: "Discovery Call",

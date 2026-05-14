@@ -177,16 +177,18 @@ export interface ShellProps {
    *  prefilledZip — application's verification screen pre-populates and
    *  shows a "Prefilled from your record" hint. */
   prefilledPhone: string | null;
-  // Waiting content-type inputs (PR for waiting + unlock system).
+  // Waiting + content-card unlock inputs.
   //
-  // candidates_in_portal.id, used by the waiting renderer to subscribe to
-  // realtime UPDATEs on its own row when Portal_Unlocks changes upstream
-  // in Zoho. Distinct from bmave-core.candidates.id — the portal session
-  // row is the realtime channel, not the cross-project identity row.
-  candidateInPortalId: string;
-  /** Snapshot of unlocked_keys at server-render time. The realtime
-   *  subscription on the waiting renderer takes over from this once it
-   *  connects, so the prop only matters for the initial render. */
+  // bmave-core.candidates.id — used by the shared useCandidateUnlocks
+  // hook (lib/hooks/use-candidate-unlocks.ts) which filters
+  // candidates_in_portal by candidate_id=eq.${candidateId}. The hook
+  // is consumed by WaitingRenderer (for the parked → unlocked
+  // transition) and by ContentCardStrip (for per-card unlock_key
+  // gating). One canonical identifier across both surfaces.
+  candidateId: string;
+  /** Snapshot of unlocked_keys at server-render time. Threaded to the
+   *  hook's `initialKeys` param so the first paint matches the actual
+   *  unlock state — no flash from [] → real value while the hook fetches. */
   initialUnlockedKeys: string[];
   // Schedule content-type inputs
   bookingsByStepId: Record<string, ExistingBooking>;
@@ -278,7 +280,7 @@ export function CinematicShell({
   isApplicationSubmitted,
   prefilledZip,
   prefilledPhone,
-  candidateInPortalId,
+  candidateId,
   initialUnlockedKeys,
   bookingsByStepId,
   hasAssignedRep,
@@ -835,7 +837,7 @@ export function CinematicShell({
                 isApplicationSubmitted={isApplicationSubmitted}
                 prefilledZip={prefilledZip}
                 prefilledPhone={prefilledPhone}
-                candidateInPortalId={candidateInPortalId}
+                candidateId={candidateId}
                 initialUnlockedKeys={initialUnlockedKeys}
                 brandSlug={brandSlug}
                 onSaveApplicationAnswer={onSaveApplicationAnswer}
@@ -874,6 +876,8 @@ export function CinematicShell({
                 currentChapterKey={
                   chapters[currentChapterIdx]?.chapter_key ?? null
                 }
+                candidateId={candidateId}
+                initialUnlockedKeys={initialUnlockedKeys}
               />
             </>
           ) : (
@@ -964,7 +968,7 @@ function StepRenderer({
   isApplicationSubmitted,
   prefilledZip,
   prefilledPhone,
-  candidateInPortalId,
+  candidateId,
   initialUnlockedKeys,
   brandSlug,
   onSaveApplicationAnswer,
@@ -1003,7 +1007,7 @@ function StepRenderer({
   isApplicationSubmitted: boolean;
   prefilledZip: string | null;
   prefilledPhone: string | null;
-  candidateInPortalId: string;
+  candidateId: string;
   initialUnlockedKeys: string[];
   brandSlug: string;
   onSaveApplicationAnswer: (
@@ -1173,7 +1177,7 @@ function StepRenderer({
     return (
       <WaitingRenderer
         config={step.config as unknown as WaitingConfig}
-        candidateInPortalId={candidateInPortalId}
+        candidateId={candidateId}
         initialUnlockedKeys={initialUnlockedKeys}
         templateContext={{
           call_type: scheduleConfig?.event_label ?? "Discovery Call",

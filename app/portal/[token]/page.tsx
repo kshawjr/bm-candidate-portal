@@ -918,7 +918,7 @@ export default async function PortalTokenPage({
         isApplicationSubmitted={Boolean(session.is_app_submitted)}
         prefilledZip={(session.prefilled_zip as string | null) ?? null}
         prefilledPhone={(session.prefilled_phone as string | null) ?? null}
-        candidateInPortalId={session.id as string}
+        candidateId={session.candidate_id as string}
         initialUnlockedKeys={
           Array.isArray(session.unlocked_keys)
             ? (session.unlocked_keys as string[])
