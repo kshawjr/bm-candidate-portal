@@ -28,15 +28,20 @@ interface Props {
  * Step-level transition video. Plays the first time a candidate
  * advances past the step it's attached to.
  *
- * Modeled on ChapterVideoPopup but with three step-level deviations:
- *   1. Autoplay muted (browser policy) — never auto-unmutes; if the
- *      admin marked the video has_sound, a "Tap for sound" pill
- *      surfaces over the player.
- *   2. The Continue button is enabled the whole time, but becomes the
- *      visual primary action only after the video ends.
- *   3. MP4-only — the admin form uploads a file rather than pasting a
- *      provider URL, so we render <video> directly with no provider
- *      branching.
+ * Sound behavior is driven by the admin's has_sound setting:
+ *   - has_sound: true  → video starts PAUSED with controls visible.
+ *                        Candidate clicks play and gets full-volume
+ *                        audio (no muted-autoplay handshake).
+ *   - has_sound: false → video AUTOPLAYS muted (ambient / silent).
+ *   - has_sound: null  → treat as false (safe default — autoplay muted
+ *                        for legacy rows that predate the field).
+ *
+ * The "Tap for sound" pill that previous revisions used to bridge
+ * muted-autoplay → user-unmute is gone. Native <video controls> covers
+ * the play / pause / volume interactions in both modes.
+ *
+ * The Continue button is enabled the whole time but becomes the visual
+ * primary action only after the video ends (data-emphasis).
  */
 export function StepTransitionVideoPopup({
   config,
@@ -45,7 +50,12 @@ export function StepTransitionVideoPopup({
 }: Props) {
   const [closing, setClosing] = useState(false);
   const [pending, startTransition] = useTransition();
-  const [muted, setMuted] = useState(true);
+  // hasSound === true is the only mode that disables autoplay /
+  // unmutes. Anything else (false or null) gets the silent-autoplay
+  // treatment so we never need to ask the candidate to unmute.
+  const shouldAutoplay = config.hasSound !== true;
+  const initialMuted = config.hasSound !== true;
+  const [muted, setMuted] = useState(initialMuted);
   const [ended, setEnded] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -77,19 +87,6 @@ export function StepTransitionVideoPopup({
     });
   };
 
-  const unmute = () => {
-    const el = videoRef.current;
-    if (el) {
-      el.muted = false;
-      // Some browsers require an explicit play() after unmute if the
-      // gesture didn't already start playback.
-      el.play().catch(() => {});
-    }
-    setMuted(false);
-  };
-
-  const showSoundPill = config.hasSound === true && muted && !ended;
-
   return (
     <div
       className={`pp-popup-backdrop${closing ? " is-closing" : ""}`}
@@ -98,7 +95,7 @@ export function StepTransitionVideoPopup({
       aria-label="Transition video"
     >
       <div className="pp-popup pp-popup-welcome">
-        <div className="pp-popup-video" style={{ position: "relative" }}>
+        <div className="pp-popup-video">
           <video
             ref={videoRef}
             className="pp-popup-video-el"
@@ -107,41 +104,11 @@ export function StepTransitionVideoPopup({
             controls
             playsInline
             preload="metadata"
-            autoPlay
+            autoPlay={shouldAutoplay}
             muted={muted}
             onVolumeChange={(e) => setMuted(e.currentTarget.muted)}
             onEnded={() => setEnded(true)}
           />
-          {showSoundPill && (
-            <button
-              type="button"
-              className="tap-for-sound is-visible"
-              onClick={unmute}
-              aria-label="Tap for sound"
-              style={{
-                position: "absolute",
-                bottom: 56,
-                right: 16,
-              }}
-            >
-              <svg
-                aria-hidden="true"
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M11 5 6 9H2v6h4l5 4V5z" />
-                <line x1="22" y1="9" x2="16" y2="15" />
-                <line x1="16" y1="9" x2="22" y2="15" />
-              </svg>
-              <span>Tap for sound</span>
-            </button>
-          )}
         </div>
 
         <div className="pp-popup-foot">
