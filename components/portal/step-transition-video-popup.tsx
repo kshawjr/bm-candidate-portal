@@ -2,6 +2,14 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 
+// 10 seconds of "candidate has been present with the content" is enough
+// commitment signal to release the Continue button. Stronger than
+// "always visible" (skips without engagement), weaker than "wait for
+// ended" (punishes long videos). Timer is on POPUP MOUNT time, not
+// playback time — pausing the video still releases the button at 10s,
+// because the signal we want is presence, not strict watch-through.
+const DISMISS_GATE_MS = 10_000;
+
 export interface StepTransitionVideoConfig {
   stepId: string;
   videoUrl: string;
@@ -40,8 +48,17 @@ interface Props {
  * muted-autoplay → user-unmute is gone. Native <video controls> covers
  * the play / pause / volume interactions in both modes.
  *
- * The Continue button is enabled the whole time but becomes the visual
- * primary action only after the video ends (data-emphasis).
+ * Continue visibility:
+ *   - has_sound: true  → hidden for the first 10 seconds after the
+ *                        popup opens, then visible. Time-based, not
+ *                        playback-based — pausing doesn't extend it.
+ *   - has_sound: false → visible immediately (silent video is ambient).
+ *   - has_sound: null  → treated as false (immediate, safe default).
+ *
+ * The `ended` state is still tracked so the button picks up primary
+ * data-emphasis once playback finishes — even if the 10s gate already
+ * released it, the visual weight upgrades when the video actually
+ * completes.
  */
 export function StepTransitionVideoPopup({
   config,
@@ -57,6 +74,7 @@ export function StepTransitionVideoPopup({
   const initialMuted = config.hasSound !== true;
   const [muted, setMuted] = useState(initialMuted);
   const [ended, setEnded] = useState(false);
+  const [tenSecondsElapsed, setTenSecondsElapsed] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
 
   // Lock page scroll while the popup is open. Restored on unmount even
@@ -68,6 +86,20 @@ export function StepTransitionVideoPopup({
       document.body.style.overflow = prev;
     };
   }, []);
+
+  // 10s presence gate — only applies when the admin asked for sound.
+  // Silent videos collapse immediately so the candidate isn't forced
+  // to stare at ambient context.
+  useEffect(() => {
+    if (config.hasSound !== true) {
+      setTenSecondsElapsed(true);
+      return;
+    }
+    const t = window.setTimeout(() => {
+      setTenSecondsElapsed(true);
+    }, DISMISS_GATE_MS);
+    return () => window.clearTimeout(t);
+  }, [config.hasSound]);
 
   const handleDismiss = () => {
     if (pending || closing) return;
@@ -112,14 +144,14 @@ export function StepTransitionVideoPopup({
         </div>
 
         <div className="pp-popup-foot">
-          {/* Continue visibility tracks the watch contract:
-              - has_sound=true: hidden until the video ends (or
-                playback completes some other way) so the candidate
-                actually hears what the admin asked them to hear
-              - has_sound=false (or null): visible immediately —
-                silent video is ambient context, candidate isn't
-                under any obligation to watch it through */}
-          {(config.hasSound !== true || ended) && (
+          {/* Continue visibility tracks the presence gate:
+              - has_sound=true: hidden for 10 seconds after the popup
+                opens, then visible regardless of playback state.
+                Pause / scrub doesn't extend the timer — the signal
+                is candidate-was-present, not strictly-watched.
+              - has_sound=false (or null): visible immediately because
+                tenSecondsElapsed is forced true in the timer effect. */}
+          {(config.hasSound !== true || tenSecondsElapsed) && (
             <button
               type="button"
               className="pp-popup-cta"
