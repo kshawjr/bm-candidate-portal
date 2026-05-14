@@ -27,16 +27,8 @@ interface Props {
   slides: Slide[];
   onComplete: () => void;
   disabled?: boolean;
-  /** PR 39: drives the handoff card's preview text. The cinematic shell
-   *  reads the next step in the chapter and passes its label here. Null
-   *  when this is the last step of the chapter. */
-  nextStepLabel?: string | null;
-  /** PR 39: lets the handoff card use the friendlier "Tell us about
-   *  yourself" framing when the next step is the Chapter 1 application. */
-  nextStepIsApplication?: boolean;
   /** PR 54: per-slide tracking. Fires once whenever the candidate lands
-   *  on a real image slide (not the virtual handoff card at the end).
-   *  Wired by CinematicShell to logEventByTokenAction. */
+   *  on a slide. Wired by CinematicShell to logEventByTokenAction. */
   onSlideViewed?: (slideId: string, slideIndex: number) => void;
   /** PR 58: candidate context used by `applySlideTemplate` to resolve
    *  `{{first_name}}` in heading/caption text. */
@@ -61,8 +53,6 @@ export function SlidesRenderer({
   slides,
   onComplete,
   disabled = false,
-  nextStepLabel = null,
-  nextStepIsApplication = false,
   onSlideViewed,
   candidate,
   stepTransitionVideo = null,
@@ -100,19 +90,17 @@ export function SlidesRenderer({
     });
   }, [idx]);
 
-  // Fire slide_viewed once per index change. Skips the handoff index
-  // (idx === slides.length) since that's a sentinel screen, not a real
-  // slide. Includes the initial mount (slide 0) so the entry is tracked.
+  // Fire slide_viewed once per index change. Includes the initial mount
+  // (slide 0) so the entry is tracked.
   useEffect(() => {
     if (!onSlideViewed) return;
-    if (idx >= slides.length) return;
     const slide = slides[idx];
     if (!slide) return;
     onSlideViewed(slide.id, idx);
   }, [idx, slides, onSlideViewed]);
-  // PR 39: brief "Setting things up..." overlay between the handoff click
-  // and the actual onComplete fire — bridges the visual gap before the
-  // application form mounts.
+  // PR 39: brief "Setting things up..." overlay between the last-slide
+  // click and the actual onComplete fire — bridges the visual gap before
+  // the next step mounts.
   const [transitioning, setTransitioning] = useState(false);
 
   if (slides.length === 0) {
@@ -127,29 +115,22 @@ export function SlidesRenderer({
     );
   }
 
-  // PR 39: virtual handoff card sits at index === slides.length, AFTER all
-  // real image slides. Increases the dot count by one and adds a "Next:"
-  // moment before stepping out of the slides experience entirely.
-  const totalScreens = slides.length + 1;
-  const isHandoff = idx === slides.length;
-  const slide = isHandoff
-    ? null
-    : slides[Math.min(idx, slides.length - 1)];
+  const slide = slides[Math.min(idx, slides.length - 1)];
 
   const goPrev = () => setIdx((i) => Math.max(0, i - 1));
+  // PR 112: removed the virtual handoff card that used to sit at
+  // idx === slides.length. The last slide's "Almost done →" button now
+  // calls finish() directly, so the candidate goes straight from the
+  // last image into the step transition video (or onComplete if none).
   const goNext = () => {
-    if (isHandoff) {
-      // Already on the handoff card — handled by the dedicated CTA below.
-      return;
-    }
-    if (idx === slides.length - 1) {
-      setIdx(slides.length);
-    } else {
+    if (idx < slides.length - 1) {
       setIdx((i) => i + 1);
+    } else {
+      finish();
     }
   };
 
-  // The handoff CTA does one of two things:
+  // finish() does one of two things on last-slide click:
   //   1. If a step transition video is configured for this step and
   //      hasn't been dismissed yet, surface it inline before advancing.
   //      The "Setting things up…" loader stays out of the way until
@@ -195,81 +176,53 @@ export function SlidesRenderer({
 
   return (
     <div className="slides-renderer">
-      {isHandoff ? (
-        <div className="slides-handoff-card">
-          <div className="slides-handoff-eyebrow">Next up</div>
-          <h2 className="slides-handoff-heading">
-            {nextStepIsApplication
-              ? "Now we'd like to get to know you."
-              : `Next: ${nextStepLabel ?? "the next step"}`}
-          </h2>
-          <p className="slides-handoff-sub">
-            {nextStepIsApplication
-              ? "A short application — about 10 minutes. Your answers save automatically."
-              : "Click below when you're ready."}
-          </p>
-          <button
-            type="button"
-            className="slides-handoff-cta"
-            onClick={finish}
-            disabled={disabled || transitioning}
-          >
-            {nextStepIsApplication
-              ? "Tell us about yourself →"
-              : "Continue →"}
-          </button>
-        </div>
-      ) : (
-        <>
-          {slide!.heading && (
-            <h2 className="slide-heading">
-              {applySlideTemplate(slide!.heading, candidate ?? {})}
-            </h2>
-          )}
-          <div className="slide-canvas" ref={slideCanvasRef}>
-            {slide!.media_type === "video" && slide!.video_url ? (
-              <SlideVideo
-                key={slide!.id}
-                src={slide!.video_url}
-                poster={slide!.poster_url ?? null}
-                hasSound={slide!.has_sound === true}
-                reduceMotion={reduceMotion}
-              />
-            ) : (
-              <Image
-                key={slide!.id}
-                src={slide!.image_url}
-                alt={slide!.alt ?? ""}
-                width={1280}
-                height={720}
-                priority
-                sizes="(max-width: 960px) 100vw, 900px"
-                // Slide images are web-ready exports (PNG from Canva, SVG from
-                // placeholder services). Skip Next's image optimizer so SVGs
-                // work too — the source is already sized appropriately.
-                unoptimized
-              />
-            )}
-          </div>
+      {slide.heading && (
+        <h2 className="slide-heading">
+          {applySlideTemplate(slide.heading, candidate ?? {})}
+        </h2>
+      )}
+      <div className="slide-canvas" ref={slideCanvasRef}>
+        {slide.media_type === "video" && slide.video_url ? (
+          <SlideVideo
+            key={slide.id}
+            src={slide.video_url}
+            poster={slide.poster_url ?? null}
+            hasSound={slide.has_sound === true}
+            reduceMotion={reduceMotion}
+          />
+        ) : (
+          <Image
+            key={slide.id}
+            src={slide.image_url}
+            alt={slide.alt ?? ""}
+            width={1280}
+            height={720}
+            priority
+            sizes="(max-width: 960px) 100vw, 900px"
+            // Slide images are web-ready exports (PNG from Canva, SVG from
+            // placeholder services). Skip Next's image optimizer so SVGs
+            // work too — the source is already sized appropriately.
+            unoptimized
+          />
+        )}
+      </div>
 
-          {slide!.caption && (
-            // <div> wrapper (not <p>) so the sanitized HTML can contain
-            // its own <p> elements — TipTap emits one paragraph per
-            // block, and per-paragraph text-align lives on those inner
-            // <p>s. A <p> inside a <p> would auto-close the outer and
-            // strip the size class.
-            <div
-              className={`slide-caption slide-caption--${slide!.caption_size ?? "md"}`}
-              // Caption is sanitized server-side at save time
-              // (sanitizeCaptionHtml in app/admin/content/actions.ts) —
-              // only <strong>, <em>, <a href>, and <p style="text-align">
-              // survive. Existing plain-text captions render as-is.
-              dangerouslySetInnerHTML={{
-                __html: applySlideTemplate(slide!.caption, candidate ?? {}),
-              }}
-            />
-          )}
-        </>
+      {slide.caption && (
+        // <div> wrapper (not <p>) so the sanitized HTML can contain
+        // its own <p> elements — TipTap emits one paragraph per
+        // block, and per-paragraph text-align lives on those inner
+        // <p>s. A <p> inside a <p> would auto-close the outer and
+        // strip the size class.
+        <div
+          className={`slide-caption slide-caption--${slide.caption_size ?? "md"}`}
+          // Caption is sanitized server-side at save time
+          // (sanitizeCaptionHtml in app/admin/content/actions.ts) —
+          // only <strong>, <em>, <a href>, and <p style="text-align">
+          // survive. Existing plain-text captions render as-is.
+          dangerouslySetInnerHTML={{
+            __html: applySlideTemplate(slide.caption, candidate ?? {}),
+          }}
+        />
       )}
 
       <div className="slide-controls">
@@ -283,28 +236,21 @@ export function SlidesRenderer({
         </button>
 
         <div className="slide-dots" role="tablist">
-          {Array.from({ length: totalScreens }).map((_, i) => {
+          {Array.from({ length: slides.length }).map((_, i) => {
             const cls = [
               "slide-dot",
               i === idx && "active",
               i < idx && "done",
-              // Visually distinguish the handoff dot so the dot row hints
-              // at the change of pace at the end of the deck.
-              i === slides.length && "handoff",
             ]
               .filter(Boolean)
               .join(" ");
-            const label =
-              i === slides.length
-                ? "Handoff card"
-                : `Slide ${i + 1} of ${slides.length}`;
             return (
               <button
                 key={i}
                 type="button"
                 className={cls}
                 onClick={() => setIdx(i)}
-                aria-label={label}
+                aria-label={`Slide ${i + 1} of ${slides.length}`}
                 aria-current={i === idx ? "true" : undefined}
                 disabled={disabled}
               />
@@ -312,20 +258,14 @@ export function SlidesRenderer({
           })}
         </div>
 
-        {isHandoff ? (
-          // The handoff card has its own primary CTA above; render a hidden
-          // spacer here to keep the controls row balanced.
-          <span className="slide-nav-btn-placeholder" aria-hidden="true" />
-        ) : (
-          <button
-            type="button"
-            className="slide-nav-btn primary"
-            onClick={goNext}
-            disabled={disabled}
-          >
-            {idx === slides.length - 1 ? "Almost done →" : "Next →"}
-          </button>
-        )}
+        <button
+          type="button"
+          className="slide-nav-btn primary"
+          onClick={goNext}
+          disabled={disabled}
+        >
+          {idx === slides.length - 1 ? "Almost done →" : "Next →"}
+        </button>
       </div>
 
       {pendingVideo && (

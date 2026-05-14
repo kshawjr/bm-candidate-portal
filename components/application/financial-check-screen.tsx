@@ -19,6 +19,11 @@ interface Props {
   onChange: (patch: Partial<FinancialAnswers>) => void;
   progressPct: number;
   eyebrow: string;
+  /** Display name of the candidate's brand (e.g. "Hounds Town"). Inlined
+   *  into the intro copy so the prompt reads concrete to the candidate
+   *  instead of "this opportunity." Sourced from bmave-core.brands.name
+   *  via the cinematic-shell pass-through. */
+  brandName: string;
   onBack: () => void;
   onNext: () => void;
   pending: boolean;
@@ -29,6 +34,7 @@ export function FinancialCheckScreen({
   onChange,
   progressPct,
   eyebrow,
+  brandName,
   onBack,
   onNext,
   pending,
@@ -85,18 +91,15 @@ export function FinancialCheckScreen({
       >
         <span className="financial-intro-emoji" aria-hidden="true">💰</span>
         <p className="financial-intro-copy">
-          Alright — a few money questions coming up. We&apos;re not judging,
-          and none of this automatically disqualifies you. It just helps us
-          match you to the right territory.
+          Let&apos;s make sure you&apos;re financially qualified to invest in
+          your own {brandName} location. No documents needed — just ranges.
+          Pick the bracket that fits.
         </p>
       </div>
 
       <div className="financial-section financial-section-elevated">
         <div className="financial-section-header">
           <h2 className="financial-section-eyebrow">Quick financial check</h2>
-          <p className="financial-section-subhead">
-            No documents needed yet — just ranges. Pick the bracket that fits.
-          </p>
         </div>
 
         <div className="financial-question visible">
@@ -122,7 +125,7 @@ export function FinancialCheckScreen({
         </div>
 
         <div className={`financial-question${showCreditScore ? " visible" : ""}`}>
-          <p className="financial-question-prompt">What&apos;s your credit range?</p>
+          <p className="financial-question-prompt">What&apos;s your credit score?</p>
           <ChipGroupField
             value={value.credit_score_range}
             onChange={(v) => onChange({ credit_score_range: v })}
