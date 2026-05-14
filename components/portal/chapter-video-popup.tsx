@@ -3,6 +3,12 @@
 import { useEffect, useState, useTransition } from "react";
 import { parseVideoSource, type VideoProvider } from "@/lib/video-source";
 
+// Match the step-transition-video popup's presence gate. Chapter videos
+// are iframe embeds (YouTube / Vimeo), so we can't read playback state
+// to decide engagement — the 10s wall-clock timer is the uniform
+// signal across both popup types.
+const DISMISS_GATE_MS = 10_000;
+
 export interface ChapterVideoConfig {
   chapterKey: string;
   title: string | null;
@@ -32,6 +38,7 @@ interface Props {
 export function ChapterVideoPopup({ config, onDismiss, onDismissed }: Props) {
   const [closing, setClosing] = useState(false);
   const [pending, startTransition] = useTransition();
+  const [tenSecondsElapsed, setTenSecondsElapsed] = useState(false);
 
   // Lock page scroll while the popup is open. Restored on unmount even if
   // dismiss fails halfway.
@@ -41,6 +48,17 @@ export function ChapterVideoPopup({ config, onDismiss, onDismissed }: Props) {
     return () => {
       document.body.style.overflow = prev;
     };
+  }, []);
+
+  // 10s presence gate — applied uniformly to every chapter video since
+  // iframes don't expose audio state. Pausing / muting in the embed
+  // doesn't affect the timer; it's purely "how long has the popup
+  // been open."
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      setTenSecondsElapsed(true);
+    }, DISMISS_GATE_MS);
+    return () => window.clearTimeout(t);
   }, []);
 
   const handleDismiss = () => {
@@ -112,14 +130,16 @@ export function ChapterVideoPopup({ config, onDismiss, onDismissed }: Props) {
         )}
 
         <div className="pp-popup-foot">
-          <button
-            type="button"
-            className="pp-popup-cta"
-            onClick={handleDismiss}
-            disabled={pending || closing}
-          >
-            {pending ? "…" : config.ctaDismissLabel}
-          </button>
+          {tenSecondsElapsed && (
+            <button
+              type="button"
+              className="pp-popup-cta"
+              onClick={handleDismiss}
+              disabled={pending || closing}
+            >
+              {pending ? "…" : config.ctaDismissLabel}
+            </button>
+          )}
         </div>
       </div>
     </div>
