@@ -38,6 +38,31 @@ body {
   line-height: 1.5;
 }
 
+/* Visible page scrollbar — gives candidates an affordance that there's
+   more content below the fold. Sits on `html` (the document root)
+   because the page scrolls at the window level, not inside any
+   .portal-cinematic descendant. Browser-native fade-on-idle behavior
+   handles the auto-hide on macOS / iOS; on other platforms the thumb
+   stays at its 25% opacity, which is subtle enough not to draw
+   focus. */
+html {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 0, 0, 0.25) transparent;
+}
+html::-webkit-scrollbar {
+  width: 8px;
+}
+html::-webkit-scrollbar-track {
+  background: transparent;
+}
+html::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 4px;
+}
+html::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.4);
+}
+
 /* =========================================================================
    Cinematic shell — left sidebar (280px) + top step strip + content area
    ========================================================================= */

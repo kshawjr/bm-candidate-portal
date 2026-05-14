@@ -72,28 +72,24 @@ export function SlidesRenderer({
   const [pendingVideo, setPendingVideo] =
     useState<StepTransitionVideoConfig | null>(null);
   const reduceMotion = useReducedMotion();
-  const rendererRef = useRef<HTMLDivElement | null>(null);
   // Skip the initial-mount scroll: candidates lifting into the slides
   // step may have intentional scroll position (e.g., reading the
   // journey card below); jumping them to the top on mount would feel
   // jarring. Subsequent slide changes are the ones we want to reset.
   const didInitialMountRef = useRef(false);
 
-  // Reset scroll on every slide change. Use scrollIntoView on the
-  // renderer's outer container so this works whether the window
-  // scrolls (today) or some ancestor (future cinematic-shell
-  // refactor). `block: "start"` lands the slide heading at the top
-  // of the viewport, which is what candidates expect after Next /
-  // Back / dot navigation.
+  // Reset scroll on every slide change. The page itself is the
+  // scroller (verified via DOM inspection — no inner scrollable
+  // container holds the slides), so scroll the window directly
+  // rather than walking refs. PR 107 used scrollIntoView on a
+  // renderer ref but picked up a sr-only <p> inside as the
+  // scrollable ancestor, which moved the wrong element.
   useEffect(() => {
     if (!didInitialMountRef.current) {
       didInitialMountRef.current = true;
       return;
     }
-    rendererRef.current?.scrollIntoView({
-      block: "start",
-      behavior: "auto",
-    });
+    window.scrollTo({ top: 0, behavior: "auto" });
   }, [idx]);
 
   // Fire slide_viewed once per index change. Skips the handoff index
@@ -190,7 +186,7 @@ export function SlidesRenderer({
   }
 
   return (
-    <div className="slides-renderer" ref={rendererRef}>
+    <div className="slides-renderer">
       {isHandoff ? (
         <div className="slides-handoff-card">
           <div className="slides-handoff-eyebrow">Next up</div>
