@@ -25,8 +25,15 @@ export const dynamic = "force-dynamic";
 //      cross-project candidate row. Closes backlog item #5 from PR #96,
 //      where rep edits in Zoho didn't propagate without a manual seed.
 
-interface ZohoLeadUpdatedPayload {
-  lead_id?: string | number;
+// Payload is module-agnostic from the Deluge side — the same custom
+// function will eventually serve Contacts and Deals workflow rules
+// too. `record_id` is the Zoho record's ID (Lead.Lead Id today),
+// `module` names which CRM module the record lives in. The route URL
+// stays /api/webhooks/zoho-lead-updated for historical reasons; the
+// implementation is module-aware via the dispatcher below.
+interface ZohoRecordUpdatedPayload {
+  record_id?: string | number;
+  module?: string;
   modified_time?: string;
   Portal_Unlocks?: unknown;
   Owner?: {
@@ -36,10 +43,12 @@ interface ZohoLeadUpdatedPayload {
 }
 
 // In-memory dedup. Zoho occasionally fires twice for the same edit
-// (Workflow Rule retry, browser auto-save). Keyed by lead_id +
-// modified_time so a *legitimate* re-edit (different modified_time)
-// still flows through. TTL deliberately short — long enough to cover
-// Zoho's retry window, short enough to not gum up the next real edit.
+// (Workflow Rule retry, browser auto-save). Keyed by module +
+// record_id + modified_time so a Lead and a Contact with the same
+// numeric ID can't collide once the Contacts path comes online. A
+// *legitimate* re-edit (different modified_time) still flows through.
+// TTL deliberately short — long enough to cover Zoho's retry window,
+// short enough to not gum up the next real edit.
 const recentlyProcessed = new Map<string, number>();
 const DEDUP_TTL_MS = 30_000;
 
@@ -76,6 +85,65 @@ function verifySignature(
   return false;
 }
 
+// Dispatch the Zoho record to the right column on bmave-core.candidates.
+// The webhook URL is /api/webhooks/zoho-lead-updated for historical
+// reasons but the Deluge function calling it is module-agnostic — the
+// payload's `module` field tells us where to look. Returns a tagged
+// result so the route handler can render the right HTTP response
+// without needing a try/catch for the not-implemented branch.
+type CoreClient = ReturnType<typeof createCoreClient>;
+type CandidateRow = { id: string; assigned_rep_id: string | null };
+type FindResult =
+  | { status: "ok"; candidate: CandidateRow }
+  | { status: "not_found" }
+  | { status: "not_implemented"; module: string }
+  | { status: "error"; message: string };
+
+async function findCandidateByZohoRecord(
+  recordId: string,
+  moduleName: string,
+  core: CoreClient,
+): Promise<FindResult> {
+  // Dispatcher in place for all three modules. Contacts and Deals
+  // already have matching columns on bmave-core.candidates
+  // (zoho_contact_id / zoho_deal_id), but the upstream Zoho
+  // automations that would fire those webhooks don't exist yet, so we
+  // short-circuit to not_implemented to avoid silently surfacing
+  // partial behavior. When those flows come online, swap the early
+  // returns for the corresponding column constants and the SELECT
+  // below will run for all three.
+  let column: "zoho_lead_id";
+  switch (moduleName) {
+    case "Leads":
+      column = "zoho_lead_id";
+      break;
+    case "Contacts":
+    case "Deals":
+      return { status: "not_implemented", module: moduleName };
+    default:
+      return { status: "not_implemented", module: moduleName };
+  }
+
+  const { data, error } = await core
+    .from("candidates")
+    .select("id, assigned_rep_id")
+    .eq(column, recordId)
+    .maybeSingle();
+  if (error) {
+    return { status: "error", message: error.message };
+  }
+  if (!data) {
+    return { status: "not_found" };
+  }
+  return {
+    status: "ok",
+    candidate: {
+      id: data.id as string,
+      assigned_rep_id: (data.assigned_rep_id as string | null) ?? null,
+    },
+  };
+}
+
 function arraysEqual(a: string[], b: string[]): boolean {
   if (a.length !== b.length) return false;
   // Order-independent compare — Zoho's multi-select payload doesn't
@@ -105,35 +173,43 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
   }
 
-  let payload: ZohoLeadUpdatedPayload;
+  let payload: ZohoRecordUpdatedPayload;
   try {
-    payload = JSON.parse(rawBody) as ZohoLeadUpdatedPayload;
+    payload = JSON.parse(rawBody) as ZohoRecordUpdatedPayload;
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const leadIdRaw = payload.lead_id;
-  const leadId =
-    typeof leadIdRaw === "string"
-      ? leadIdRaw
-      : typeof leadIdRaw === "number"
-        ? String(leadIdRaw)
+  const recordIdRaw = payload.record_id;
+  const recordId =
+    typeof recordIdRaw === "string"
+      ? recordIdRaw
+      : typeof recordIdRaw === "number"
+        ? String(recordIdRaw)
         : null;
+  // Default to "Leads" so old workflow-rule payloads that haven't been
+  // updated to send `module` still land in the right dispatcher branch
+  // during the rollout window.
+  const moduleName: string =
+    typeof payload.module === "string" && payload.module.trim().length > 0
+      ? payload.module.trim()
+      : "Leads";
   const modifiedTime =
     typeof payload.modified_time === "string" ? payload.modified_time : null;
 
-  if (!leadId || !modifiedTime) {
+  if (!recordId || !modifiedTime) {
     return NextResponse.json(
-      { error: "Missing required fields: lead_id and modified_time" },
+      { error: "Missing required fields: record_id and modified_time" },
       { status: 400 },
     );
   }
 
   // Dedup. The Map grows unbounded in pathological scenarios, so prune
   // expired entries on every call. At Zoho's edit rate, this stays tiny.
+  // Module-scoped so Lead 123 and Contact 123 can't collide.
   const now = Date.now();
   pruneDedup(now);
-  const dedupKey = `${leadId}-${modifiedTime}`;
+  const dedupKey = `${moduleName}-${recordId}-${modifiedTime}`;
   if (recentlyProcessed.has(dedupKey)) {
     return NextResponse.json({ ok: true, dedup: true });
   }
@@ -181,29 +257,34 @@ export async function POST(request: Request) {
   };
 
   try {
-    // Locate the candidate by zoho_lead_id on bmave-core.candidates.
-    // The portal session row joins to this via candidate_id.
-    const { data: candidate, error: lookupErr } = await core
-      .from("candidates")
-      .select("id, assigned_rep_id")
-      .eq("zoho_lead_id", leadId)
-      .maybeSingle();
+    // Module-aware candidate lookup. Today this only resolves Leads;
+    // Contacts and Deals return not_implemented so callers know the
+    // dispatcher path exists but isn't wired yet.
+    const lookup = await findCandidateByZohoRecord(recordId, moduleName, core);
 
-    if (lookupErr) {
-      const message = `candidate lookup failed: ${lookupErr.message}`;
+    if (lookup.status === "not_implemented") {
+      await finalize("noop", null, `module_not_implemented:${lookup.module}`);
+      return NextResponse.json(
+        { ok: false, reason: "not_implemented", module: lookup.module },
+        { status: 501 },
+      );
+    }
+    if (lookup.status === "error") {
+      const message = `candidate lookup failed: ${lookup.message}`;
       await finalize("failed", null, message);
       return NextResponse.json({ error: message }, { status: 500 });
     }
-    if (!candidate) {
-      await finalize("noop", null, "no_candidate_for_lead_id");
+    if (lookup.status === "not_found") {
+      await finalize("noop", null, `no_candidate_for_${moduleName.toLowerCase()}_record`);
       return NextResponse.json({
         ok: false,
-        reason: "no_candidate_for_lead_id",
+        reason: "no_candidate_for_record",
+        module: moduleName,
       });
     }
 
-    const candidateId = candidate.id as string;
-    const currentRepId = (candidate.assigned_rep_id as string | null) ?? null;
+    const candidateId = lookup.candidate.id;
+    const currentRepId = lookup.candidate.assigned_rep_id;
     const updatesApplied: string[] = [];
 
     // ---- 1) Unlock sync ----
