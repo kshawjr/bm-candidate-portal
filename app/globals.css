@@ -63,6 +63,24 @@ html::-webkit-scrollbar-thumb:hover {
   background: rgba(0, 0, 0, 0.4);
 }
 
+/* Scroll-down discovery hint (see components/portal/scroll-down-hint.tsx).
+   translateX stays at -50% so the bounce animates only Y without knocking
+   the chevron out of horizontal-center. */
+@keyframes scroll-hint-bounce {
+  0%,
+  100% {
+    transform: translateX(-50%) translateY(0);
+  }
+  50% {
+    transform: translateX(-50%) translateY(8px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .scroll-down-hint {
+    animation: none !important;
+  }
+}
+
 /* =========================================================================
    Cinematic shell — left sidebar (280px) + top step strip + content area
    ========================================================================= */
