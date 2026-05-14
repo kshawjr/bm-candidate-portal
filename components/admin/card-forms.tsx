@@ -180,6 +180,47 @@ export function QuoteForm({
         recommendedFormat="JPG"
         maxSizeMB={2}
       />
+      {/* PR 126: optional masked hyperlink. Both fields must be set
+          for the link to render in the candidate portal — one without
+          the other is treated as no link rather than a half-broken
+          state. Empty input stores undefined so the JSONB stays
+          minimal. */}
+      <Field label="Link label (optional)">
+        <input
+          type="text"
+          className="adm-input"
+          value={value.link_label ?? ""}
+          onChange={(e) =>
+            onChange({
+              ...value,
+              link_label: e.target.value || undefined,
+            })
+          }
+          placeholder="Connect on LinkedIn →"
+        />
+        <span className="adm-form-hint">
+          The friendly text candidates see. Leave blank if no link.
+        </span>
+      </Field>
+      <Field label="Link URL (optional)">
+        <input
+          type="text"
+          className="adm-input"
+          value={value.link_url ?? ""}
+          onChange={(e) =>
+            onChange({
+              ...value,
+              link_url: e.target.value || undefined,
+            })
+          }
+          placeholder="https://linkedin.com/in/sierra-johnson"
+        />
+        <span className="adm-form-hint">
+          Include the protocol: <code>https://</code>, <code>mailto:</code>,
+          or <code>tel:</code>. External URLs open in a new tab; mailto /
+          tel hand off to the device's native app.
+        </span>
+      </Field>
     </>
   );
 }

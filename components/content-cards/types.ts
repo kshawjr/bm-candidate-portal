@@ -40,6 +40,13 @@ export interface QuoteCardData {
   role: string;
   body: string;
   photo_url?: string;
+  /** Optional masked hyperlink rendered below the author / role block.
+   *  Both fields must be set for the link to render. Admin types the
+   *  full URL including protocol — supports http(s)://, mailto:, tel:.
+   *  Deliberately generic names (link_*, not linkedin_*) so the field
+   *  reuses naturally for other URL types without renaming. */
+  link_url?: string;
+  link_label?: string;
 }
 
 export interface AwardsCardData {
