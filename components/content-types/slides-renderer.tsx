@@ -225,6 +225,32 @@ export function SlidesRenderer({
         />
       )}
 
+      {/* PR 128: slide-1-only attention cue. First-time candidates pause
+          on slide 1 looking for what to do; a bouncing arrow pointing
+          toward Next removes the "where do I tap?" moment. aria-hidden
+          because the Next button is already the semantic CTA; the arrow
+          is purely visual. Hides on any slide change (back, dot, next). */}
+      {idx === 0 && (
+        <div className="slide-tap-hint-wrap" aria-hidden="true">
+          <div className="slide-tap-hint">
+            <span className="slide-tap-hint-label">Tap to continue</span>
+            <svg
+              className="slide-tap-hint-arrow"
+              width="32"
+              height="32"
+              viewBox="0 0 32 32"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="3"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M6 16 L24 16 M18 10 L24 16 L18 22" />
+            </svg>
+          </div>
+        </div>
+      )}
+
       <div className="slide-controls">
         <button
           type="button"
