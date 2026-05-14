@@ -644,52 +644,64 @@ async function seedPortalContent(brandId: string, code: BrandCode) {
 }
 
 async function seedChapters(brandId: string, brandSlug: string) {
-  // As of PR 15, admins manage chapters via /admin/structure. Seed the default
-  // 7-chapter structure only when the brand has never had chapters before. On
-  // re-runs against an existing brand, skip so admin edits aren't clobbered.
+  // PR 117: per-(brand_id, chapter_key) idempotency. The old behavior
+  // bailed if the brand had ANY chapter rows, which meant adding a new
+  // chapter to STAGES never flowed through for existing brands. Now
+  // each chapter is checked independently — new ones get created,
+  // existing ones are left alone so admin edits via /admin/structure
+  // stay authoritative.
   const { data: existing, error: readErr } = await app
     .from("chapters_config")
-    .select("id")
-    .eq("brand_id", brandId)
-    .limit(1);
+    .select("chapter_key")
+    .eq("brand_id", brandId);
   if (readErr) throw new Error(`chapters_config probe failed: ${readErr.message}`);
-  if (existing && existing.length > 0) {
-    console.log(
-      `[seed] chapters_config: ${brandSlug} already has chapters, skipping structure seed`,
-    );
-    return;
+  const existingKeys = new Set(
+    (existing ?? []).map((r) => r.chapter_key as string),
+  );
+
+  let created = 0;
+  let skipped = 0;
+  for (let i = 0; i < STAGES.length; i++) {
+    const stage = STAGES[i];
+    if (existingKeys.has(stage.key)) {
+      console.log(
+        `[seed]   skip existing chapter: ${brandSlug} / ${stage.key}`,
+      );
+      skipped++;
+      continue;
+    }
+    const { error: insertErr } = await app.from("chapters_config").insert({
+      brand_id: brandId,
+      chapter_key: stage.key,
+      position: i,
+      label: stage.label,
+      name: stage.name,
+      icon: stage.icon,
+      content: STAGE_CONTENT[stage.key] ?? {},
+    });
+    if (insertErr) {
+      console.error(
+        `[seed]   failed to create chapter ${stage.key}: ${insertErr.message}`,
+      );
+      continue;
+    }
+    console.log(`[seed]   created chapter: ${brandSlug} / ${stage.key}`);
+    created++;
   }
-
-  const rows = STAGES.map((stage, i) => ({
-    brand_id: brandId,
-    chapter_key: stage.key,
-    position: i,
-    label: stage.label,
-    name: stage.name,
-    icon: stage.icon,
-    content: STAGE_CONTENT[stage.key] ?? {},
-  }));
-
-  const { error } = await app.from("chapters_config").insert(rows);
-  if (error) throw new Error(`chapters_config insert failed: ${error.message}`);
-  console.log(`[seed] chapters_config: ${rows.length} rows for brand ${brandId}`);
+  console.log(
+    `[seed] chapters_config: ${brandSlug} → ${created} created, ${skipped} skipped`,
+  );
 }
 
 async function seedSteps(brandId: string, code: BrandCode) {
-  // Same rationale as seedChapters: admin owns step structure once it exists.
-  // Skip the seed when the brand already has any steps defined.
-  const { data: existingSteps, error: readErr } = await app
-    .from("steps_config")
-    .select("id")
-    .eq("brand_id", brandId)
-    .limit(1);
-  if (readErr) throw new Error(`steps_config probe failed: ${readErr.message}`);
-  if (existingSteps && existingSteps.length > 0) {
-    console.log(
-      `[seed] steps_config: ${code} already has steps, skipping structure seed`,
-    );
-    return;
-  }
+  // PR 117: per-(brand_id, chapter_key, step_key) idempotency. The old
+  // behavior bailed if the brand had ANY steps_config rows, which is
+  // how Chapter 2's "wait" step (PR 113) and the call_prep step from
+  // an earlier PR both silently missed the brands they were supposed
+  // to land on — the brand-level skip swallowed them. Now each step
+  // is checked independently; new ones from CHAPTER_STEPS get inserted,
+  // existing rows are left alone so admin edits via /admin/content
+  // stay authoritative.
 
   type Row = {
     brand_id: string;
@@ -702,9 +714,32 @@ async function seedSteps(brandId: string, code: BrandCode) {
     config: Record<string, unknown>;
     content_cards: SeedContentCard[];
   };
-  const rows: Row[] = [];
+
+  // Single read of all existing (chapter_key, step_key) pairs for this
+  // brand so we don't fire one SELECT per planned step. Set membership
+  // is the per-row guard.
+  const { data: existingRows, error: readErr } = await app
+    .from("steps_config")
+    .select("chapter_key, step_key")
+    .eq("brand_id", brandId);
+  if (readErr) throw new Error(`steps_config probe failed: ${readErr.message}`);
+  const existingKeys = new Set(
+    (existingRows ?? []).map(
+      (r) => `${r.chapter_key as string}|${r.step_key as string}`,
+    ),
+  );
+
+  const toInsert: Row[] = [];
+  let skipped = 0;
   for (const [chapterKey, steps] of Object.entries(CHAPTER_STEPS)) {
     steps.forEach((step, i) => {
+      if (existingKeys.has(`${chapterKey}|${step.key}`)) {
+        console.log(
+          `[seed]   skip existing step: ${code} / ${chapterKey} / ${step.key}`,
+        );
+        skipped++;
+        return;
+      }
       const body = STATIC_BODIES[code]?.[chapterKey]?.[step.key];
       const config: Record<string, unknown> = {};
       if (body) config.body = body;
@@ -769,7 +804,7 @@ async function seedSteps(brandId: string, code: BrandCode) {
       } else if (chapterKey === "first_chat" && step.key === "book") {
         cards = POST_CALL_DEMO_CARDS;
       }
-      rows.push({
+      toInsert.push({
         brand_id: brandId,
         chapter_key: chapterKey,
         position: i,
@@ -783,9 +818,30 @@ async function seedSteps(brandId: string, code: BrandCode) {
     });
   }
 
-  const { error } = await app.from("steps_config").insert(rows);
-  if (error) throw new Error(`steps_config insert failed: ${error.message}`);
-  console.log(`[seed] steps_config: ${rows.length} rows for ${code}`);
+  if (toInsert.length === 0) {
+    console.log(
+      `[seed] steps_config: ${code} → 0 created, ${skipped} skipped`,
+    );
+    return;
+  }
+
+  // Insert as a single batch — the unique partial index added in
+  // 20260514_seed_idempotency_unique_steps.sql will reject any row
+  // that slipped past the existingKeys check (race condition between
+  // probe and insert), so a constraint violation is the loud-failure
+  // path rather than silent dual rows.
+  const { error: insertErr } = await app.from("steps_config").insert(toInsert);
+  if (insertErr) {
+    throw new Error(`steps_config insert failed: ${insertErr.message}`);
+  }
+  for (const r of toInsert) {
+    console.log(
+      `[seed]   created step: ${code} / ${r.chapter_key} / ${r.step_key}`,
+    );
+  }
+  console.log(
+    `[seed] steps_config: ${code} → ${toInsert.length} created, ${skipped} skipped`,
+  );
 }
 
 
