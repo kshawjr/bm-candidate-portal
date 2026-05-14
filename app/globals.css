@@ -2302,6 +2302,29 @@ html::-webkit-scrollbar-thumb:hover {
   font-size: 12.5px;
   color: var(--cin-text-muted);
 }
+/* PR 126: optional masked hyperlink rendered below the role line.
+   Inline-block + bottom-border-on-hover matches the rest of the
+   portal's quiet link treatment; brand-accent focus ring matches the
+   button polish pattern from PR 121. */
+.cc-quote-link {
+  display: inline-block;
+  margin-top: 6px;
+  font-size: var(--fluid-text-sm);
+  font-weight: 500;
+  color: var(--brand-primary);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition: border-bottom-color 150ms;
+  align-self: flex-start;
+}
+.cc-quote-link:hover {
+  border-bottom-color: var(--brand-primary);
+}
+.cc-quote-link:focus-visible {
+  outline: 2px solid var(--brand-accent);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
 
 /* ---- personas card ---- */
 .cc-personas-grid {
