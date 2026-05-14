@@ -196,15 +196,19 @@ export async function resetCandidateAction(params: {
       is_app_submitted: false,
       // Reset onboarding popups so the candidate sees them again on next
       // load — the main reason to reset a candidate is to walk through the
-      // experience fresh. All four dismissal arrays + the deprecated
+      // experience fresh. All dismissal arrays + the deprecated
       // has_seen_welcome boolean (kept for back-compat from PR 31) are
       // cleared so every chapter video, intro popup, complete celebration,
-      // and step transition re-fires.
+      // step transition popup, AND step transition video re-fires.
+      // last_visited_step_id (PR 104) is also cleared so the mount-time
+      // pending-video effect doesn't fire a stale transition.
       has_seen_welcome: false,
       dismissed_chapter_videos: [],
       dismissed_chapter_intros: [],
       dismissed_chapter_completes: [],
       dismissed_step_transitions: [],
+      dismissed_step_transition_videos: [],
+      last_visited_step_id: null,
       last_activity_at: new Date().toISOString(),
     })
     .eq("id", portalId);

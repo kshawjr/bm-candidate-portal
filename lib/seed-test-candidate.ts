@@ -161,6 +161,8 @@ export async function createOrResetTestCandidate(
       dismissed_chapter_videos: [],
       dismissed_chapter_completes: [],
       dismissed_step_transitions: [],
+      dismissed_step_transition_videos: [],
+      last_visited_step_id: null,
       prefilled_zip: config.prefilledZip,
       prefilled_phone: config.prefilledPhone,
       last_activity_at: new Date().toISOString(),
