@@ -698,13 +698,22 @@ html::-webkit-scrollbar-thumb:hover {
   overflow: hidden;
   border: 1px solid var(--cin-border);
 }
+/* PR 121: the inner img/video used `background: #000` which produced
+   a black flash between slides — when the <Image key=...> remounts on
+   slide change, the new <img> shows its own background for the frame
+   or two before the image data loads. Matching the canvas's
+   surface-subtle eliminates the flash entirely; letterboxing around
+   aspect-mismatched images now reads as soft cream rather than a
+   black void. Video kept matching for consistency — for video slides
+   with audio, the poster frame loads fast enough that the brief
+   surface-subtle flash before play is invisible. */
 .slide-canvas img,
 .slide-canvas video {
   width: 100%;
   height: 100%;
   object-fit: contain;
   display: block;
-  background: #000;
+  background: var(--surface-subtle);
 }
 /* "Tap for sound" pill — surfaces only on video slides flagged with
    has_sound=true. Hidden by default; fades in over 300ms once the
@@ -855,10 +864,26 @@ html::-webkit-scrollbar-thumb:hover {
   color: var(--cin-text);
   cursor: pointer;
   justify-self: start;
-  transition: all 0.15s;
+  /* PR 121: split out the transform timing from background/filter so
+     :active feels snappy (50ms) while hover stays smooth (150ms).
+     Without this all transitions ran at 150ms and the press felt
+     mushy. */
+  transition: background 0.15s, border-color 0.15s, color 0.15s,
+    filter 0.15s, transform 0.05s;
 }
 .slide-nav-btn:hover:not(:disabled) {
   background: var(--surface-soft);
+}
+/* PR 121: explicit :active rule so the browser's gray default doesn't
+   bleed through on press. Subtle press depth via translateY + a
+   darker fill ties the click to a visual response. */
+.slide-nav-btn:active:not(:disabled) {
+  background: color-mix(in srgb, var(--surface-soft) 60%, var(--border-strong));
+  transform: translateY(1px);
+}
+.slide-nav-btn:focus-visible {
+  outline: 2px solid var(--brand-primary);
+  outline-offset: 2px;
 }
 .slide-nav-btn:disabled {
   opacity: 0.4;
@@ -873,6 +898,20 @@ html::-webkit-scrollbar-thumb:hover {
 .slide-nav-btn.primary:hover:not(:disabled) {
   filter: brightness(0.94);
 }
+.slide-nav-btn.primary:active:not(:disabled) {
+  /* Darker shade of brand-primary, derived via color-mix so each
+     brand's palette gets a proportional press color without needing
+     a separate token. ~15% mixed with black. */
+  background: color-mix(in srgb, var(--brand-primary) 85%, black);
+  border-color: color-mix(in srgb, var(--brand-primary) 85%, black);
+  filter: none;
+  transform: translateY(1px);
+}
+.slide-nav-btn.primary:focus-visible {
+  /* Brand-primary outline on a brand-primary button is invisible — use
+     accent for visibility against the dark fill. */
+  outline-color: var(--brand-accent);
+}
 .slide-dots {
   display: flex;
   gap: 8px;
@@ -886,10 +925,17 @@ html::-webkit-scrollbar-thumb:hover {
   border: none;
   cursor: pointer;
   padding: 0;
-  transition: background 0.15s;
+  transition: background 0.15s, transform 0.05s;
 }
 .slide-dot:hover:not(:disabled) {
   background: var(--cin-text-faint);
+}
+.slide-dot:active:not(:disabled) {
+  transform: scale(0.9);
+}
+.slide-dot:focus-visible {
+  outline: 2px solid var(--brand-primary);
+  outline-offset: 3px;
 }
 .slide-dot.done {
   background: color-mix(in srgb, var(--brand-primary) 45%, transparent);
@@ -1899,10 +1945,21 @@ html::-webkit-scrollbar-thumb:hover {
   border: 1px solid var(--border-strong);
   color: var(--cin-text);
   cursor: pointer;
-  transition: all 0.15s;
+  /* PR 121: see .slide-nav-btn — same split-transition trick so
+     press feels snappy without making hover jittery. */
+  transition: background 0.15s, border-color 0.15s, color 0.15s,
+    filter 0.15s, transform 0.05s;
 }
 .app-nav-btn:hover:not(:disabled) {
   background: var(--surface-soft);
+}
+.app-nav-btn:active:not(:disabled) {
+  background: color-mix(in srgb, var(--surface-soft) 60%, var(--border-strong));
+  transform: translateY(1px);
+}
+.app-nav-btn:focus-visible {
+  outline: 2px solid var(--brand-primary);
+  outline-offset: 2px;
 }
 .app-nav-btn:disabled {
   opacity: 0.4;
@@ -1915,6 +1972,15 @@ html::-webkit-scrollbar-thumb:hover {
 }
 .app-nav-btn.primary:hover:not(:disabled) {
   filter: brightness(0.94);
+}
+.app-nav-btn.primary:active:not(:disabled) {
+  background: color-mix(in srgb, var(--brand-primary) 85%, black);
+  border-color: color-mix(in srgb, var(--brand-primary) 85%, black);
+  filter: none;
+  transform: translateY(1px);
+}
+.app-nav-btn.primary:focus-visible {
+  outline-color: var(--brand-accent);
 }
 
 .app-signature-input {
