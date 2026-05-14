@@ -1749,3 +1749,126 @@
   color: #991b1b;
   border: 1px solid #fecaca;
 }
+
+/* =========================================================================
+   Waiting editor — form + live preview side-by-side
+   ========================================================================= */
+.adm-waiting-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.adm-waiting-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 24px;
+}
+@media (max-width: 1080px) {
+  .adm-waiting-grid {
+    grid-template-columns: 1fr;
+  }
+}
+.adm-waiting-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.adm-collapse {
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+.adm-collapse > summary {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 14px;
+  padding: 4px 0;
+}
+.adm-collapse[open] > summary {
+  margin-bottom: 12px;
+  border-bottom: 1px solid #f1f5f9;
+  padding-bottom: 10px;
+}
+.adm-fieldset {
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin: 12px 0;
+}
+.adm-fieldset > legend {
+  font-weight: 600;
+  font-size: 13px;
+  padding: 0 6px;
+  color: #475569;
+}
+.adm-field-row {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+.adm-bullet-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.adm-bullet-row .adm-input {
+  flex: 1;
+}
+.adm-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+}
+.adm-error {
+  color: #991b1b;
+  font-size: 13px;
+}
+
+/* Preview pane */
+.adm-waiting-preview {
+  position: sticky;
+  top: 16px;
+  align-self: start;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #f9fafb;
+  overflow: hidden;
+}
+.adm-preview-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid #e5e7eb;
+  background: #fff;
+}
+.adm-preview-tabs {
+  display: flex;
+  gap: 4px;
+}
+.adm-preview-tabs button {
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  color: #475569;
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.adm-preview-tabs button.is-active {
+  background: #111827;
+  color: #fff;
+  border-color: #111827;
+}
+.adm-preview-hint {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #94a3b8;
+}
+.adm-preview-frame {
+  padding: 8px 0;
+  max-height: 720px;
+  overflow-y: auto;
+}

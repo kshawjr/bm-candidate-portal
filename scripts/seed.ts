@@ -111,7 +111,7 @@ const STAGE_CONTENT: Record<string, Record<string, string>> = {
   },
 };
 
-type ContentType = "slides" | "static" | "application" | "schedule" | "video" | "document" | "checklist";
+type ContentType = "slides" | "static" | "application" | "schedule" | "video" | "document" | "checklist" | "waiting";
 
 // IMPORTANT: this list is mirrored in lib/canonical-steps.ts as the
 // portal renderer's step-contract lockdown. If you add, remove, or
@@ -123,11 +123,15 @@ const CHAPTER_STEPS: Record<string, Array<{ key: string; label: string; type: Co
     { key: "tour",     label: "Brand tour",         type: "slides",      desc: "A short walk through who we are" },
     { key: "app",      label: "Light application",  type: "application", desc: "Quick questions so we can get to know you" },
   ],
-  // PR 38: Chapter 2 collapses to a single step (the schedule grid). The
-  // pre-call prep content moved into Chapter 2's intro popup + banner;
-  // the brand-level transition video covers the gear-shift moment.
+  // PR 38: Chapter 2 originally collapsed to a single step (schedule).
+  // The waiting PR adds a parked "Hang tight" step after the booking
+  // that transitions to its unlocked state when the candidate's Zoho
+  // Lead picks up `webinar_unlocked` in Portal_Unlocks. Chapter 2
+  // shape: book (schedule) → wait (waiting). A future PR may insert
+  // a call_prep step between them.
   first_chat: [
     { key: "book",     label: "Book your call",     type: "schedule",    desc: "Pick a time that works — Google Meet, 60 minutes" },
+    { key: "wait",     label: "Hang tight",         type: "waiting",     desc: "Parked card that unlocks Chapter 3 from Zoho" },
   ],
   // PR 44: deep_dive intentionally has no steps. After Chapter 2's
   // booking, current_chapter advances to 2 (deep_dive) and the portal
@@ -698,6 +702,31 @@ async function seedSteps(brandId: string, code: BrandCode) {
         config.event_label = "Discovery Call";
         config.working_days = [1, 2, 3, 4, 5];
         config.min_notice_hours = 24;
+      }
+      if (chapterKey === "first_chat" && step.key === "wait") {
+        // Parked → unlocked when the Zoho Lead's Portal_Unlocks picks
+        // up `webinar_unlocked`. Webhook mirrors that to
+        // candidates_in_portal.unlocked_keys; renderer subscribes via
+        // realtime and transitions in place.
+        config.unlock_key = "webinar_unlocked";
+        config.heading = "See you on {discovery_call_date}, {candidate_first_name}";
+        config.subheading = "Your discovery call is booked";
+        config.show_booking_details = true;
+        config.what_happens_next = [
+          "We'll meet for about 30 minutes with {rep_first_name}",
+          "After the call, the next chapter opens with our brand deep-dive",
+          "You'll get an email the moment it's ready",
+        ];
+        config.next_unlock_preview = {
+          label: "Chapter 3 — Deep dive",
+          description:
+            "A 45-minute session with our founder and current {brand_short_name} franchisees",
+          eta_copy: "Usually opens within a day of your call",
+        };
+        config.expectation_copy =
+          "No need to check back — we'll email you the moment it's open.";
+        config.unlocked_heading = "Your next chapter is ready";
+        config.unlocked_cta_label = "Continue →";
       }
       // Only Chapter 1 Step 1 (explore/tour) ships with content cards in PR 8.
       // Every other step gets [] so the strip renders nothing.

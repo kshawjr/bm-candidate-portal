@@ -25,8 +25,11 @@ export const CANONICAL_STEPS: CanonicalStepContract[] = [
   { chapter_key: "explore", step_key: "tour", content_type: "slides", display_label: "Brand tour" },
   { chapter_key: "explore", step_key: "app", content_type: "application", display_label: "Light application" },
 
-  // Chapter 2 — First chat (collapsed to a single step in PR #38)
+  // Chapter 2 — First chat. Originally a single step (PR #38). The
+  // waiting PR appended a parked "Hang tight" step that unlocks
+  // Chapter 3 once Zoho's Portal_Unlocks picks up webinar_unlocked.
   { chapter_key: "first_chat", step_key: "book", content_type: "schedule", display_label: "Book your call" },
+  { chapter_key: "first_chat", step_key: "wait", content_type: "waiting", display_label: "Hang tight" },
 
   // Chapter 4 — Playbook (the FDD primer + reader + questions)
   { chapter_key: "playbook", step_key: "intro", content_type: "static", display_label: "How to read the FDD" },

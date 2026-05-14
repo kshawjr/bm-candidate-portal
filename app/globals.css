@@ -4770,3 +4770,161 @@ html::-webkit-scrollbar-thumb:hover {
   line-height: 1.55;
   color: var(--cin-text-muted, #4b5563);
 }
+
+/* =========================================================================
+   Waiting content type — parked + unlocked states
+   ========================================================================= */
+.waiting-renderer {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 40px 24px 60px;
+}
+.waiting-heading {
+  font-family: var(--font-heading, var(--font-body, system-ui));
+  font-weight: var(--heading-weight, 600);
+  font-size: 32px;
+  line-height: 1.2;
+  text-align: center;
+  margin: 0 0 12px;
+  color: var(--cin-text, #111827);
+}
+.waiting-subheading {
+  font-size: 17px;
+  line-height: 1.5;
+  text-align: center;
+  color: var(--cin-text-muted, #4b5563);
+  margin: 0 0 28px;
+}
+
+/* Parked state */
+.waiting-parked {
+  transition: opacity 400ms ease-out;
+  opacity: 1;
+}
+.waiting-parked.is-leaving {
+  opacity: 0;
+}
+.waiting-booking {
+  background: var(--surface, #fff);
+  border: 1px solid var(--cin-border, #e5e7eb);
+  border-radius: 12px;
+  padding: 20px 24px;
+  margin-bottom: 28px;
+  text-align: center;
+}
+.waiting-booking-time {
+  font-family: var(--font-heading, var(--font-body, system-ui));
+  font-weight: 600;
+  font-size: 18px;
+  margin-bottom: 4px;
+}
+.waiting-booking-with {
+  font-size: 14px;
+  color: var(--cin-text-muted, #4b5563);
+  margin-bottom: 14px;
+}
+.waiting-booking-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.waiting-booking-empty {
+  background: var(--surface-subtle, #faf9f5);
+  border: 1px dashed var(--cin-border, #e5e7eb);
+  border-radius: 12px;
+  padding: 16px 20px;
+  margin-bottom: 28px;
+  font-size: 14px;
+  text-align: center;
+  color: var(--cin-text-muted, #4b5563);
+}
+.waiting-next-section {
+  margin-bottom: 28px;
+}
+.waiting-next-section h3 {
+  font-family: var(--font-heading, var(--font-body, system-ui));
+  font-weight: 600;
+  font-size: 15px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--cin-text-muted, #4b5563);
+  margin: 0 0 10px;
+}
+.waiting-next-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.waiting-next-list li {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--cin-border, #e5e7eb);
+  font-size: 15px;
+  line-height: 1.5;
+}
+.waiting-next-list li:last-child {
+  border-bottom: none;
+}
+.waiting-preview-card {
+  background: var(--surface-subtle, #faf9f5);
+  border: 1px solid var(--cin-border, #e5e7eb);
+  border-radius: 12px;
+  padding: 18px 22px;
+  margin-bottom: 24px;
+}
+.waiting-preview-label {
+  font-family: var(--font-heading, var(--font-body, system-ui));
+  font-weight: 600;
+  font-size: 16px;
+  margin-bottom: 6px;
+}
+.waiting-preview-description {
+  font-size: 14px;
+  line-height: 1.5;
+  margin: 0 0 8px;
+  color: var(--cin-text, #111827);
+}
+.waiting-preview-eta {
+  font-size: 12px;
+  color: var(--cin-text-muted, #6b7280);
+  margin: 0;
+}
+.waiting-expectation {
+  text-align: center;
+  font-size: 13px;
+  color: var(--cin-text-muted, #6b7280);
+  margin: 0;
+}
+
+/* Unlocked state */
+.waiting-unlocked {
+  text-align: center;
+  padding: 60px 0;
+}
+.waiting-unlocked-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+}
+.waiting-unlocked-cta {
+  margin-top: 24px;
+}
+@keyframes waiting-unlocked-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.waiting-unlocked.is-mounting {
+  animation: waiting-unlocked-in 400ms ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .waiting-parked,
+  .waiting-unlocked {
+    animation: none !important;
+    transition: none !important;
+  }
+}
