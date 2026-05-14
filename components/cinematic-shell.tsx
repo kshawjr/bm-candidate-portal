@@ -56,6 +56,8 @@ import {
 import { YoureCurrentScreen } from "@/components/portal/youre-current-screen";
 import { BackToTop } from "@/components/portal/back-to-top";
 import { ScrollDownHint } from "@/components/portal/scroll-down-hint";
+import { SideDrawer } from "@/components/ui/side-drawer";
+import { useIsMobile } from "@/lib/hooks/use-is-mobile";
 import type { ClientLogEventArgs } from "@/app/portal/[token]/event-actions";
 
 // Default logo height for all brands. Per-brand overrides below.
@@ -303,6 +305,21 @@ export function CinematicShell({
   const [pending, startTransition] = useTransition();
   const [selectedChapterIdx, setSelectedChapterIdx] = useState(initialChapterIdx);
   const [selectedStepIdx, setSelectedStepIdx] = useState(initialStepIdx);
+
+  // Mobile branching. useIsMobile returns null on first render (SSR
+  // safety) and settles to true/false after mount. We treat null as
+  // "render desktop layout" — that keeps the initial paint stable on
+  // every device and only re-renders if the client resolves to mobile.
+  // Brief flash of desktop layout on mobile devices is the documented
+  // trade-off; see PR description.
+  const isMobile = useIsMobile();
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  // Close the drawer whenever the candidate navigates to a new
+  // chapter or step. Without this, picking a chapter from the drawer
+  // would update the content underneath but leave the drawer open.
+  useEffect(() => {
+    setIsDrawerOpen(false);
+  }, [selectedChapterIdx, selectedStepIdx]);
 
   const selectedChapter = chapters[selectedChapterIdx];
   const steps = stepsByChapter[selectedChapter.chapter_key] ?? [];
@@ -593,152 +610,153 @@ export function CinematicShell({
     shellStyle[`--brand-palette-${name.replace(/_/g, "-")}`] = value;
   }
 
-  return (
+  // PR 119: extract the three regions into shared JSX fragments so the
+  // desktop two-column layout and the mobile single-column-plus-drawer
+  // layout render exactly the same content — a fix in either branch
+  // applies to both. Same closures over the same locals; no prop
+  // threading needed.
+  const sidebarContent = (
     <>
-    <div
-      className="portal-cinematic"
-      data-brand-slug={brandSlug}
-      style={shellStyle as CSSProperties}
-    >
-      <aside className="cine-sidebar">
-        <div className="cine-brand">
-          {logoUrl ? (
-            <Image
-              className="cine-brand-logo"
-              src={logoUrl}
-              alt={brandName}
-              width={480}
-              height={180}
-              priority
-              style={{ height: logoHeight, width: "auto" }}
-            />
-          ) : (
-            <div
-              className="cine-brand-mark"
-              dangerouslySetInnerHTML={{ __html: brandMarkHtml }}
-            />
-          )}
-          <p className="cine-brand-sub">Franchise Discovery Portal</p>
-          {/* PR 59: persistent greeting addressed to the candidate.
-              Renders on every page since it lives in the always-visible
-              sidebar. Falls back to "Hi there" so an unnamed candidate
-              still gets a warm hello rather than an empty greeting. */}
-          <p className="cine-greeting">
-            {candidate.first_name?.trim()
-              ? `Hi, ${candidate.first_name.trim()}`
-              : "Hi there"}
-          </p>
-        </div>
-
-        <div className="cine-progress">
-          <div className="cine-progress-head">
-            <div className="cine-progress-label">Your journey</div>
-            <div className="cine-progress-pct">{progressPct}%</div>
-          </div>
-          <div className="cine-progress-bar">
-            <div
-              className="cine-progress-fill"
-              style={{ width: `${progressPct}%` }}
-            />
-          </div>
-          <div className="cine-progress-meta">
-            <span>
-              {completedCount} of {chapters.length} chapters
-            </span>
-            <span>
-              {completedCount === chapters.length
-                ? "Complete"
-                : `~${weeksLeft} weeks left`}
-            </span>
-          </div>
-        </div>
-
-        {chapters[currentChapterIdx] &&
-          (stepsByChapter[chapters[currentChapterIdx].chapter_key]?.length ?? 0) >
-            0 && (
-            <ChapterProgress
-              chapterLabel={chapters[currentChapterIdx].label}
-              chapterNumber={currentChapterIdx + 1}
-              completed={currentChapterCompletedSteps}
-              total={
-                stepsByChapter[chapters[currentChapterIdx].chapter_key]
-                  ?.length ?? 0
-              }
-            />
-          )}
-
-        <div className="cine-chapters">
-          {chapters.map((chapter, i) => {
-            const isDone = i < currentChapterIdx;
-            const isCurrent = i === currentChapterIdx;
-            const isLocked = i > currentChapterIdx;
-            const isActive = selectedChapterIdx === i;
-            const clickable = isDone || isCurrent;
-            // PR 44: even the candidate's CURRENT chapter is rendered as
-            // "locked" in the sidebar when it has no active steps yet.
-            // Tells the candidate "you're here but the next part is
-            // still coming together" — matches the YoureCurrentScreen
-            // they see in the main content area.
-            const noActiveSteps =
-              (stepsByChapter[chapter.chapter_key]?.length ?? 0) === 0;
-            const showLockIcon = isLocked || (isCurrent && noActiveSteps);
-
-            const cls = [
-              "cine-chapter",
-              isDone && "done",
-              isCurrent && "current",
-              isLocked && "locked",
-              isActive && "active",
-              isCurrent && noActiveSteps && "locked-current",
-            ]
-              .filter(Boolean)
-              .join(" ");
-
-            return (
-              <button
-                key={chapter.chapter_key}
-                className={cls}
-                title={chapter.name}
-                disabled={!clickable}
-                onClick={() => {
-                  if (!clickable) return;
-                  setSelectedChapterIdx(i);
-                  setSelectedStepIdx(0);
-                }}
-              >
-                <span className="cine-chapter-icon">{chapter.icon ?? "•"}</span>
-                <span className="cine-chapter-label">{chapter.label}</span>
-                <span className="cine-chapter-status">
-                  {isDone ? (
-                    <CheckIcon />
-                  ) : showLockIcon ? (
-                    <LockIcon />
-                  ) : (
-                    <DotIcon />
-                  )}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-
-        <JourneyCard state={journeyState} />
-
-        {hasAssignedRep && advisorName && (
-          <div className="cine-advisor">
-            <div className="cine-advisor-eyebrow">Your guide</div>
-            <h4 className="cine-advisor-name">{advisorName}</h4>
-            <p className="cine-advisor-sub">from {brandShortName}</p>
-            {advisorEmail && (
-              <p className="cine-advisor-email">
-                <a href={`mailto:${advisorEmail}`}>{advisorEmail}</a>
-              </p>
-            )}
-          </div>
+      <div className="cine-brand">
+        {logoUrl ? (
+          <Image
+            className="cine-brand-logo"
+            src={logoUrl}
+            alt={brandName}
+            width={480}
+            height={180}
+            priority
+            style={{ height: logoHeight, width: "auto" }}
+          />
+        ) : (
+          <div
+            className="cine-brand-mark"
+            dangerouslySetInnerHTML={{ __html: brandMarkHtml }}
+          />
         )}
-      </aside>
+        <p className="cine-brand-sub">Franchise Discovery Portal</p>
+        {/* PR 59: persistent greeting addressed to the candidate.
+            Renders on every page since it lives in the always-visible
+            sidebar. Falls back to "Hi there" so an unnamed candidate
+            still gets a warm hello rather than an empty greeting. */}
+        <p className="cine-greeting">
+          {candidate.first_name?.trim()
+            ? `Hi, ${candidate.first_name.trim()}`
+            : "Hi there"}
+        </p>
+      </div>
 
-      <section className="cine-content">
+      <div className="cine-progress">
+        <div className="cine-progress-head">
+          <div className="cine-progress-label">Your journey</div>
+          <div className="cine-progress-pct">{progressPct}%</div>
+        </div>
+        <div className="cine-progress-bar">
+          <div
+            className="cine-progress-fill"
+            style={{ width: `${progressPct}%` }}
+          />
+        </div>
+        <div className="cine-progress-meta">
+          <span>
+            {completedCount} of {chapters.length} chapters
+          </span>
+          <span>
+            {completedCount === chapters.length
+              ? "Complete"
+              : `~${weeksLeft} weeks left`}
+          </span>
+        </div>
+      </div>
+
+      {chapters[currentChapterIdx] &&
+        (stepsByChapter[chapters[currentChapterIdx].chapter_key]?.length ?? 0) >
+          0 && (
+          <ChapterProgress
+            chapterLabel={chapters[currentChapterIdx].label}
+            chapterNumber={currentChapterIdx + 1}
+            completed={currentChapterCompletedSteps}
+            total={
+              stepsByChapter[chapters[currentChapterIdx].chapter_key]
+                ?.length ?? 0
+            }
+          />
+        )}
+
+      <div className="cine-chapters">
+        {chapters.map((chapter, i) => {
+          const isDone = i < currentChapterIdx;
+          const isCurrent = i === currentChapterIdx;
+          const isLocked = i > currentChapterIdx;
+          const isActive = selectedChapterIdx === i;
+          const clickable = isDone || isCurrent;
+          // PR 44: even the candidate's CURRENT chapter is rendered as
+          // "locked" in the sidebar when it has no active steps yet.
+          // Tells the candidate "you're here but the next part is
+          // still coming together" — matches the YoureCurrentScreen
+          // they see in the main content area.
+          const noActiveSteps =
+            (stepsByChapter[chapter.chapter_key]?.length ?? 0) === 0;
+          const showLockIcon = isLocked || (isCurrent && noActiveSteps);
+
+          const cls = [
+            "cine-chapter",
+            isDone && "done",
+            isCurrent && "current",
+            isLocked && "locked",
+            isActive && "active",
+            isCurrent && noActiveSteps && "locked-current",
+          ]
+            .filter(Boolean)
+            .join(" ");
+
+          return (
+            <button
+              key={chapter.chapter_key}
+              className={cls}
+              title={chapter.name}
+              disabled={!clickable}
+              onClick={() => {
+                if (!clickable) return;
+                setSelectedChapterIdx(i);
+                setSelectedStepIdx(0);
+              }}
+            >
+              <span className="cine-chapter-icon">{chapter.icon ?? "•"}</span>
+              <span className="cine-chapter-label">{chapter.label}</span>
+              <span className="cine-chapter-status">
+                {isDone ? (
+                  <CheckIcon />
+                ) : showLockIcon ? (
+                  <LockIcon />
+                ) : (
+                  <DotIcon />
+                )}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      <JourneyCard state={journeyState} />
+
+      {hasAssignedRep && advisorName && (
+        <div className="cine-advisor">
+          <div className="cine-advisor-eyebrow">Your guide</div>
+          <h4 className="cine-advisor-name">{advisorName}</h4>
+          <p className="cine-advisor-sub">from {brandShortName}</p>
+          {advisorEmail && (
+            <p className="cine-advisor-email">
+              <a href={`mailto:${advisorEmail}`}>{advisorEmail}</a>
+            </p>
+          )}
+        </div>
+      )}
+    </>
+  );
+
+  const mainContent = (
+    <>
         {selectedChapter.chapter_key === "explore" && heroStats.length > 0 && (
           <div className="cine-hero-strip">
             <div className="cine-hero-strip-heading">{heroStripHeading}</div>
@@ -922,8 +940,11 @@ export function CinematicShell({
             })()
           )}
         </div>
-      </section>
+    </>
+  );
 
+  const popupsContent = (
+    <>
       {activeTransitionVideo && (
         <StepTransitionVideoPopup
           key={`video-${activeTransitionVideo.stepId}`}
@@ -944,6 +965,110 @@ export function CinematicShell({
           onDismissed={() => setActiveTransition(null)}
         />
       )}
+    </>
+  );
+
+  // ---- Mobile branch ----
+  // useIsMobile returns null on first render (SSR safety) and settles
+  // after mount. null and false both render the desktop layout — only
+  // an explicit `true` flips to mobile. This means the first paint is
+  // always desktop, with a brief swap to mobile on mobile devices
+  // once the hook resolves (~50-100ms after hydration). Documented
+  // trade-off; UA sniffing server-side would have its own problems.
+  if (isMobile === true) {
+    return (
+      <>
+        <div
+          className="portal-cinematic portal-cinematic--mobile"
+          data-brand-slug={brandSlug}
+          style={shellStyle as CSSProperties}
+        >
+          <header className="cine-mobile-topbar">
+            <button
+              type="button"
+              className="cine-mobile-hamburger tap-target"
+              onClick={() => setIsDrawerOpen(true)}
+              aria-label="Open navigation"
+            >
+              <svg
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <line x1="3" y1="6" x2="21" y2="6" />
+                <line x1="3" y1="12" x2="21" y2="12" />
+                <line x1="3" y1="18" x2="21" y2="18" />
+              </svg>
+            </button>
+
+            <div className="cine-mobile-topbar-title">
+              {logoUrl ? (
+                <Image
+                  className="cine-mobile-brandmark"
+                  src={logoUrl}
+                  alt={brandName}
+                  width={240}
+                  height={80}
+                  style={{ height: 28, width: "auto" }}
+                />
+              ) : (
+                <div
+                  className="cine-mobile-brandmark"
+                  dangerouslySetInnerHTML={{ __html: brandMarkHtml }}
+                  aria-label={brandName}
+                />
+              )}
+              <span className="cine-mobile-greeting">
+                {candidate.first_name?.trim()
+                  ? `Hi, ${candidate.first_name.trim()}`
+                  : "Hi there"}
+              </span>
+            </div>
+
+            <div className="cine-mobile-topbar-progress">{progressPct}%</div>
+          </header>
+
+          <main className="cine-mobile-main">{mainContent}</main>
+
+          {popupsContent}
+        </div>
+
+        <SideDrawer
+          isOpen={isDrawerOpen}
+          onClose={() => setIsDrawerOpen(false)}
+          ariaLabel="Journey navigation"
+        >
+          {sidebarContent}
+        </SideDrawer>
+
+        <ScrollDownHint />
+        <BackToTop />
+      </>
+    );
+  }
+
+  // ---- Desktop / SSR / pre-mount branch ----
+  // Identical to the pre-PR-119 layout: aside.cine-sidebar +
+  // section.cine-content + popups. The shared sidebarContent and
+  // mainContent variables are the only difference from the prior
+  // structure — same JSX, just lifted out so the mobile branch above
+  // can render them too.
+  return (
+    <>
+    <div
+      className="portal-cinematic"
+      data-brand-slug={brandSlug}
+      style={shellStyle as CSSProperties}
+    >
+      <aside className="cine-sidebar">{sidebarContent}</aside>
+      <section className="cine-content">{mainContent}</section>
+      {popupsContent}
     </div>
     <ScrollDownHint />
     <BackToTop />
