@@ -299,70 +299,30 @@ interface SlideVideoProps {
   reduceMotion: boolean;
 }
 
-// Per-slide-instance video state — re-mounts on slide change (parent
-// passes `key={slide.id}`), so muted/hasStarted are fresh each time.
+// PR 125: unified video playback rule — has_sound=true → paused with
+// controls, candidate taps play (with sound); has_sound!==true →
+// autoplay muted with no controls (ambient). reduceMotion overrides
+// ambient autoplay to respect prefers-reduced-motion.
+//
+// Replaces the previous muted-autoplay + "Tap for sound" pill +
+// unmute-on-tap handshake, which was a workaround for trying to
+// autoplay sound-on videos and gracefully degrade when mobile browsers
+// blocked it. The new rule makes the degraded behavior intentional:
+// sound-on videos always wait for user tap, everywhere.
 function SlideVideo({ src, poster, hasSound, reduceMotion }: SlideVideoProps) {
-  const ref = useRef<HTMLVideoElement>(null);
-  const [muted, setMuted] = useState(true);
-  // Gate the overlay on playback start so it doesn't flash up on the
-  // poster frame before anything happens — the pill only makes sense
-  // once audio could actually be playing.
-  const [hasStarted, setHasStarted] = useState(false);
-
-  const showOverlay = hasSound && muted && hasStarted;
-
-  const unmute = () => {
-    const el = ref.current;
-    if (el) el.muted = false;
-    setMuted(false);
-  };
+  const autoplayMuted = !hasSound && !reduceMotion;
 
   return (
-    <>
-      <video
-        ref={ref}
-        src={src}
-        poster={poster ?? undefined}
-        controls
-        playsInline
-        preload="metadata"
-        autoPlay={!reduceMotion}
-        muted={muted}
-        onPlay={() => setHasStarted(true)}
-        // Sync local muted state when the user toggles via the browser's
-        // native controls — otherwise the overlay would stay visible
-        // after unmuting through the speaker icon.
-        onVolumeChange={(e) => setMuted(e.currentTarget.muted)}
-        width={1280}
-        height={720}
-      />
-      {hasSound && (
-        <button
-          type="button"
-          className={`tap-for-sound${showOverlay ? " is-visible" : ""}`}
-          onClick={unmute}
-          aria-label="Tap for sound"
-          aria-hidden={!showOverlay}
-          tabIndex={showOverlay ? 0 : -1}
-        >
-          <svg
-            aria-hidden="true"
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M11 5 6 9H2v6h4l5 4V5z" />
-            <line x1="22" y1="9" x2="16" y2="15" />
-            <line x1="16" y1="9" x2="22" y2="15" />
-          </svg>
-          <span>Tap for sound</span>
-        </button>
-      )}
-    </>
+    <video
+      src={src}
+      poster={poster ?? undefined}
+      playsInline
+      preload="metadata"
+      autoPlay={autoplayMuted}
+      muted={autoplayMuted}
+      controls={hasSound}
+      width={1280}
+      height={720}
+    />
   );
 }

@@ -16,6 +16,15 @@ export interface ChapterVideoConfig {
   videoProvider: VideoProvider;
   description: string | null;
   ctaDismissLabel: string;
+  /** PR 125 — unified video playback rule (shared with SlideVideo and
+   *  StepTransitionVideoPopup). true → paused with controls, candidate
+   *  taps play with sound. false / null / undefined → ambient autoplay
+   *  muted. The chapter_videos table doesn't have a has_sound column
+   *  today; every existing row reads as undefined here, which the
+   *  unified rule treats as ambient. A future schema migration + admin
+   *  field can let admins opt individual chapter videos into has_sound
+   *  = true ("watch this with sound") without further code changes. */
+  hasSound?: boolean | null;
 }
 
 interface Props {
@@ -83,6 +92,24 @@ export function ChapterVideoPopup({ config, onDismiss, onDismissed }: Props) {
   // URL is computed lazily so admins can paste any youtube/vimeo URL shape.
   const parsed = parseVideoSource(config.videoUrl);
 
+  // PR 125 unified video playback rule. true → paused with controls
+  // (user taps play with sound); !true → autoplay muted (ambient).
+  // For iframe embeds the rule translates to URL params; for mp4 it
+  // maps directly to the <video> element's autoplay / muted / controls
+  // attrs (same pattern as SlideVideo + StepTransitionVideoPopup).
+  const autoplayMuted = config.hasSound !== true;
+
+  // Append autoplay / mute / playsinline params to the parsed embed
+  // URL. parseVideoSource returns YouTube URLs already containing
+  // ?rel=0&modestbranding=1 and Vimeo URLs with no query — joining
+  // via the right delimiter keeps both cases valid.
+  const iframeSrc = (() => {
+    if (!parsed || parsed.provider === "mp4") return null;
+    const sep = parsed.embedUrl.includes("?") ? "&" : "?";
+    const muteParam = autoplayMuted ? "1" : "0";
+    return `${parsed.embedUrl}${sep}autoplay=1&mute=${muteParam}&muted=${muteParam}&playsinline=1`;
+  })();
+
   return (
     <div
       className={`pp-popup-backdrop${closing ? " is-closing" : ""}`}
@@ -102,14 +129,16 @@ export function ChapterVideoPopup({ config, onDismiss, onDismissed }: Props) {
             <video
               className="pp-popup-video-el"
               src={parsed.embedUrl}
-              controls
               playsInline
               preload="metadata"
+              autoPlay={autoplayMuted}
+              muted={autoplayMuted}
+              controls={config.hasSound === true}
             />
-          ) : parsed ? (
+          ) : iframeSrc ? (
             <iframe
               className="pp-popup-video-iframe"
-              src={parsed.embedUrl}
+              src={iframeSrc}
               title={config.title ?? "Chapter video"}
               frameBorder={0}
               allow="accelerometer; autoplay; encrypted-media; picture-in-picture"
