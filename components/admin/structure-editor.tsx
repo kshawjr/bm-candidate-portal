@@ -1064,7 +1064,7 @@ function ChapterIntroDrawer({
                         heading || body ? { heading, body } : null,
                     });
                   }}
-                  placeholder="We're only taking {slots} more candidates this month."
+                  placeholder="Selective intake. Serious candidates only."
                   style={{ marginTop: 6 }}
                 />
                 <textarea
@@ -1080,7 +1080,7 @@ function ChapterIntroDrawer({
                         heading || body ? { heading, body } : null,
                     });
                   }}
-                  placeholder="Selective intake. Serious candidates only."
+                  placeholder="Due to high demand, we're prioritizing partners ready to begin the ownership process within the next 12 months."
                   style={{ marginTop: 8 }}
                 />
               </div>
