@@ -50,6 +50,7 @@ import {
 } from "@/components/portal/step-transition-video-popup";
 import { YoureCurrentScreen } from "@/components/portal/youre-current-screen";
 import { BackToTop } from "@/components/portal/back-to-top";
+import { ScrollDownHint } from "@/components/portal/scroll-down-hint";
 import type { ClientLogEventArgs } from "@/app/portal/[token]/event-actions";
 
 // Default logo height for all brands. Per-brand overrides below.
@@ -919,6 +920,7 @@ export function CinematicShell({
         />
       )}
     </div>
+    <ScrollDownHint />
     <BackToTop />
     </>
   );
