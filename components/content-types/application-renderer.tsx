@@ -205,6 +205,16 @@ function sectionForIdx(idx: number): SectionDef {
   return SECTION_BY_IDX[idx] ?? { num: 7, title: "Closing", doneCopy: "" };
 }
 
+// Derive a question-screen eyebrow from SECTION_BY_IDX — single source
+// of truth. Format: "<SectionTitle> · Question <N> of <TOTAL>". Drops
+// the legacy "X of 4" framing entirely — the application's section
+// count is 7, not 4, and the old inner-section label collided
+// vocabulary-wise with the outer journey concept.
+function questionEyebrow(idx: number, questionNumber: number): string {
+  const section = SECTION_BY_IDX[idx] ?? SECTION_BY_IDX[0];
+  return `${section.title} · Question ${questionNumber} of ${TOTAL_QUESTIONS}`;
+}
+
 // Per-idx canonical answer-key list, used by computeInitialIdx() to
 // resume a returning candidate at the first incomplete screen. Keys
 // match what advanceWithSave() persists when leaving each idx — keep
@@ -456,7 +466,7 @@ export function ApplicationRenderer({
     const v = (answers.current_role as string) ?? "";
     return (
       <QuestionScreen
-        eyebrow={`Chapter 1 of 4 · Question 1 of ${TOTAL_QUESTIONS}`}
+        eyebrow={questionEyebrow(1, 1)}
         question="What do you do now?"
         progressPct={p}
         canAdvance={v.trim().length > 0}
@@ -490,7 +500,7 @@ export function ApplicationRenderer({
     };
     return (
       <QuestionScreen
-        eyebrow={`Chapter 1 of 4 · Question 2 of ${TOTAL_QUESTIONS}`}
+        eyebrow={questionEyebrow(2, 2)}
         question="Where are you?"
         progressPct={p}
         canAdvance={isZipLocationComplete(v)}
@@ -535,7 +545,7 @@ export function ApplicationRenderer({
       (!hasOther || v.otherText.trim().length > 0);
     return (
       <QuestionScreen
-        eyebrow={`Chapter 1 of 4 · Question 3 of ${TOTAL_QUESTIONS}`}
+        eyebrow={questionEyebrow(3, 3)}
         question="What's drawing you to this?"
         subCaption="Pick all that apply."
         progressPct={p}
@@ -565,7 +575,7 @@ export function ApplicationRenderer({
     const prompt = motivationElaborationPrompt(v, MOTIVATIONS);
     return (
       <QuestionScreen
-        eyebrow={`Chapter 1 of 4 · Question 4 of ${TOTAL_QUESTIONS}`}
+        eyebrow={questionEyebrow(4, 4)}
         question="Tell us more"
         subCaption={prompt}
         progressPct={p}
@@ -586,12 +596,12 @@ export function ApplicationRenderer({
     );
   }
 
-  // 5: Chapter 2 intro
+  // 5: Section 4 intro (Money — financial check)
   if (idx === 5) {
     return (
       <ChapterIntroScreen
-        eyebrow="Chapter 2 of 4 · The money conversation"
-        body="Next up — a quick financial check. We're not judging, and none of this automatically disqualifies you. It just helps us match you to the right territory."
+        eyebrow="Money · The numbers conversation"
+        body="Next up — a quick financial check. None of this automatically disqualifies you. It just helps us match you to the right territory."
         onContinue={() => setIdx(6)}
         progressPct={p}
       />
@@ -610,7 +620,7 @@ export function ApplicationRenderer({
         value={v}
         onChange={(patch) => setA(patch)}
         progressPct={p}
-        eyebrow={`Chapter 2 of 4 · Question 5 of ${TOTAL_QUESTIONS}`}
+        eyebrow={questionEyebrow(6, 5)}
         brandName={brandName}
         onBack={goBack}
         onNext={() =>
@@ -641,7 +651,7 @@ export function ApplicationRenderer({
       (v.answer === "yes" && v.explanation.trim().length > 0);
     return (
       <QuestionScreen
-        eyebrow={`Chapter 2 of 4 · Background check · Question 6 of ${TOTAL_QUESTIONS}`}
+        eyebrow={questionEyebrow(7, 6)}
         question="Have you ever filed for bankruptcy?"
         subCaption="Quick yes/no — none of these are automatic disqualifiers, but we need to know."
         progressPct={p}
@@ -683,7 +693,7 @@ export function ApplicationRenderer({
       (v.answer === "yes" && v.explanation.trim().length > 0);
     return (
       <QuestionScreen
-        eyebrow={`Chapter 2 of 4 · Background check · Question 7 of ${TOTAL_QUESTIONS}`}
+        eyebrow={questionEyebrow(8, 7)}
         question="Have you ever been convicted of a felony?"
         progressPct={p}
         canAdvance={canAdvance}
@@ -713,7 +723,7 @@ export function ApplicationRenderer({
       v.length > 0 && (v !== OTHER_VALUE || otherText.trim().length > 0);
     return (
       <QuestionScreen
-        eyebrow={`Chapter 3 of 4 · Question 8 of ${TOTAL_QUESTIONS}`}
+        eyebrow={questionEyebrow(9, 8)}
         question="When would you want to open?"
         progressPct={p}
         canAdvance={canAdvance}
@@ -747,7 +757,7 @@ export function ApplicationRenderer({
       v.length > 0 && (v !== OTHER_VALUE || otherText.trim().length > 0);
     return (
       <QuestionScreen
-        eyebrow={`Chapter 3 of 4 · Question 9 of ${TOTAL_QUESTIONS}`}
+        eyebrow={questionEyebrow(10, 9)}
         question="How hands-on do you want to be?"
         progressPct={p}
         canAdvance={canAdvance}
@@ -784,7 +794,7 @@ export function ApplicationRenderer({
       v.length > 0 && (v !== OTHER_VALUE || otherText.trim().length > 0);
     return (
       <QuestionScreen
-        eyebrow={`Chapter 3 of 4 · Question 10 of ${TOTAL_QUESTIONS}`}
+        eyebrow={questionEyebrow(11, 10)}
         question="One location, or building a portfolio?"
         progressPct={p}
         canAdvance={canAdvance}
@@ -818,7 +828,7 @@ export function ApplicationRenderer({
       v.length > 0 && (v !== OTHER_VALUE || otherText.trim().length > 0);
     return (
       <QuestionScreen
-        eyebrow={`Chapter 4 of 4 · Question 11 of ${TOTAL_QUESTIONS}`}
+        eyebrow={questionEyebrow(12, 11)}
         question={closingQ.question}
         subCaption={closingQ.subCaption}
         progressPct={p}
@@ -883,7 +893,7 @@ export function ApplicationRenderer({
   // 14: Success — minimal transitional placeholder. The chapter complete
   // popup (PR 36) is the real celebration; this screen exists only to
   // bridge the moment between submit and the popup, and to handle
-  // already-submitted candidates returning to Chapter 1 Step 2.
+  // already-submitted candidates returning to the application step.
   return (
     <SuccessScreen
       firstName={candidate.first_name}
