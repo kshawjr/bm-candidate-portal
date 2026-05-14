@@ -112,15 +112,24 @@ export function StepTransitionVideoPopup({
         </div>
 
         <div className="pp-popup-foot">
-          <button
-            type="button"
-            className="pp-popup-cta"
-            onClick={handleDismiss}
-            disabled={pending || closing}
-            data-emphasis={ended ? "primary" : "secondary"}
-          >
-            {pending ? "…" : "Continue"}
-          </button>
+          {/* Continue visibility tracks the watch contract:
+              - has_sound=true: hidden until the video ends (or
+                playback completes some other way) so the candidate
+                actually hears what the admin asked them to hear
+              - has_sound=false (or null): visible immediately —
+                silent video is ambient context, candidate isn't
+                under any obligation to watch it through */}
+          {(config.hasSound !== true || ended) && (
+            <button
+              type="button"
+              className="pp-popup-cta"
+              onClick={handleDismiss}
+              disabled={pending || closing}
+              data-emphasis={ended ? "primary" : "secondary"}
+            >
+              {pending ? "…" : "Continue"}
+            </button>
+          )}
         </div>
       </div>
     </div>
