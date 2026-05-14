@@ -258,6 +258,18 @@ export function SlidesRenderer({
           })}
         </div>
 
+        {/* PR 120: mobile counter — dots overflow on narrow viewports
+            when slide count is high. CSS swaps the dots row for this
+            text counter at ≤768px so the Next button stays on-screen.
+            Both elements render; CSS picks the right one per width. */}
+        <span
+          className="slide-counter-text"
+          aria-live="polite"
+          aria-label={`Slide ${idx + 1} of ${slides.length}`}
+        >
+          {idx + 1} / {slides.length}
+        </span>
+
         <button
           type="button"
           className="slide-nav-btn primary"

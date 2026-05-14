@@ -898,6 +898,45 @@ html::-webkit-scrollbar-thumb:hover {
   background: var(--brand-primary);
   transform: scale(1.2);
 }
+
+/* PR 120: text counter shown in place of the dots row on mobile.
+   Rendered alongside .slide-dots in the JSX; only one is visible per
+   breakpoint per the @media rules below. Tabular-nums keeps "1 / 17"
+   and "10 / 17" the same width so the layout doesn't shift when the
+   candidate advances past slide 9. */
+.slide-counter-text {
+  display: none;
+  justify-self: center;
+  font-family: var(--font-body);
+  font-size: var(--fluid-text-sm);
+  font-weight: 600;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Mobile (≤768px): launch-blocker fix. The dots row's `auto` grid
+   track grew with slide count and pushed the Next button off-screen
+   on narrow viewports. Swap dots for a compact text counter, ensure
+   tap targets meet Apple's 44×44 minimum, and pad the footer up by
+   the safe-area inset so Next stays clear of the iPhone home
+   indicator. Desktop styles (above) are untouched. */
+@media (max-width: 768px) {
+  .slide-controls {
+    padding-bottom: max(0px, var(--safe-area-inset-bottom));
+  }
+  .slide-dots {
+    display: none;
+  }
+  .slide-counter-text {
+    display: inline-flex;
+    align-items: center;
+  }
+  .slide-nav-btn {
+    min-width: 44px;
+    min-height: 44px;
+    padding: 10px 14px;
+  }
+}
 .slide-dot:disabled {
   cursor: not-allowed;
 }
