@@ -27,6 +27,30 @@
   --brand-accent: #ff6c2f;
   --brand-dark: #266783;
   --brand-soft: #ace3ef;
+
+  /* iOS safe-area insets — handles notch, home indicator, dynamic island.
+     Use these instead of fixed pixel padding at the edges of fullscreen
+     UI (bottom sheets, fixed nav bars, etc.). Reports 0 when not on a
+     device with insets; reports the actual inset when the viewport meta
+     tag includes viewport-fit=cover (set in app/layout.tsx). */
+  --safe-area-inset-top: env(safe-area-inset-top, 0px);
+  --safe-area-inset-right: env(safe-area-inset-right, 0px);
+  --safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-area-inset-left: env(safe-area-inset-left, 0px);
+
+  /* Fluid type scale (PR 118 mobile foundation). Use these for body
+     text + headings that need to read at both 375px and 1440px without
+     per-breakpoint overrides. Fixed sizes (px/rem) remain appropriate
+     for chrome UI like buttons, labels, eyebrows where consistency
+     across viewports matters more than fluid scaling. Not consumed in
+     this PR — subsequent mobile PRs will pick these up. */
+  --fluid-text-xs: clamp(0.75rem, 0.7rem + 0.25vw, 0.875rem);
+  --fluid-text-sm: clamp(0.875rem, 0.825rem + 0.25vw, 1rem);
+  --fluid-text-base: clamp(1rem, 0.9rem + 0.5vw, 1.125rem);
+  --fluid-text-lg: clamp(1.125rem, 1rem + 0.625vw, 1.375rem);
+  --fluid-text-xl: clamp(1.375rem, 1.2rem + 0.875vw, 1.75rem);
+  --fluid-text-2xl: clamp(1.75rem, 1.5rem + 1.25vw, 2.5rem);
+  --fluid-text-3xl: clamp(2.25rem, 1.9rem + 1.75vw, 3.5rem);
 }
 
 html,
@@ -4979,4 +5003,95 @@ html::-webkit-scrollbar-thumb:hover {
     animation: none !important;
     transition: none !important;
   }
+}
+
+/* =========================================================================
+   Mobile foundation (PR 118) — bottom sheet + tap-target utilities
+   Pure foundation; no call sites yet. Subsequent mobile PRs will
+   consume these.
+   ========================================================================= */
+
+/* Collapsed handle slot — fixed at the bottom of the viewport while
+   the sheet is closed. Pads up by the safe-area inset so the handle
+   never hides under the iOS home indicator. */
+.bottom-sheet-handle-container {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding-bottom: var(--safe-area-inset-bottom);
+  z-index: 40;
+  pointer-events: auto;
+}
+
+.bottom-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 50;
+  backdrop-filter: blur(2px);
+}
+
+.bottom-sheet {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: var(--surface);
+  border-top-left-radius: 16px;
+  border-top-right-radius: 16px;
+  z-index: 51;
+  padding-bottom: var(--safe-area-inset-bottom);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.15);
+}
+
+/* Drag indicator (the small pill at the top of the sheet) — visual
+   affordance for the drag-down-to-close gesture. */
+.bottom-sheet-drag-indicator {
+  width: 36px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--border-strong);
+  margin: 12px auto 8px;
+  flex-shrink: 0;
+}
+
+.bottom-sheet-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 20px 24px;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bottom-sheet,
+  .bottom-sheet-backdrop {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+/* Apple HIG minimum tap target: 44×44 CSS pixels. Apply to any
+   interactive element that might be too small on mobile. */
+.tap-target {
+  min-width: 44px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* For inline links / icons inside text where 44px would break layout,
+   expand the hit area via an invisible pseudo-element. Visual size is
+   unchanged; the wrapper just becomes more tappable. */
+.tap-target-inline {
+  position: relative;
+}
+.tap-target-inline::before {
+  content: "";
+  position: absolute;
+  inset: -8px;
 }
