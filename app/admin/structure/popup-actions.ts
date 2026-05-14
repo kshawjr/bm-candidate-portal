@@ -44,6 +44,12 @@ export interface ChapterVideoFormData {
   description: string | null;
   ctaDismissLabel: string;
   isActive: boolean;
+  /** PR 127: admin-picked sound flag. true → paused with controls,
+   *  candidate taps play (with sound). false → autoplay muted, no
+   *  controls (explicit ambient). null → use default (unified rule
+   *  treats as ambient). The chapter_videos table has the matching
+   *  has_sound boolean column added in 20260514_chapter_videos_has_sound.sql. */
+  hasSound: boolean | null;
 }
 
 /**
@@ -83,6 +89,7 @@ export async function saveChapterVideoAction(
       description: data.description?.trim() || null,
       cta_dismiss_label: data.ctaDismissLabel.trim() || "Got it",
       is_active: data.isActive,
+      has_sound: data.hasSound,
     },
     { onConflict: "brand_id,chapter_key" },
   );

@@ -295,7 +295,7 @@ export default async function PortalTokenPage({
     app
       .from("chapter_videos")
       .select(
-        "chapter_key, title, video_url, video_provider, description, cta_dismiss_label, is_active",
+        "chapter_key, title, video_url, video_provider, description, cta_dismiss_label, is_active, has_sound",
       )
       .eq("brand_id", brand.id)
       .eq("is_active", true),
@@ -512,6 +512,10 @@ export default async function PortalTokenPage({
       description: (row.description as string | null) ?? null,
       ctaDismissLabel:
         (row.cta_dismiss_label as string | null) ?? "Got it",
+      // PR 127: pass the admin-picked sound flag through to the popup.
+      // Null falls through to the unified rule's ambient branch
+      // (autoplay muted), matching legacy/unset behavior.
+      hasSound: (row as { has_sound?: boolean | null }).has_sound ?? null,
     };
   }
 
