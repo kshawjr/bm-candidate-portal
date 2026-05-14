@@ -58,9 +58,13 @@ export interface ChapterIntroPopupConfig {
 // Legacy fallbacks. The migration leaves scarcityFraming + continueHint
 // null on existing rows so brands that haven't been edited render the
 // same copy they always did.
-const DEFAULT_SCARCITY_HEADING =
-  "We're only taking {slots} more candidates this month.";
-const DEFAULT_SCARCITY_BODY = "Selective intake. Serious candidates only.";
+// PR: scarcity copy now qualifies on timeline instead of inventing a
+// fake slot count. The {slots} template variable resolver stays in
+// place — admins who want a slot-count framing can author "{slots}"
+// into a custom heading via /admin/structure.
+const DEFAULT_SCARCITY_HEADING = "Selective intake. Serious candidates only.";
+const DEFAULT_SCARCITY_BODY =
+  "Due to high demand, we're prioritizing partners ready to begin the ownership process within the next 12 months.";
 const DEFAULT_CONTINUE_HINT = "Check the items above to continue";
 
 export const FALLBACK_SCARCITY: ScarcityFraming = {
