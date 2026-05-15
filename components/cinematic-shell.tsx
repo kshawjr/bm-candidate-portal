@@ -534,21 +534,30 @@ export function CinematicShell({
     });
   }, [onLogEvent]);
 
-  // Sync the user's view to the server's current chapter when it advances.
-  // PR 36: completing a chapter via the chapter complete popup bumps
-  // current_chapter server-side, but useState ignores prop changes. Without
-  // this effect, the user would still see their old chapter in the shell
-  // even after the popup closes and the journey moved forward.
+  // Sync the user's view to the server's current chapter / step when
+  // either advances. PR 36 wired this for chapter completion (which
+  // bumps current_chapter); PR 131 added the in-chapter step advance
+  // (book → wait), which this effect previously ignored because the
+  // dep array only listed currentChapterIdx and the setter was
+  // hardcoded to 0. Result: after booking, current_step bumped 0 → 1
+  // server-side but the candidate stayed on BookedView because
+  // selectedStepIdx was stuck at 0.
   //
-  // The sidebar still lets candidates browse to past chapters; manually
-  // selecting only changes selectedChapterIdx, not currentChapterIdx, so
-  // this effect doesn't fight that — it only fires when the SERVER bumps
-  // current_chapter.
+  // Fix: use initialStepIdx (the server's clamped current_step value
+  // passed fresh on every render) as both the setter value AND the
+  // dep. When chapter advances, current_step resets to 0 server-side
+  // so initialStepIdx is 0 — semantically identical to the old
+  // hardcoded reset.
+  //
+  // Manual sidebar / step-strip navigation calls
+  // setSelectedChapterIdx / setSelectedStepIdx directly (changing
+  // LOCAL state without touching the props), so this effect doesn't
+  // fight that — it only fires when the SERVER bumps either value.
   useEffect(() => {
     setSelectedChapterIdx(currentChapterIdx);
-    setSelectedStepIdx(0);
+    setSelectedStepIdx(initialStepIdx);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentChapterIdx]);
+  }, [currentChapterIdx, initialStepIdx]);
 
   const completedCount = currentChapterIdx;
   const progressPct = Math.round((completedCount / chapters.length) * 100);
