@@ -98,6 +98,22 @@ export function StepTransitionVideoPopup({
     return () => window.clearTimeout(t);
   }, []);
 
+  // PR 134 hotfix: explicit play() instead of the autoPlay attribute
+  // for ambient videos. iOS Safari silently rejects the autoPlay
+  // attribute in various edge cases (off-viewport mount, low-power
+  // mode, hydration races) with no recovery path — programmatic
+  // .play() is treated more leniently for muted videos. See
+  // slides-renderer.tsx SlideVideo for full background. .catch()
+  // surfaces the rare hard-block to the console without crashing.
+  useEffect(() => {
+    if (!isAmbient) return;
+    const v = videoRef.current;
+    if (!v) return;
+    v.play().catch((err) => {
+      console.warn("[StepTransitionVideoPopup] autoplay blocked:", err);
+    });
+  }, [isAmbient, config.videoUrl]);
+
   const handleDismiss = () => {
     if (pending || closing) return;
     setClosing(true);
@@ -132,7 +148,6 @@ export function StepTransitionVideoPopup({
             poster={config.posterUrl ?? undefined}
             playsInline
             preload="metadata"
-            autoPlay={isAmbient}
             muted={isAmbient}
             controls={config.hasSound === true}
             onEnded={() => setEnded(true)}

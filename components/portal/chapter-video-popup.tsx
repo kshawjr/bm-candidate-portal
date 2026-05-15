@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { parseVideoSource, type VideoProvider } from "@/lib/video-source";
 
 // Match the step-transition-video popup's presence gate. Chapter videos
@@ -46,6 +46,11 @@ export function ChapterVideoPopup({ config, onDismiss, onDismissed }: Props) {
   const [closing, setClosing] = useState(false);
   const [pending, startTransition] = useTransition();
   const [tenSecondsElapsed, setTenSecondsElapsed] = useState(false);
+  // PR 134 hotfix: programmatic .play() for the mp4 path. See
+  // slides-renderer.tsx SlideVideo for the iOS Safari background.
+  // The iframe path doesn't need this — iframe autoplay is controlled
+  // via URL params, which don't have the React-mount race.
+  const mp4VideoRef = useRef<HTMLVideoElement>(null);
 
   // Lock page scroll while the popup is open. Restored on unmount even if
   // dismiss fails halfway.
@@ -114,6 +119,21 @@ export function ChapterVideoPopup({ config, onDismiss, onDismissed }: Props) {
     return `${parsed.embedUrl}${sep}autoplay=1&mute=${muteParam}&muted=${muteParam}&playsinline=1`;
   })();
 
+  // PR 134 hotfix: programmatic .play() for the mp4 path only. Same
+  // iOS reliability story as SlideVideo + StepTransitionVideoPopup.
+  // No-ops cleanly when the iframe branch renders (mp4VideoRef stays
+  // null), so it's safe to keep the effect mounted regardless of
+  // provider.
+  useEffect(() => {
+    if (!isAmbient) return;
+    if (parsed?.provider !== "mp4") return;
+    const v = mp4VideoRef.current;
+    if (!v) return;
+    v.play().catch((err) => {
+      console.warn("[ChapterVideoPopup] autoplay blocked:", err);
+    });
+  }, [isAmbient, parsed?.provider, parsed?.embedUrl]);
+
   return (
     <div
       className={`pp-popup-backdrop${closing ? " is-closing" : ""}`}
@@ -131,11 +151,11 @@ export function ChapterVideoPopup({ config, onDismiss, onDismissed }: Props) {
         <div className="pp-popup-video">
           {parsed?.provider === "mp4" ? (
             <video
+              ref={mp4VideoRef}
               className="pp-popup-video-el"
               src={parsed.embedUrl}
               playsInline
               preload="metadata"
-              autoPlay={isAmbient}
               muted={isAmbient}
               controls={config.hasSound === true}
             />
