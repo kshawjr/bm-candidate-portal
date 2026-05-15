@@ -256,7 +256,7 @@ export function SlidesRenderer({
           type="button"
           className="slide-nav-btn"
           onClick={goPrev}
-          disabled={idx === 0 || disabled}
+          disabled={idx === 0}
         >
           ← Back
         </button>
@@ -278,7 +278,6 @@ export function SlidesRenderer({
                 onClick={() => setIdx(i)}
                 aria-label={`Slide ${i + 1} of ${slides.length}`}
                 aria-current={i === idx ? "true" : undefined}
-                disabled={disabled}
               />
             );
           })}
@@ -300,7 +299,6 @@ export function SlidesRenderer({
           type="button"
           className="slide-nav-btn primary"
           onClick={goNext}
-          disabled={disabled}
         >
           {idx === slides.length - 1 ? "Almost done →" : "Next →"}
         </button>
