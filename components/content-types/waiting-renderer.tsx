@@ -61,6 +61,11 @@ interface Props {
   /** Cancel the booking (lets the candidate reschedule). Null when
    *  not provided — the Reschedule button is hidden in that case. */
   onCancelBooking?: (bookingId: string) => Promise<void>;
+  /** PR 131: navigate the candidate back to the chapter's schedule
+   *  step so they can use the BookedView's Reschedule flow. Optional;
+   *  when absent, the "Need to reschedule?" footer link is hidden.
+   *  Also hidden when there's no booking — nothing to reschedule. */
+  onRescheduleNavigate?: () => void;
   /** Advance to the next step in the chapter (or finish the chapter
    *  if this is the last step). Called when the unlocked-state CTA
    *  is clicked. */
@@ -86,6 +91,7 @@ export function WaitingRenderer({
   brandShortName,
   advisorName,
   onCancelBooking,
+  onRescheduleNavigate,
   onContinue,
   previewState,
 }: Props) {
@@ -159,6 +165,7 @@ export function WaitingRenderer({
           brandShortName={brandShortName}
           advisorName={advisorName}
           onCancelBooking={onCancelBooking}
+          onRescheduleNavigate={onRescheduleNavigate}
           leaving={fading}
         />
       )}
@@ -176,6 +183,7 @@ function ParkedView({
   brandShortName,
   advisorName,
   onCancelBooking,
+  onRescheduleNavigate,
   leaving,
 }: {
   config: WaitingConfig;
@@ -185,6 +193,7 @@ function ParkedView({
   brandShortName: string;
   advisorName: string | null;
   onCancelBooking?: (bookingId: string) => Promise<void>;
+  onRescheduleNavigate?: () => void;
   leaving: boolean;
 }) {
   return (
@@ -238,6 +247,27 @@ function ParkedView({
       <p className="waiting-expectation">
         {resolveTemplate(config.expectation_copy, templateContext)}
       </p>
+
+      {/* PR 131: subtle reschedule path. Hidden when there's no booking
+          (locked waiting step, pre-book state) or when the parent didn't
+          supply the navigation callback. Footer placement keeps the
+          waiting step calm — the whole point is "nothing to do here" —
+          while still giving candidates who need to reschedule a clear
+          path out without backing through the drawer. */}
+      {booking && onRescheduleNavigate && (
+        <div className="waiting-reschedule-footer">
+          <p>
+            Need to reschedule?{" "}
+            <button
+              type="button"
+              className="waiting-reschedule-link"
+              onClick={onRescheduleNavigate}
+            >
+              Choose a different time →
+            </button>
+          </p>
+        </div>
+      )}
     </div>
   );
 }

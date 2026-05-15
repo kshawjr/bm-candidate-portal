@@ -5219,6 +5219,43 @@ html::-webkit-scrollbar-thumb:hover {
   margin: 0;
 }
 
+/* PR 131: subtle "Need to reschedule?" link below the parked content.
+   Footer treatment keeps the waiting step calm — the muted text
+   blends with the surrounding "nothing to do here" framing, while
+   the brand-primary underlined link is easy to find when looking for
+   it. Border-top separates it visually from the expectation line
+   above without shouting. */
+.waiting-reschedule-footer {
+  margin-top: 32px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border, rgba(0, 0, 0, 0.08));
+  text-align: center;
+}
+.waiting-reschedule-footer p {
+  margin: 0;
+  font-size: var(--fluid-text-sm);
+  color: var(--cin-text-muted, #6b7280);
+}
+.waiting-reschedule-link {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--brand-primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  font-size: inherit;
+  font-family: inherit;
+}
+.waiting-reschedule-link:hover {
+  text-decoration: none;
+}
+.waiting-reschedule-link:focus-visible {
+  outline: 2px solid var(--brand-accent, var(--brand-primary));
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
 /* Unlocked state */
 .waiting-unlocked {
   text-align: center;
