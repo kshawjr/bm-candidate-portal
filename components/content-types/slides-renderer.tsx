@@ -327,16 +327,19 @@ interface SlideVideoProps {
 
 // PR 125: unified video playback rule — has_sound=true → paused with
 // controls, candidate taps play (with sound); has_sound!==true →
-// autoplay muted with no controls (ambient). reduceMotion overrides
-// ambient autoplay to respect prefers-reduced-motion.
+// autoplay muted with no controls (ambient). reduceMotion users see
+// the same ambient video paused with controls so they can opt into
+// playback rather than be auto-rolled.
 //
-// Replaces the previous muted-autoplay + "Tap for sound" pill +
-// unmute-on-tap handshake, which was a workaround for trying to
-// autoplay sound-on videos and gracefully degrade when mobile browsers
-// blocked it. The new rule makes the degraded behavior intentional:
-// sound-on videos always wait for user tap, everywhere.
+// PR 132 hotfix: `muted` must be UNCONDITIONAL for ambient videos.
+// iOS Safari checks the muted attribute at element mount for autoplay
+// eligibility, and conditional `muted={autoplay}` can lose the race
+// with autoplay-policy enforcement on first paint — the video then
+// renders as a white rectangle with no controls (the broken case
+// Kevin saw on iPhone). Always-muted for has_sound=false fixes it.
+// reduce-motion gets controls so the muted video is still playable.
 function SlideVideo({ src, poster, hasSound, reduceMotion }: SlideVideoProps) {
-  const autoplayMuted = !hasSound && !reduceMotion;
+  const isAmbient = !hasSound;
 
   return (
     <video
@@ -344,9 +347,9 @@ function SlideVideo({ src, poster, hasSound, reduceMotion }: SlideVideoProps) {
       poster={poster ?? undefined}
       playsInline
       preload="metadata"
-      autoPlay={autoplayMuted}
-      muted={autoplayMuted}
-      controls={hasSound}
+      autoPlay={isAmbient && !reduceMotion}
+      muted={isAmbient}
+      controls={hasSound || reduceMotion}
       width={1280}
       height={720}
     />

@@ -63,10 +63,15 @@ export function StepTransitionVideoPopup({
 }: Props) {
   const [closing, setClosing] = useState(false);
   const [pending, startTransition] = useTransition();
-  // Unified playback rule. autoplayMuted === !hasSound: when hasSound
-  // is true, controls visible + autoplay off (candidate taps play
-  // for sound); when false or null, autoplay muted + controls off.
-  const autoplayMuted = config.hasSound !== true;
+  // Unified playback rule. isAmbient === !hasSound: when hasSound is
+  // true, controls visible + autoplay off (candidate taps play for
+  // sound); when false or null, autoplay muted + controls off.
+  //
+  // PR 132 hotfix: `muted` MUST be unconditional for ambient videos —
+  // see slides-renderer.tsx SlideVideo comment. iOS Safari mount-time
+  // autoplay check loses to conditional `muted` and renders the
+  // popup video as a white frame with no controls.
+  const isAmbient = config.hasSound !== true;
   const [ended, setEnded] = useState(false);
   const [timerElapsed, setTimerElapsed] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -127,8 +132,8 @@ export function StepTransitionVideoPopup({
             poster={config.posterUrl ?? undefined}
             playsInline
             preload="metadata"
-            autoPlay={autoplayMuted}
-            muted={autoplayMuted}
+            autoPlay={isAmbient}
+            muted={isAmbient}
             controls={config.hasSound === true}
             onEnded={() => setEnded(true)}
           />
