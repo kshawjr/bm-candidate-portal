@@ -92,10 +92,16 @@ export function ChapterVideoPopup({ config, onDismiss, onDismissed }: Props) {
 
   // PR 125 unified video playback rule. true → paused with controls
   // (user taps play with sound); !true → autoplay muted (ambient).
-  // For iframe embeds the rule translates to URL params; for mp4 it
-  // maps directly to the <video> element's autoplay / muted / controls
-  // attrs (same pattern as SlideVideo + StepTransitionVideoPopup).
-  const autoplayMuted = config.hasSound !== true;
+  // For iframe embeds the rule translates to URL params (no mount-
+  // time race — params are baked into the iframe src string); for
+  // mp4 it maps directly to the <video> element's autoplay / muted
+  // / controls attrs.
+  //
+  // PR 132 hotfix: see slides-renderer.tsx SlideVideo comment. The
+  // mp4 <video> needs unconditional `muted` for ambient autoplay to
+  // actually fire on iOS Safari — the iframe path is untouched
+  // because URL params don't have the React-mount race.
+  const isAmbient = config.hasSound !== true;
 
   // Append autoplay / mute / playsinline params to the parsed embed
   // URL. parseVideoSource returns YouTube URLs already containing
@@ -104,7 +110,7 @@ export function ChapterVideoPopup({ config, onDismiss, onDismissed }: Props) {
   const iframeSrc = (() => {
     if (!parsed || parsed.provider === "mp4") return null;
     const sep = parsed.embedUrl.includes("?") ? "&" : "?";
-    const muteParam = autoplayMuted ? "1" : "0";
+    const muteParam = isAmbient ? "1" : "0";
     return `${parsed.embedUrl}${sep}autoplay=1&mute=${muteParam}&muted=${muteParam}&playsinline=1`;
   })();
 
@@ -129,8 +135,8 @@ export function ChapterVideoPopup({ config, onDismiss, onDismissed }: Props) {
               src={parsed.embedUrl}
               playsInline
               preload="metadata"
-              autoPlay={autoplayMuted}
-              muted={autoplayMuted}
+              autoPlay={isAmbient}
+              muted={isAmbient}
               controls={config.hasSound === true}
             />
           ) : iframeSrc ? (
