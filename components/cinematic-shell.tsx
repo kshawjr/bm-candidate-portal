@@ -583,6 +583,22 @@ export function CinematicShell({
     });
   };
 
+  // PR 131: reverse of handleStepAdvance — used by the waiting step's
+  // "Need to reschedule?" footer link to send the candidate back to the
+  // schedule step where they can use BookedView's Reschedule flow.
+  // Decrement-by-1 is sufficient for Chapter 2 (schedule at idx 0,
+  // waiting at idx 1) and any future chapter where waiting follows
+  // schedule directly. Local + server state update in tandem so the UI
+  // flips without waiting for the round-trip.
+  const handleRescheduleNavigate = () => {
+    const prevIdx = Math.max(selectedStepIdx - 1, 0);
+    setSelectedStepIdx(prevIdx);
+    startTransition(async () => {
+      await onStepAdvance(prevIdx);
+      router.refresh();
+    });
+  };
+
   // Called from the success screen of the application renderer. The server
   // (PR 36) no longer advances current_chapter on submit — it just bumps
   // current_step past the last step so the chapter complete popup fires.
@@ -853,6 +869,7 @@ export function CinematicShell({
                 }
                 onTourComplete={handleTourComplete}
                 onStepAdvance={handleStepAdvance}
+                onRescheduleNavigate={handleRescheduleNavigate}
                 onLogEvent={onLogEvent}
                 onEducationCompleted={handleEducationCompleted}
                 tourPending={pending}
@@ -1091,6 +1108,7 @@ function StepRenderer({
   currentChapterKey,
   onTourComplete,
   onStepAdvance,
+  onRescheduleNavigate,
   onLogEvent,
   onEducationCompleted,
   tourPending,
@@ -1127,6 +1145,10 @@ function StepRenderer({
   currentChapterKey: string | null;
   onTourComplete: () => void;
   onStepAdvance: () => void;
+  /** PR 131: navigate the candidate to the previous step (used by the
+   *  waiting step's "Need to reschedule?" footer to bounce them back
+   *  to the schedule step). Mirrors onStepAdvance but in reverse. */
+  onRescheduleNavigate: () => void;
   onLogEvent: (args: ClientLogEventArgs) => Promise<void>;
   /** PR 60: invoked when the candidate views the last slide of the
    *  explore/tour deck. Owner of the per-mount dedup lives in the
@@ -1333,6 +1355,7 @@ function StepRenderer({
         brandShortName={brandShortName}
         advisorName={advisorName}
         onCancelBooking={onCancelBooking}
+        onRescheduleNavigate={scheduleBooking ? onRescheduleNavigate : undefined}
         onContinue={onStepAdvance}
       />
     );

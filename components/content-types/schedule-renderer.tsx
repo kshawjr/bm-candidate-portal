@@ -87,8 +87,19 @@ export function ScheduleRenderer({
     existingBooking,
   );
 
+  // PR 131: post-booking auto-advance. bookSlotAction already advances
+  // current_step (PR 113 added the wait step after book), so router.refresh
+  // unmounts ScheduleRenderer in favor of WaitingRenderer. The transient
+  // "Confirming…" state covers the gap between the optimistic book and
+  // the server-rendered next step — without it the candidate saw BookedView
+  // for a few hundred ms ("ceremony" the user wanted to skip). Reset
+  // whenever existingBooking changes so navigating back to the schedule
+  // step doesn't get stuck on the loader.
+  const [transitioningToNext, setTransitioningToNext] = useState(false);
+
   useEffect(() => {
     setLocalBooking(existingBooking);
+    setTransitioningToNext(false);
   }, [existingBooking]);
 
   const activeBooking =
@@ -116,6 +127,19 @@ export function ScheduleRenderer({
           the {brandName} team. Check back soon — no action needed from you
           right now.
         </p>
+      </div>
+    );
+  }
+
+  if (transitioningToNext) {
+    return (
+      <div
+        className="slides-handoff-loading"
+        role="status"
+        aria-live="polite"
+      >
+        <div className="slides-handoff-loading-dot" aria-hidden="true" />
+        <p>Confirming your time…</p>
       </div>
     );
   }
@@ -149,14 +173,13 @@ export function ScheduleRenderer({
       onGetSlots={onGetSlots}
       onBook={onBook}
       onSubmitUnavailable={onSubmitUnavailable}
-      onBooked={(result) => {
-        setLocalBooking({
-          id: result.id,
-          start_time: result.start_time,
-          end_time: result.end_time,
-          meeting_url: result.meeting_url,
-          status: "confirmed",
-        });
+      onBooked={() => {
+        // PR 131: don't flip localBooking on a fresh book. The server-
+        // side current_step advance (bookSlotAction → wait step) makes
+        // the refresh re-mount us as WaitingRenderer instead. While the
+        // refresh is in flight, transitioningToNext covers the gap with
+        // a "Confirming…" loader rather than a BookedView ceremony.
+        setTransitioningToNext(true);
         router.refresh();
       }}
     />
@@ -527,6 +550,11 @@ function BookedView({
   onContinue: () => void;
 }) {
   const [rescheduling, startReschedule] = useTransition();
+  // PR 131: branded confirm replaces native confirm() — desktop modal,
+  // mobile BottomSheet, same responsive pattern as the booking-confirm
+  // modal in PickerView (added in PR 124).
+  const [confirmingReschedule, setConfirmingReschedule] = useState(false);
+  const isMobile = useIsMobile();
 
   const eventLabelLower = eventLabel.toLowerCase();
   // First name for in-page confirmation copy; full name for the ICS
@@ -592,20 +620,10 @@ function BookedView({
         <button
           type="button"
           className="slide-nav-btn"
-          onClick={() => {
-            if (
-              confirm(
-                "Cancel this booking and pick a different time? The event will be removed from everyone's calendars.",
-              )
-            ) {
-              startReschedule(async () => {
-                await onReschedule();
-              });
-            }
-          }}
+          onClick={() => setConfirmingReschedule(true)}
           disabled={rescheduling}
         >
-          {rescheduling ? "Cancelling…" : "Reschedule"}
+          {rescheduling ? "Loading new times…" : "Reschedule"}
         </button>
       </div>
 
@@ -631,7 +649,110 @@ function BookedView({
           Continue →
         </button>
       </div>
+
+      {/* PR 131: branded reschedule confirm. Replaces the native
+          window.confirm() — same content in both branches, responsive
+          wrapper (BottomSheet on mobile / centered modal on desktop)
+          mirrors PR 124's booking-confirm pattern. The actual
+          cancellation logic still runs inside startReschedule so the
+          Reschedule button label flips to "Loading new times…" while
+          the calendar event is being cancelled. */}
+      {confirmingReschedule &&
+        (isMobile ? (
+          <BottomSheet
+            isOpen={true}
+            onClose={() => setConfirmingReschedule(false)}
+            ariaLabel="Confirm reschedule"
+            maxHeightPercent={75}
+          >
+            <RescheduleConfirmContent
+              booking={booking}
+              timezone={timezone}
+              advisorFirstName={advisorFirstName}
+              onCancel={() => setConfirmingReschedule(false)}
+              onConfirm={() => {
+                setConfirmingReschedule(false);
+                startReschedule(async () => {
+                  await onReschedule();
+                });
+              }}
+              pending={rescheduling}
+            />
+          </BottomSheet>
+        ) : (
+          <div className="adm-drawer-backdrop" role="dialog" aria-modal="true">
+            <div className="schedule-confirm">
+              <RescheduleConfirmContent
+                booking={booking}
+                timezone={timezone}
+                advisorFirstName={advisorFirstName}
+                onCancel={() => setConfirmingReschedule(false)}
+                onConfirm={() => {
+                  setConfirmingReschedule(false);
+                  startReschedule(async () => {
+                    await onReschedule();
+                  });
+                }}
+                pending={rescheduling}
+              />
+            </div>
+          </div>
+        ))}
     </div>
+  );
+}
+
+// Inline contents of the reschedule-confirm dialog. Same JSX in the
+// mobile BottomSheet and the desktop modal — single source of truth
+// for the copy + button wiring.
+function RescheduleConfirmContent({
+  booking,
+  timezone,
+  advisorFirstName,
+  onCancel,
+  onConfirm,
+  pending,
+}: {
+  booking: ExistingBooking;
+  timezone: string;
+  advisorFirstName: string | null;
+  onCancel: () => void;
+  onConfirm: () => void;
+  pending: boolean;
+}) {
+  return (
+    <>
+      <h4>Choose a different time?</h4>
+      <p className="schedule-confirm-time">
+        {formatDayLabel(booking.start_time, timezone)} at{" "}
+        {formatTimeLabel(booking.start_time, timezone)}{" "}
+        {formatTzAbbrev(booking.start_time, timezone)}
+      </p>
+      <p className="schedule-confirm-meta">
+        This will cancel your current booking and let you pick a new slot.
+        The cancellation goes out to everyone immediately —{" "}
+        {advisorFirstName ?? "your advisor"} and you will both get a
+        calendar update.
+      </p>
+      <div className="schedule-confirm-actions">
+        <button
+          type="button"
+          className="slide-nav-btn"
+          onClick={onCancel}
+          disabled={pending}
+        >
+          Keep my time
+        </button>
+        <button
+          type="button"
+          className="slide-nav-btn primary"
+          onClick={onConfirm}
+          disabled={pending}
+        >
+          Yes, reschedule
+        </button>
+      </div>
+    </>
   );
 }
 
