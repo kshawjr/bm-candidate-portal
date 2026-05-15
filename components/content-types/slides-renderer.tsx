@@ -331,23 +331,40 @@ interface SlideVideoProps {
 // the same ambient video paused with controls so they can opt into
 // playback rather than be auto-rolled.
 //
-// PR 132 hotfix: `muted` must be UNCONDITIONAL for ambient videos.
-// iOS Safari checks the muted attribute at element mount for autoplay
-// eligibility, and conditional `muted={autoplay}` can lose the race
-// with autoplay-policy enforcement on first paint — the video then
-// renders as a white rectangle with no controls (the broken case
-// Kevin saw on iPhone). Always-muted for has_sound=false fixes it.
-// reduce-motion gets controls so the muted video is still playable.
+// PR 132 made `muted` unconditional for ambient videos to dodge an
+// iOS attribute-race bug; PR 134 hotfix replaces the declarative
+// `autoPlay` attribute with an imperative videoRef.current.play()
+// in a useEffect. Background: iOS Safari can SILENTLY reject the
+// autoPlay attribute under various conditions (off-viewport mount,
+// low-power mode, hydration races) and offer no recovery path —
+// candidate sees an empty rectangle. Programmatic .play() is treated
+// as more permissible for muted videos and works in those cases.
+// .catch() handles the rare case where it's still blocked: video
+// stays paused, candidate sees the poster (or nothing), not a crash.
 function SlideVideo({ src, poster, hasSound, reduceMotion }: SlideVideoProps) {
+  const videoRef = useRef<HTMLVideoElement>(null);
   const isAmbient = !hasSound;
+  const shouldAutoplay = isAmbient && !reduceMotion;
+
+  useEffect(() => {
+    if (!shouldAutoplay) return;
+    const v = videoRef.current;
+    if (!v) return;
+    v.play().catch((err) => {
+      // Browser blocked autoplay despite muted. Nothing to do client-
+      // side — log so we can spot persistent failures on specific
+      // videos in real-device testing.
+      console.warn("[SlideVideo] autoplay blocked:", err);
+    });
+  }, [shouldAutoplay, src]);
 
   return (
     <video
+      ref={videoRef}
       src={src}
       poster={poster ?? undefined}
       playsInline
       preload="metadata"
-      autoPlay={isAmbient && !reduceMotion}
       muted={isAmbient}
       controls={hasSound || reduceMotion}
       width={1280}
