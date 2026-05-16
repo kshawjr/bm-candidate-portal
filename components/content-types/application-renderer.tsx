@@ -36,6 +36,7 @@ import {
   OTHER_VALUE,
 } from "@/lib/application-options";
 import { brandClosingQuestion } from "@/lib/brand-closing-questions";
+import { screenIdxToQuestionIdx } from "@/lib/application-progress";
 
 // ---------- Option sets ----------
 //
@@ -104,6 +105,13 @@ interface Props {
   initialAnswers: Answers;
   isAlreadySubmitted: boolean;
   onSaveAnswer: (fieldKey: string, fieldValue: unknown) => Promise<void>;
+  /** PR for app-progress tracking: writes Application_* fields to the
+   *  candidate's Zoho Lead on each forward question advance. Best-
+   *  effort — fired without await, swallows errors. Passes the
+   *  0-indexed question position (Q1 = 0, Q11 = 10, Completed = 11+).
+   *  See lib/application-progress.ts for the label / percent helpers
+   *  + the screen-idx → question-idx mapping. */
+  onUpdateProgress: (questionIdx: number) => Promise<void>;
   onSubmit: (finalAnswers: Answers) => Promise<void>;
   onContinueToNextChapter: () => void;
 }
@@ -302,6 +310,7 @@ export function ApplicationRenderer({
   initialAnswers,
   isAlreadySubmitted,
   onSaveAnswer,
+  onUpdateProgress,
   onSubmit,
   onContinueToNextChapter,
 }: Props) {
@@ -368,6 +377,30 @@ export function ApplicationRenderer({
       window.clearTimeout(tFlash);
     };
   }, [currentSectionNum]);
+
+  // PR for app-progress tracking: writes Application_* fields to the
+  // candidate's Zoho Lead each time they advance to a new high-water
+  // question. Initialized from the resumed idx so a mid-application
+  // candidate doesn't trigger a redundant write on remount. Edits to
+  // past answers don't change idx, so they don't fire. Backward nav
+  // bumps idx down but never up past furthestQuestionIdx, so the
+  // guard suppresses writes there too.
+  const [furthestQuestionIdx, setFurthestQuestionIdx] = useState(() => {
+    const q = screenIdxToQuestionIdx(idx);
+    return q ?? -1;
+  });
+  useEffect(() => {
+    const q = screenIdxToQuestionIdx(idx);
+    if (q === null) return; // transitional screen (intro card, etc.)
+    if (q <= furthestQuestionIdx) return; // not a forward advance
+    setFurthestQuestionIdx(q);
+    // Fire-and-forget — onUpdateProgress is best-effort server-side
+    // (caught + logged in the action) and the renderer should never
+    // block the candidate's advance on a Zoho hiccup.
+    void onUpdateProgress(q).catch(() => {
+      // Server action already logs internally; swallow here.
+    });
+  }, [idx, furthestQuestionIdx, onUpdateProgress]);
 
   const setA = (patch: Answers) =>
     setAnswers((prev) => ({ ...prev, ...patch }));

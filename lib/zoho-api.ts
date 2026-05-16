@@ -99,6 +99,55 @@ class ZohoApiClient {
   }
 
   /**
+   * Write the three application-progress fields onto a Lead.
+   * Application_Complete_Percent (number 0-100), Application_Last_Question
+   * (picklist), Application_Last_Activity (DateTime, +00:00 offset).
+   *
+   * Throws on non-2xx — caller (server action in app/portal/[token]/
+   * actions.ts) catches and logs, so application advance never blocks
+   * on a Zoho hiccup. Picklist values must match Zoho's configured
+   * options exactly; see APPLICATION_QUESTION_LABELS.
+   */
+  async updateApplicationProgress(
+    leadId: string,
+    fields: {
+      completePercent: number;
+      lastQuestion: string;
+      lastActivity: string;
+    },
+  ): Promise<void> {
+    const id = String(leadId);
+    const token = await this.getAccessToken();
+    const response = await fetch(
+      `${API_DOMAIN}/crm/v3/Leads/${encodeURIComponent(id)}`,
+      {
+        method: "PUT",
+        headers: {
+          Authorization: `Zoho-oauthtoken ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          data: [
+            {
+              id,
+              Application_Complete_Percent: fields.completePercent,
+              Application_Last_Question: fields.lastQuestion,
+              Application_Last_Activity: fields.lastActivity,
+            },
+          ],
+        }),
+      },
+    );
+
+    if (!response.ok) {
+      const body = await response.text();
+      throw new Error(
+        `Zoho updateApplicationProgress ${response.status}: ${body}`,
+      );
+    }
+  }
+
+  /**
    * Fire a Zoho Blueprint state transition on a Lead. Used by the
    * milestone sync to advance the lead through the formal sales
    * pipeline (e.g., "New" → "Engaged"). Distinct from `updateLead`,

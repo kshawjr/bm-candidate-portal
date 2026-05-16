@@ -143,6 +143,10 @@ export interface ShellProps {
     fieldKey: string,
     fieldValue: unknown,
   ) => Promise<void>;
+  /** PR for app-progress: fired by ApplicationRenderer on each forward
+   *  question advance. Best-effort Zoho writeback — renderer doesn't
+   *  await and swallows errors. */
+  onUpdateApplicationProgress: (questionIdx: number) => Promise<void>;
   onSubmitApplication: (finalAnswers: Record<string, unknown>) => Promise<void>;
   onGetSlots: (stepId: string) => Promise<{
     configured: boolean;
@@ -272,6 +276,7 @@ export function CinematicShell({
   onTourComplete,
   onStepAdvance,
   onSaveApplicationAnswer,
+  onUpdateApplicationProgress,
   onSubmitApplication,
   onGetSlots,
   onBookSlot,
@@ -893,6 +898,7 @@ export function CinematicShell({
                 initialUnlockedKeys={initialUnlockedKeys}
                 brandSlug={brandSlug}
                 onSaveApplicationAnswer={onSaveApplicationAnswer}
+                onUpdateApplicationProgress={onUpdateApplicationProgress}
                 onSubmitApplication={onSubmitApplication}
                 onContinueAfterApplication={handleContinueAfterApplication}
                 bookingsByStepId={bookingsByStepId}
@@ -1132,6 +1138,7 @@ function StepRenderer({
   initialUnlockedKeys,
   brandSlug,
   onSaveApplicationAnswer,
+  onUpdateApplicationProgress,
   onSubmitApplication,
   onContinueAfterApplication,
   bookingsByStepId,
@@ -1178,6 +1185,7 @@ function StepRenderer({
     fieldKey: string,
     fieldValue: unknown,
   ) => Promise<void>;
+  onUpdateApplicationProgress: (questionIdx: number) => Promise<void>;
   onSubmitApplication: (finalAnswers: Record<string, unknown>) => Promise<void>;
   onContinueAfterApplication: () => void;
   bookingsByStepId: Record<string, ExistingBooking>;
@@ -1284,6 +1292,7 @@ function StepRenderer({
         initialAnswers={initialApplicationAnswers}
         isAlreadySubmitted={isApplicationSubmitted}
         onSaveAnswer={onSaveApplicationAnswer}
+        onUpdateProgress={onUpdateApplicationProgress}
         onSubmit={onSubmitApplication}
         onContinueToNextChapter={onContinueAfterApplication}
       />
