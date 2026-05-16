@@ -9,6 +9,11 @@ import { generateApplicationPdf } from "@/lib/generate-application-pdf";
 import { uploadApplicationPdf } from "@/lib/upload-application-pdf";
 import { zohoApi } from "@/lib/zoho-api";
 import {
+  formatZohoDateTime,
+  getApplicationCompletePercent,
+  getApplicationQuestionLabel,
+} from "@/lib/application-progress";
+import {
   bookSlot,
   cancelSlot,
   getAvailableSlots,
@@ -228,6 +233,54 @@ export async function saveApplicationAnswerAction(
     .eq("id", portalId);
   // No revalidatePath here — saves are high-frequency and the server side
   // doesn't need to re-render until submit.
+}
+
+/**
+ * Write the candidate's application-progress fields to their Zoho Lead.
+ * Fired by the application renderer on every FORWARD question advance
+ * (not on edits of past answers). Best-effort: a Zoho failure logs to
+ * console and returns — the candidate's local advance never blocks on
+ * it, and the renderer fires the call without awaiting.
+ *
+ * questionIdx is the 0-indexed position into APPLICATION_QUESTION_LABELS
+ * (so Q1 = 0, Q11 = 10, "Completed" = 11+).
+ */
+export async function updateApplicationProgressAction(
+  token: string,
+  questionIdx: number,
+): Promise<void> {
+  try {
+    const app = createAppServiceClient();
+    const { data: session } = await app
+      .from("candidates_in_portal")
+      .select("candidate_id")
+      .eq("token", token)
+      .maybeSingle();
+    const candidateId = (session?.candidate_id as string | null) ?? null;
+    if (!candidateId) return;
+
+    const core = createCoreClient();
+    const { data: candidate } = await core
+      .from("candidates")
+      .select("zoho_lead_id")
+      .eq("id", candidateId)
+      .maybeSingle();
+    const zohoLeadId = (candidate?.zoho_lead_id as string | null) ?? null;
+    if (!zohoLeadId) return;
+
+    await zohoApi.updateApplicationProgress(zohoLeadId, {
+      completePercent: getApplicationCompletePercent(questionIdx),
+      lastQuestion: getApplicationQuestionLabel(questionIdx),
+      lastActivity: formatZohoDateTime(),
+    });
+  } catch (err) {
+    // Best-effort: log + swallow. The candidate is mid-application —
+    // don't surface a Zoho hiccup back to them.
+    console.warn(
+      `[app-progress] Zoho write failed for token ${token} questionIdx ${questionIdx}:`,
+      err,
+    );
+  }
 }
 
 /**

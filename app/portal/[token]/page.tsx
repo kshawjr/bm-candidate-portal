@@ -20,6 +20,7 @@ import {
   saveApplicationAnswerAction,
   submitApplicationAction,
   advanceStepAction,
+  updateApplicationProgressAction,
 } from "./actions";
 import { isGCalConfigured } from "@/lib/google-calendar";
 import { logEvent } from "@/lib/log-event";
@@ -852,6 +853,10 @@ export default async function PortalTokenPage({
     null,
     params.token,
   );
+  const onUpdateApplicationProgress = updateApplicationProgressAction.bind(
+    null,
+    params.token,
+  );
   const onSubmitApplication = submitApplicationAction.bind(
     null,
     params.token,
@@ -907,6 +912,7 @@ export default async function PortalTokenPage({
         onTourComplete={onTourComplete}
         onStepAdvance={onStepAdvance}
         onSaveApplicationAnswer={onSaveApplicationAnswer}
+        onUpdateApplicationProgress={onUpdateApplicationProgress}
         onSubmitApplication={onSubmitApplication}
         onGetSlots={onGetSlots}
         onBookSlot={onBookSlot}
