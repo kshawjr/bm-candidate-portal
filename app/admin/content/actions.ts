@@ -69,11 +69,14 @@ async function saveStepCards(stepId: string, cards: ContentCard[]) {
 /**
  * Server-side validation for a single content card. Mirrors the
  * drawer-level `isCardValid` gate, but enforced at the action boundary
- * so direct API hits can't write malformed data. Currently only
- * journey_ahead carries enough structure to need it — other card
- * types still trust the client gate.
+ * so direct API hits can't write malformed data. journey_ahead needs
+ * per-stop checks; video needs URL + has_sound checks.
  */
 function validateContentCard(card: ContentCard): void {
+  if (card.type === "video") {
+    validateVideoCard(card);
+    return;
+  }
   if (card.type !== "journey_ahead") return;
   if (!card.stops) {
     // Legacy seed (`{"type":"journey_ahead"}`) — no stops yet. The
@@ -96,6 +99,55 @@ function validateContentCard(card: ContentCard): void {
       throw new Error(`Stop ${num}: caption is required`);
     }
   });
+}
+
+/**
+ * Normalize + validate a video card. Trims text fields and coerces empty
+ * strings to `undefined` so the JSONB stays minimal. `video_url` must be
+ * an https:// URL; `has_sound` must be strictly boolean (rejects the
+ * legacy null pattern used by slides). `link_url`, if present, must
+ * parse via the URL constructor and use http(s).
+ *
+ * Mutates in place — callers pass the card they're about to persist.
+ */
+function validateVideoCard(card: ContentCard & { type: "video" }): void {
+  const trim = (v: unknown): string | undefined => {
+    if (typeof v !== "string") return undefined;
+    const t = v.trim();
+    return t.length > 0 ? t : undefined;
+  };
+
+  const videoUrl = trim(card.video_url);
+  if (!videoUrl) {
+    throw new Error("Video URL is required");
+  }
+  if (!videoUrl.startsWith("https://")) {
+    throw new Error("Video URL must be an https:// URL");
+  }
+  card.video_url = videoUrl;
+
+  if (typeof card.has_sound !== "boolean") {
+    throw new Error("has_sound is required (must be true or false)");
+  }
+
+  card.title = trim(card.title);
+  card.caption = trim(card.caption);
+
+  const linkUrl = trim(card.link_url);
+  if (linkUrl) {
+    try {
+      const parsed = new URL(linkUrl);
+      if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+        throw new Error("Link URL must use http(s)");
+      }
+    } catch {
+      throw new Error("Link URL is not a valid URL");
+    }
+    card.link_url = linkUrl;
+  } else {
+    card.link_url = undefined;
+  }
+  card.link_label = trim(card.link_label);
 }
 
 /**
@@ -239,7 +291,7 @@ interface SignedUploadInit {
 // can hand it back at the same time and skip a second round trip.
 async function createBrandAssetUploadUrl(
   brandSlug: string,
-  subdir: "slides" | "videos",
+  subdir: "slides" | "videos" | "content-cards",
   filename: string,
   contentType: string,
   fileSize: number,
@@ -305,6 +357,34 @@ export async function createSlideVideoUploadAction(
     MAX_SLIDE_VIDEO_BYTES,
     "Video files must be under 100 MB. Try compressing or trimming.",
     "Slide videos must be MP4",
+  );
+}
+
+/**
+ * Mint a signed upload URL for a content-card video (MP4-only, lands in
+ * brand-assets/{brandSlug}/content-cards/{ts}-{name}). Same direct-upload
+ * pattern as slide videos and step-level videos — server hands back a
+ * signed URL and the browser PUTs the file straight to Supabase Storage
+ * so the ~4.5 MB Vercel body cap doesn't apply. 100 MB, MP4 only (keeps
+ * the served files consistent across browsers, same rationale as
+ * slides).
+ */
+export async function createContentCardVideoUploadAction(
+  brandSlug: string,
+  filename: string,
+  contentType: string,
+  fileSize: number,
+): Promise<SignedUploadInit | { error: string }> {
+  return createBrandAssetUploadUrl(
+    brandSlug,
+    "content-cards",
+    filename,
+    contentType,
+    fileSize,
+    ALLOWED_SLIDE_VIDEO_TYPES,
+    MAX_SLIDE_VIDEO_BYTES,
+    "Video files must be under 100 MB. Try compressing or trimming.",
+    "Content card videos must be MP4",
   );
 }
 

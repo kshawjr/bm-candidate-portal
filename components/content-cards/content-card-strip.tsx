@@ -8,6 +8,7 @@ import { QuoteCard } from "./quote-card";
 import { AwardsCard } from "./awards-card";
 import { PersonasCard } from "./personas-card";
 import { PhotoCard } from "./photo-card";
+import { VideoCard } from "./video-card";
 import { JourneyAheadCard } from "./journey-ahead-card";
 import { LockedTeaserCard } from "./locked-teaser-card";
 
@@ -72,6 +73,8 @@ export function ContentCardStrip({
               return <PersonasCard key={i} card={card} />;
             case "photo":
               return <PhotoCard key={i} card={card} />;
+            case "video":
+              return <VideoCard key={i} card={card} />;
             case "journey_ahead":
               return (
                 <JourneyAheadCard

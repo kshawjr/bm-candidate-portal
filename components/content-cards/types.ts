@@ -68,6 +68,24 @@ export interface PhotoCardData {
   caption?: string;
 }
 
+// Uploaded MP4 (Supabase brand-assets/{brand}/content-cards/) played in-card.
+// `has_sound` is required — the drawer's Save button is gated on the admin
+// picking Yes/No, and the server validator rejects null. Playback: card
+// video always autoplays muted; when has_sound=true the native <video
+// controls> render so the candidate can unmute. No overlay "Tap for
+// sound" pill (that's slide-video-only — cards live inline in the page).
+export interface VideoCardData {
+  type: "video";
+  title?: string;
+  video_url: string;
+  has_sound: boolean;
+  caption?: string;
+  /** Optional call-to-action below the video. Both fields must be set
+   *  for the link to render; empty label falls back to "Learn more". */
+  link_url?: string;
+  link_label?: string;
+}
+
 export interface JourneyStop {
   title: string;
   caption: string;
@@ -112,6 +130,7 @@ export type ContentCard = (
   | AwardsCardData
   | PersonasCardData
   | PhotoCardData
+  | VideoCardData
   | JourneyAheadCardData
 ) &
   CardGating;
@@ -127,6 +146,7 @@ export const DEFAULT_CARD_TITLES: Record<ContentCard["type"], string | null> = {
   fact: null,
   quote: null,
   photo: null,
+  video: null,
   awards: "Recognition",
   personas: "Who they serve",
   journey_ahead: "Your journey ahead",

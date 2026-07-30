@@ -92,6 +92,7 @@ interface Props {
   uploadSlide: UploadFn;
   uploadSlideVideo: VideoUploadInitFn;
   uploadVideo: VideoUploadInitFn;
+  uploadContentCardVideo: VideoUploadInitFn;
   candidateTokenForPreview: string | null;
   isGCalConfigured: boolean;
   createStep: (
@@ -137,6 +138,7 @@ const CARD_TYPES: Array<{ type: Exclude<ContentCard["type"], "journey_ahead">; l
   { type: "awards", label: "Small Picture Card" },
   { type: "personas", label: "Large Picture Card" },
   { type: "photo", label: "Photo" },
+  { type: "video", label: "Video" },
 ];
 
 // Short, human-readable label per card type for the card-list badge.
@@ -146,6 +148,7 @@ const TYPE_BADGE: Record<ContentCard["type"], string> = {
   awards: "small picture",
   personas: "large picture",
   photo: "photo",
+  video: "video",
   journey_ahead: "journey",
 };
 
@@ -174,6 +177,7 @@ export function ContentEditor({
   uploadSlide,
   uploadSlideVideo,
   uploadVideo,
+  uploadContentCardVideo,
   candidateTokenForPreview,
   isGCalConfigured,
   createStep,
@@ -621,6 +625,7 @@ export function ContentEditor({
           onSave={handleSave}
           onCancel={() => setEditorState(null)}
           upload={upload}
+          uploadVideo={uploadContentCardVideo}
         />
       )}
 
@@ -723,6 +728,8 @@ function summarize(card: ContentCard): string {
       return `${card.items.length} large picture${card.items.length === 1 ? "" : "s"}`;
     case "photo":
       return card.caption ?? "Photo";
+    case "video":
+      return card.title?.trim() || card.caption?.trim() || "Video";
     case "journey_ahead":
       return "Roadmap of stops (auto-rendered)";
   }

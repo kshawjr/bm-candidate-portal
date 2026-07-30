@@ -14,6 +14,7 @@ import {
   PersonasForm,
   PhotoForm,
   QuoteForm,
+  VideoForm,
   defaultCardFor,
   isCardValid,
 } from "./card-forms";
@@ -23,6 +24,16 @@ type UploadFn = (
   formData: FormData,
 ) => Promise<{ url: string } | { error: string }>;
 
+type VideoUploadInitFn = (
+  brandSlug: string,
+  filename: string,
+  contentType: string,
+  fileSize: number,
+) => Promise<
+  | { signedUrl: string; publicUrl: string; contentType: string }
+  | { error: string }
+>;
+
 interface Props {
   brandSlug: string;
   // Initial card (edit mode) or just a type (create mode)
@@ -31,6 +42,7 @@ interface Props {
   onSave: (card: ContentCard, cardIndex?: number) => Promise<void>;
   onCancel: () => void;
   upload: UploadFn;
+  uploadVideo: VideoUploadInitFn;
 }
 
 const TYPE_LABEL: Record<ContentCard["type"], string> = {
@@ -39,6 +51,7 @@ const TYPE_LABEL: Record<ContentCard["type"], string> = {
   awards: "Small Picture Card",
   personas: "Large Picture Card",
   photo: "Photo",
+  video: "Video",
   journey_ahead: "Your Journey Ahead",
 };
 
@@ -49,6 +62,7 @@ export function CardEditor({
   onSave,
   onCancel,
   upload,
+  uploadVideo,
 }: Props) {
   const isCreate = "create" in initial;
   const [card, setCard] = useState<ContentCard>(() =>
@@ -125,6 +139,15 @@ export function CardEditor({
         return <PersonasForm value={card} onChange={setCard} {...common} />;
       case "photo":
         return <PhotoForm value={card} onChange={setCard} {...common} />;
+      case "video":
+        return (
+          <VideoForm
+            value={card}
+            onChange={setCard}
+            {...common}
+            uploadVideo={uploadVideo}
+          />
+        );
       case "journey_ahead":
         return <JourneyAheadForm value={card} onChange={setCard} {...common} />;
     }

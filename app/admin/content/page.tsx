@@ -17,6 +17,7 @@ import {
   uploadSlideImageAction,
   createSlideVideoUploadAction,
   createStepVideoUploadAction,
+  createContentCardVideoUploadAction,
 } from "./actions";
 import {
   archiveStepAction,
@@ -236,6 +237,7 @@ export default async function ContentEditorPage({ searchParams }: Props) {
       uploadSlide={uploadSlideImageAction}
       uploadSlideVideo={createSlideVideoUploadAction}
       uploadVideo={createStepVideoUploadAction}
+      uploadContentCardVideo={createContentCardVideoUploadAction}
       candidateTokenForPreview={PREVIEW_TOKEN[brand.slug] ?? null}
       isGCalConfigured={isGCalConfigured()}
       createStep={createStepAction}
