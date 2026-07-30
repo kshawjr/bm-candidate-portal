@@ -4,6 +4,7 @@
 // (or null for "new"), an onChange callback, and renders only its own
 // fields. The parent CardEditor handles Save/Cancel + validation gate.
 
+import { useRef, useState, useTransition } from "react";
 import {
   DEFAULT_CARD_TITLES,
   type AwardsCardData,
@@ -14,16 +15,28 @@ import {
   type PersonasCardData,
   type PhotoCardData,
   type QuoteCardData,
+  type VideoCardData,
 } from "@/components/content-cards/types";
 import { DEFAULT_JOURNEY_STOPS } from "@/components/content-cards/journey-defaults";
 import { ImageUpload } from "./image-upload";
 
 const PERSONAS_MAX = 12;
+const VIDEO_CARD_MAX_MB = 100;
 
 type UploadFn = (
   brandSlug: string,
   formData: FormData,
 ) => Promise<{ url: string } | { error: string }>;
+
+type VideoUploadInitFn = (
+  brandSlug: string,
+  filename: string,
+  contentType: string,
+  fileSize: number,
+) => Promise<
+  | { signedUrl: string; publicUrl: string; contentType: string }
+  | { error: string }
+>;
 
 interface CommonProps {
   brandSlug: string;
@@ -507,6 +520,246 @@ export function isPhotoValid(v: PhotoCardData): boolean {
   return v.image_url.length > 0;
 }
 
+// --- Video ---
+// MP4 uploaded to brand-assets/{brand}/content-cards/ via the signed-URL
+// pattern (Vercel's ~4.5 MB body cap can't carry the binary through a
+// server action). Playback rule for the candidate side lives in
+// components/content-cards/video-card.tsx — always autoplay muted, show
+// native controls only when has_sound=true. `has_sound` is required
+// (Save is gated on the admin picking Yes/No; the server validator
+// rejects null) so the renderer doesn't need a fallback branch.
+
+export function VideoForm({
+  value,
+  onChange,
+  brandSlug,
+  uploadVideo,
+}: {
+  value: VideoCardData;
+  onChange: (v: VideoCardData) => void;
+} & CommonProps & { uploadVideo: VideoUploadInitFn }) {
+  return (
+    <>
+      <CardTitleField
+        cardType="video"
+        value={value.title}
+        onChange={(title) => onChange({ ...value, title })}
+      />
+      <VideoUploadField
+        value={value.video_url || null}
+        onChange={(url) => onChange({ ...value, video_url: url ?? "" })}
+        brandSlug={brandSlug}
+        onUpload={uploadVideo}
+      />
+      <fieldset className="adm-field">
+        <legend className="adm-form-label">
+          Does this video have sound?
+          <span className="adm-form-required"> *</span>
+        </legend>
+        <div className="adm-radio-row">
+          <label className="adm-radio">
+            <input
+              type="radio"
+              name="video-card-has-sound"
+              checked={value.has_sound === true}
+              onChange={() => onChange({ ...value, has_sound: true })}
+            />
+            <span>Yes, this video has audio</span>
+          </label>
+          <label className="adm-radio">
+            <input
+              type="radio"
+              name="video-card-has-sound"
+              checked={value.has_sound === false}
+              onChange={() => onChange({ ...value, has_sound: false })}
+            />
+            <span>No, this video is silent</span>
+          </label>
+        </div>
+        <span className="adm-form-hint">
+          Videos with audio autoplay muted and show native controls so
+          candidates can unmute. Silent videos autoplay muted with no
+          controls.
+        </span>
+      </fieldset>
+      <Field label="Caption (optional)">
+        <textarea
+          className="adm-textarea"
+          rows={3}
+          value={value.caption ?? ""}
+          maxLength={500}
+          onChange={(e) =>
+            onChange({ ...value, caption: e.target.value || undefined })
+          }
+          placeholder="e.g. Founders walking through week one"
+        />
+      </Field>
+      <Field label="Link URL (optional)">
+        <input
+          type="url"
+          className="adm-input"
+          value={value.link_url ?? ""}
+          onChange={(e) =>
+            onChange({ ...value, link_url: e.target.value || undefined })
+          }
+          placeholder="https://example.com"
+        />
+        <span className="adm-form-hint">
+          Must start with <code>https://</code>. Opens in a new tab.
+        </span>
+      </Field>
+      {value.link_url && (
+        <Field label="Link label (optional)">
+          <input
+            type="text"
+            className="adm-input"
+            value={value.link_label ?? ""}
+            maxLength={80}
+            onChange={(e) =>
+              onChange({ ...value, link_label: e.target.value || undefined })
+            }
+            placeholder="Learn more"
+          />
+          <span className="adm-form-hint">
+            Falls back to &ldquo;Learn more&rdquo; if left blank.
+          </span>
+        </Field>
+      )}
+    </>
+  );
+}
+
+export function isVideoValid(v: VideoCardData): boolean {
+  if (!v.video_url || v.video_url.trim().length === 0) return false;
+  if (typeof v.has_sound !== "boolean") return false;
+  return true;
+}
+
+// Inline MP4-only signed-URL uploader for the video card form. Same
+// direct-to-storage pattern as slide-editor's internal VideoUpload —
+// duplicated (not shared) because the two live in different layout
+// contexts and share only ~15 lines of upload logic anyway.
+function VideoUploadField({
+  value,
+  onChange,
+  brandSlug,
+  onUpload,
+}: {
+  value: string | null;
+  onChange: (url: string | null) => void;
+  brandSlug: string;
+  onUpload: VideoUploadInitFn;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+  const maxBytes = VIDEO_CARD_MAX_MB * 1024 * 1024;
+
+  const handleSelect = (file: File) => {
+    setError(null);
+    if (file.type !== "video/mp4") {
+      setError("MP4 only");
+      return;
+    }
+    if (file.size > maxBytes) {
+      setError(
+        `Video files must be under ${VIDEO_CARD_MAX_MB}MB. Try compressing or trimming.`,
+      );
+      return;
+    }
+    startTransition(async () => {
+      try {
+        const init = await onUpload(brandSlug, file.name, file.type, file.size);
+        if (!init || "error" in init) {
+          setError((init && "error" in init && init.error) || "Upload failed");
+          return;
+        }
+        const res = await fetch(init.signedUrl, {
+          method: "PUT",
+          headers: {
+            "Content-Type": init.contentType,
+            "x-upsert": "false",
+          },
+          body: file,
+        });
+        if (!res.ok) {
+          const text = await res.text().catch(() => "");
+          setError(text || `Upload failed (${res.status})`);
+          return;
+        }
+        onChange(init.publicUrl);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Upload failed");
+      }
+    });
+  };
+
+  return (
+    <div className="adm-upload">
+      <label className="adm-form-label">
+        Video (MP4)<span className="adm-form-required"> *</span>
+      </label>
+      <div className="adm-upload-reco">
+        <span>Format: MP4 · Max {VIDEO_CARD_MAX_MB} MB</span>
+      </div>
+      {value ? (
+        <div className="adm-upload-preview">
+          <video src={value} controls width={320} preload="metadata" />
+          <div className="adm-upload-preview-body">
+            <div className="adm-upload-preview-actions">
+              <button
+                type="button"
+                className="adm-btn-ghost"
+                onClick={() => inputRef.current?.click()}
+                disabled={pending}
+              >
+                {pending ? "Uploading…" : "Replace"}
+              </button>
+              <button
+                type="button"
+                className="adm-btn-ghost adm-btn-danger"
+                onClick={() => {
+                  onChange(null);
+                  setError(null);
+                }}
+                disabled={pending}
+              >
+                Remove
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <button
+          type="button"
+          className="adm-upload-zone"
+          onClick={() => inputRef.current?.click()}
+          disabled={pending}
+        >
+          {pending ? "Uploading…" : "Click to upload"}
+          <span className="adm-upload-hint">
+            MP4 · up to {VIDEO_CARD_MAX_MB} MB
+          </span>
+        </button>
+      )}
+      <input
+        ref={inputRef}
+        type="file"
+        accept="video/mp4"
+        className="adm-upload-file"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) handleSelect(file);
+          e.target.value = "";
+        }}
+      />
+      {error && (
+        <div className="adm-form-error adm-form-error-inline">{error}</div>
+      )}
+    </div>
+  );
+}
+
 // --- Journey ahead ---
 // The 8-stage roadmap + brand scenery render automatically from
 // candidate state + brand slug. Per-card editable surface is the
@@ -649,6 +902,8 @@ export function isCardValid(card: ContentCard): boolean {
       return isPersonasValid(card);
     case "photo":
       return isPhotoValid(card);
+    case "video":
+      return isVideoValid(card);
     case "journey_ahead":
       return isJourneyAheadValid(card);
   }
@@ -671,6 +926,12 @@ export function defaultCardFor(type: ContentCard["type"]): ContentCard {
       };
     case "photo":
       return { type: "photo", image_url: "" };
+    case "video":
+      // has_sound defaults to false — the safest default because silent
+      // autoplay is universally allowed by browsers, whereas true (which
+      // shows native controls) still works but forces the candidate to
+      // notice the video. Admin toggles Yes if the video has narration.
+      return { type: "video", video_url: "", has_sound: false };
     case "journey_ahead":
       return {
         type: "journey_ahead",
