@@ -249,6 +249,16 @@ export async function bookSlot(args: {
   startIso: string;
   endIso: string;
   timezone: string;
+  /** Identity of the booking (candidate_in_portal_id + step_id). Combined
+   *  with startIso to form a deterministic Meet `requestId` — same inputs
+   *  produce the same id, so a retry after a mid-flight network drop
+   *  hits Google Calendar's own dedup and doesn't create a duplicate
+   *  event. Previously used a random per-call id, which orphaned the
+   *  first event's google_event_id on the second attempt (the bookings
+   *  upsert overwrote the id, leaving the first calendar event
+   *  uncancelable through our cancel flow). */
+  candidateInPortalId: string;
+  stepId: string;
 }): Promise<BookingResult> {
   const auth = getAuth(args.advisorEmail);
   const calendar = google.calendar({ version: "v3", auth });
@@ -265,6 +275,17 @@ export async function bookSlot(args: {
   }
   descriptionLines.push("", `Booked via the ${args.brandShortName} candidate portal.`);
 
+  // Google Calendar caps the conferenceData.createRequest.requestId at
+  // ~100 chars and validates against `[a-zA-Z0-9-]` roughly. Slugify by
+  // lowercasing + squashing anything else to `-`, then truncate. The
+  // triple (portal_id, step_id, start_time) is unique per booking
+  // attempt so retries collapse; distinct slots (reschedule) still get
+  // distinct ids because startIso differs.
+  const conferenceRequestId = `bm-${args.candidateInPortalId}-${args.stepId}-${args.startIso}`
+    .toLowerCase()
+    .replace(/[^a-z0-9-]/g, "-")
+    .slice(0, 100);
+
   const res = await calendar.events.insert({
     calendarId: args.advisorEmail,
     conferenceDataVersion: 1,
@@ -280,7 +301,7 @@ export async function bookSlot(args: {
       ],
       conferenceData: {
         createRequest: {
-          requestId: `bm-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          requestId: conferenceRequestId,
           conferenceSolutionKey: { type: "hangoutsMeet" },
         },
       },
