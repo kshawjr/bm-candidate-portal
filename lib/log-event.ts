@@ -160,10 +160,19 @@ async function syncMilestoneToZoho(
       ZOHO_STATUS_BY_MILESTONE[
         args.eventType as keyof typeof ZOHO_STATUS_BY_MILESTONE
       ];
-    await zohoApi.updateLead(candidate.zoho_lead_id, {
+    const fields: Record<string, string> = {
       Portal_Status: status,
       Last_Active_Date: formatZohoDateTime(new Date()),
-    });
+    };
+    // FranFunnel_Stage is a picklist field a downstream Zoho workflow
+    // rule watches to advance the sales funnel. Only discovery_scheduled
+    // maps to a value today; extend this guard when other milestones
+    // need to drive the same field. Bundled into the same PUT so it
+    // costs zero extra Zoho round-trips.
+    if (args.eventType === "discovery_scheduled") {
+      fields.FranFunnel_Stage = "Discovery Call Scheduled";
+    }
+    await zohoApi.updateLead(candidate.zoho_lead_id, fields);
   } catch (err) {
     zohoSyncStatus = "failed";
     zohoSyncError = err instanceof Error ? err.message : String(err);
