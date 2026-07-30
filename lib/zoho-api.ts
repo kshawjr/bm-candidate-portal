@@ -272,6 +272,92 @@ class ZohoApiClient {
   }
 
   /**
+   * Create a Meeting (Zoho's `Events` module) linked to a Lead. Called
+   * from the milestone sync for `discovery_scheduled` so scheduled
+   * discovery calls show up in the Lead's Activities tab, not just in
+   * the rep's Google Calendar.
+   *
+   * `What_Id` + `$se_module: "Leads"` is the v3 way to attach an Event
+   * to a Lead record — Zoho renders the resulting row under the Lead's
+   * Open Activities. `Owner` optionally assigns to a specific Zoho
+   * user; omit to let Zoho default to the token's owner.
+   *
+   * `Start_DateTime` / `End_DateTime` need the same format as every
+   * other Zoho DateTime field (`YYYY-MM-DDTHH:mm:ss±hh:mm`) — the raw
+   * `.toISOString()` `Z` suffix is rejected. Callers pre-format via
+   * `formatZohoDateTime`.
+   *
+   * Best-effort at the call site: a failure logs a warning and returns
+   * `{ success: false, error }` so the milestone sync can continue
+   * writing Portal_Status / Blueprint even if the Meeting create
+   * flakes. That's why this method returns a result union instead of
+   * throwing like updateLead / transitionLead.
+   */
+  async createMeeting(payload: {
+    leadId: string;
+    title: string;
+    /** Formatted per formatZohoDateTime — `YYYY-MM-DDTHH:mm:ss±hh:mm`. */
+    startDateTime: string;
+    endDateTime: string;
+    description?: string;
+    /** Meeting URL — Zoho renders this as the Venue field. */
+    location?: string;
+    /** Zoho user id (bmave-core.reps.zoho_user_id). Omit to default. */
+    ownerId?: string | null;
+  }): Promise<{ success: boolean; meetingId?: string; error?: string }> {
+    const leadId = String(payload.leadId);
+    const token = await this.getAccessToken();
+
+    const record: Record<string, unknown> = {
+      Event_Title: payload.title,
+      Start_DateTime: payload.startDateTime,
+      End_DateTime: payload.endDateTime,
+      What_Id: { id: leadId },
+      $se_module: "Leads",
+    };
+    if (payload.description) record.Description = payload.description;
+    if (payload.location) record.Venue = payload.location;
+    if (payload.ownerId) record.Owner = { id: payload.ownerId };
+
+    const response = await fetch(`${API_DOMAIN}/crm/v3/Events`, {
+      method: "POST",
+      headers: {
+        Authorization: `Zoho-oauthtoken ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ data: [record] }),
+    });
+
+    if (!response.ok) {
+      const body = await response.text();
+      return {
+        success: false,
+        error: `Zoho createMeeting ${response.status}: ${body}`,
+      };
+    }
+
+    // Zoho returns 2xx even for per-record failures — the shape is
+    // `{ data: [{ code, details, message, status }] }`. Only
+    // `code === "SUCCESS"` guarantees the meeting was created.
+    const data = (await response.json()) as {
+      data?: Array<{
+        code?: string;
+        details?: { id?: string };
+        message?: string;
+        status?: string;
+      }>;
+    };
+    const record0 = data.data?.[0];
+    if (!record0 || record0.code !== "SUCCESS") {
+      return {
+        success: false,
+        error: `Zoho createMeeting non-success: ${record0?.code ?? "unknown"} ${record0?.message ?? ""}`.trim(),
+      };
+    }
+    return { success: true, meetingId: record0.details?.id };
+  }
+
+  /**
    * Read a single Zoho CRM user by ID. Used by the lead-created webhook
    * to look up an Owner's full_name when auto-creating a rep — the
    * Owner object embedded in a Lead response often lacks first_name /

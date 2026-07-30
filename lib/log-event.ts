@@ -173,6 +173,75 @@ async function syncMilestoneToZoho(
     );
   }
 
+  // For discovery_scheduled, also create a Zoho Meeting under the
+  // Lead's Activities so reps see the booked call inside Zoho instead
+  // of only in their Google Calendar. Best-effort — a Meeting failure
+  // does NOT flip zohoSyncStatus or block the Blueprint transition
+  // below; both of those are higher-priority for the sales funnel.
+  //
+  // Reschedules always create a fresh Meeting; the old one stays as
+  // historical Activity. Rare enough that the visual duplication
+  // beats the complexity of querying + updating by What_Id. If
+  // reports later miscount, upgrade to storing zoho_meeting_id on the
+  // bookings row and cancelling explicitly.
+  if (args.eventType === "discovery_scheduled") {
+    try {
+      const meta = args.metadata ?? {};
+      const startTime =
+        typeof meta.start_time === "string" ? meta.start_time : null;
+      const endTime = typeof meta.end_time === "string" ? meta.end_time : null;
+      if (startTime && endTime) {
+        const meetingUrl =
+          typeof meta.meeting_url === "string" && meta.meeting_url.length > 0
+            ? meta.meeting_url
+            : null;
+        const candidateName =
+          typeof meta.candidate_name === "string" &&
+          meta.candidate_name.trim().length > 0
+            ? meta.candidate_name.trim()
+            : "Candidate";
+        const eventLabel =
+          typeof meta.event_label === "string" &&
+          meta.event_label.trim().length > 0
+            ? meta.event_label.trim()
+            : "Discovery Call";
+        const ownerId =
+          typeof meta.rep_zoho_user_id === "string" &&
+          meta.rep_zoho_user_id.length > 0
+            ? meta.rep_zoho_user_id
+            : null;
+
+        const meetingResult = await zohoApi.createMeeting({
+          leadId: candidate.zoho_lead_id,
+          title: `${eventLabel} — ${candidateName}`,
+          startDateTime: formatZohoDateTime(new Date(startTime)),
+          endDateTime: formatZohoDateTime(new Date(endTime)),
+          description: `${eventLabel} booked via candidate portal.\nMeeting link: ${meetingUrl ?? "in calendar invite"}`,
+          location: meetingUrl ?? undefined,
+          ownerId,
+        });
+        if (!meetingResult.success) {
+          console.warn(
+            `[log-event] Zoho Meeting create failed for event ${eventId}:`,
+            meetingResult.error,
+          );
+        }
+      } else {
+        console.warn(
+          `[log-event] Zoho Meeting skipped for event ${eventId} — start_time/end_time missing from metadata`,
+        );
+      }
+    } catch (err) {
+      // Defensive catch: createMeeting is designed to return a result
+      // union, but any unexpected throw (network, JSON parse, etc.)
+      // is swallowed here so it can't block the transition below.
+      console.warn(
+        `[log-event] Zoho Meeting threw for event ${eventId}:`,
+        err instanceof Error ? err.message : err,
+      );
+    }
+  }
+
   // PR 61: application_submitted carries two extra Zoho writes —
   // CQ_Received (DateTime field that the sales team filters on for
   // "leads who finished the application") and an "Application

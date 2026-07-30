@@ -641,6 +641,7 @@ interface StepContext {
     id: string;
     name: string;
     calendarEmail: string;
+    zohoUserId: string | null;
   } | null;
 }
 
@@ -702,15 +703,25 @@ async function loadStepContext(
   if (assignedRepId) {
     const { data: repRow, error: repErr } = await core
       .from("reps")
-      .select("id, name, calendar_email, is_active")
+      .select("id, name, calendar_email, is_active, zoho_user_id")
       .eq("id", assignedRepId)
       .maybeSingle();
     if (repErr) throw new Error(`rep lookup failed: ${repErr.message}`);
     if (repRow && repRow.is_active !== false) {
+      const zohoUserIdRaw =
+        (repRow as { zoho_user_id?: string | null }).zoho_user_id ?? null;
       rep = {
         id: repRow.id as string,
         name: (repRow.name as string) ?? "",
         calendarEmail: (repRow.calendar_email as string) ?? "",
+        // Threaded into discovery_scheduled metadata so the Zoho Meeting
+        // gets assigned to the actual rep instead of the service account.
+        // Null when the rep was manually seeded (no Zoho origin) or the
+        // lead-created webhook never resolved a user id.
+        zohoUserId:
+          typeof zohoUserIdRaw === "string" && zohoUserIdRaw.trim().length > 0
+            ? zohoUserIdRaw.trim()
+            : null,
       };
     }
   }
@@ -876,6 +887,11 @@ export async function bookSlotAction(
       startIso: new Date(startMs).toISOString(),
       endIso,
       timezone: ctx.config.timezone,
+      // Deterministic Google Meet requestId keys — a retry after a
+      // mid-flight failure hits Google's dedup instead of orphaning a
+      // second calendar event.
+      candidateInPortalId: ctx.portalId,
+      stepId: ctx.stepId,
     });
   } catch (calErr) {
     console.error("bookSlot failed:", calErr);
@@ -924,9 +940,24 @@ export async function bookSlotAction(
     eventType: "discovery_scheduled",
     eventKey: ctx.chapterKey,
     metadata: {
+      // `booked_for` predates the Zoho Meeting sync — kept for
+      // back-compat with legacy candidate_events rows. `start_time` /
+      // `end_time` are the canonical fields the milestone-to-Zoho sync
+      // now reads. Same value; two aliases so historical dashboards
+      // don't break.
       booked_for: result.startTime,
+      start_time: result.startTime,
+      end_time: result.endTime,
+      meeting_url: result.meetingUrl,
       duration_minutes: ctx.config.duration_minutes,
       step_id: ctx.stepId,
+      candidate_name: ctx.candidate.name,
+      event_label: ctx.config.event_label,
+      // rep_zoho_user_id is null-safe on the reader side. Passed
+      // through so the Zoho Meeting Owner reflects the actual rep;
+      // absence falls back to whichever Zoho user owns the service
+      // account's OAuth grant.
+      rep_zoho_user_id: ctx.rep.zohoUserId,
     },
   });
   await logEvent({
