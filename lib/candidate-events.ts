@@ -29,14 +29,26 @@ export const MILESTONE_EVENTS = [
   "verify_completed",
   "award_offered",
   "award_accepted",
+  // Off-funnel: candidate explicitly opted out from the portal footer.
+  // Fires the Blueprint transition to "Not Interested" (brand-keyed)
+  // and writes Reason_for_Loss. Does NOT update Portal_Status —
+  // Blueprint owns funnel state for opt-outs.
+  "candidate_opted_out",
+  // Candidate clicked "Reconnect" on the opted-out screen. Creates a
+  // Zoho Task assigned to the Lead Owner so the rep can reach out;
+  // does not fire a Blueprint transition (rep decides next stage).
+  "reengage_requested",
 ] as const;
 
 export type MilestoneEvent = (typeof MILESTONE_EVENTS)[number];
 
 // Map from milestone event → the Portal_Status string we set in Zoho.
 // Keep in sync with the picklist values configured on the Zoho Leads
-// module (see DEPLOYMENT.md).
-export const ZOHO_STATUS_BY_MILESTONE: Record<MilestoneEvent, string> = {
+// module (see DEPLOYMENT.md). Partial: milestones without an entry
+// (candidate_opted_out, reengage_requested) skip the Portal_Status
+// write in the milestone sync because Blueprint owns funnel state for
+// those off-funnel events.
+export const ZOHO_STATUS_BY_MILESTONE: Partial<Record<MilestoneEvent, string>> = {
   portal_first_visit: "Portal Accessed",
   brand_tour_engaged: "Brand Tour Engaged",
   education_completed: "Education Complete",
