@@ -62,6 +62,22 @@ export const ZOHO_STATUS_BY_MILESTONE: Partial<Record<MilestoneEvent, string>> =
   award_accepted: "Awarded",
 };
 
+// Map from milestone event → the Zoho Lead tag we attach. Tags stack
+// across the journey (up to 5 phase tags on a fully-progressed
+// candidate) and are used by sales-team list filters distinct from
+// Portal_Status. Zoho's addTags is idempotent, so re-fires (e.g. the
+// two milestones that both map to "Exploring Brand") are a no-op.
+// Absent milestones — verify_started + everything after, plus the
+// off-funnel opt-out events — deliberately don't attach a tag.
+export const ZOHO_TAG_BY_MILESTONE: Partial<Record<MilestoneEvent, string>> = {
+  portal_first_visit: "Portal Accessed",
+  brand_tour_engaged: "Exploring Brand",
+  education_completed: "Exploring Brand",
+  application_started: "Application In Progress",
+  application_submitted: "Application Submitted",
+  discovery_scheduled: "Discovery Call Booked",
+};
+
 export function isMilestone(eventType: string): eventType is MilestoneEvent {
   return (MILESTONE_EVENTS as readonly string[]).includes(eventType);
 }

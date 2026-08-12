@@ -5,6 +5,7 @@ import { createFlightdeckClient } from "@/lib/flightdeck-client";
 import {
   isMilestone,
   ZOHO_STATUS_BY_MILESTONE,
+  ZOHO_TAG_BY_MILESTONE,
   type EventCategory,
   type MilestoneEvent,
 } from "@/lib/candidate-events";
@@ -164,17 +165,21 @@ async function syncMilestoneToZoho(
   if (!candidate?.zoho_lead_id) {
     // Candidate exists in Supabase but never came in via the Zoho
     // webhook (test seeds, manual rows). Mark every pipeline skipped
-    // so we don't keep retrying. For application_submitted, that
-    // includes the PR 61 cq + tag legs; for other milestones those
-    // columns stay null since they were never applicable.
+    // so we don't keep retrying. tag_sync_status flips to "skipped"
+    // whenever the milestone has a tag mapping; cq_sync_status is
+    // still application_submitted-only (its Zoho field only fires
+    // there).
     const isAppSubmitted = args.eventType === "application_submitted";
+    const hasTagMapping = Boolean(
+      ZOHO_TAG_BY_MILESTONE[args.eventType as MilestoneEvent],
+    );
     await supabase
       .from("candidate_events")
       .update({
         zoho_sync_status: "skipped",
         blueprint_transition_status: "skipped",
         cq_sync_status: isAppSubmitted ? "skipped" : null,
-        tag_sync_status: isAppSubmitted ? "skipped" : null,
+        tag_sync_status: hasTagMapping ? "skipped" : null,
         zoho_synced_at: nowIso(),
       })
       .eq("id", eventId);
@@ -232,6 +237,32 @@ async function syncMilestoneToZoho(
       `[log-event] Zoho field update failed for event ${eventId}:`,
       err,
     );
+  }
+
+  // Centralized phase-tag write. Every milestone with an entry in
+  // ZOHO_TAG_BY_MILESTONE attaches its tag to the Lead so sales-team
+  // filters can find candidates by journey phase without querying
+  // Portal_Status directly. Zoho's addTags is idempotent, so the two
+  // milestones that map to the same "Exploring Brand" tag are safe
+  // to fire twice, and re-runs from a "navigate back then forward"
+  // pattern don't duplicate. Best-effort — a tag failure does not
+  // flip zohoSyncStatus or block the transition below.
+  let tagSyncStatus: "success" | "failed" | "skipped" | null = null;
+  let tagSyncError: string | null = null;
+  const tagToAdd =
+    ZOHO_TAG_BY_MILESTONE[args.eventType as MilestoneEvent];
+  if (tagToAdd) {
+    try {
+      await zohoApi.addTags(candidate.zoho_lead_id, [tagToAdd]);
+      tagSyncStatus = "success";
+    } catch (err) {
+      tagSyncStatus = "failed";
+      tagSyncError = err instanceof Error ? err.message : String(err);
+      console.warn(
+        `[log-event] addTags "${tagToAdd}" failed for event ${eventId}:`,
+        tagSyncError,
+      );
+    }
   }
 
   // Reengage: create a Zoho Task assigned to the Lead Owner so the rep
@@ -363,17 +394,18 @@ async function syncMilestoneToZoho(
     }
   }
 
-  // PR 61: application_submitted carries two extra Zoho writes —
-  // CQ_Received (DateTime field that the sales team filters on for
-  // "leads who finished the application") and an "Application
-  // Submitted" tag. Both are best-effort: they fire after the main
-  // Portal_Status update succeeded or failed, share none of its
-  // status, and are tracked separately on the row so we can tell
-  // which leg failed without parsing combined error text.
+  // PR 61: application_submitted carries the CQ_Received DateTime
+  // write (the sales team filters on it for "leads who finished the
+  // application"). Best-effort — fires after the main Portal_Status
+  // update succeeded or failed and is tracked separately on the row
+  // so we can tell if the CQ leg failed without parsing combined
+  // error text.
+  //
+  // The "Application Submitted" tag write that used to live here
+  // moved to the centralized ZOHO_TAG_BY_MILESTONE path above so
+  // every milestone's tag is written from a single source of truth.
   let cqSyncStatus: "success" | "failed" | null = null;
   let cqSyncError: string | null = null;
-  let tagSyncStatus: "success" | "failed" | null = null;
-  let tagSyncError: string | null = null;
   if (args.eventType === "application_submitted") {
     // Single-format datetime PUT. PR 62 added a dual-format retry +
     // verify-via-GET loop to diagnose silent failures; both formats
@@ -397,18 +429,6 @@ async function syncMilestoneToZoho(
       console.warn(
         `[log-event] CQ_Received write failed event=${eventId}:`,
         cqSyncError,
-      );
-    }
-
-    try {
-      await zohoApi.addTags(candidate.zoho_lead_id, ["Application Submitted"]);
-      tagSyncStatus = "success";
-    } catch (err) {
-      tagSyncStatus = "failed";
-      tagSyncError = err instanceof Error ? err.message : String(err);
-      console.warn(
-        `[log-event] addTags failed for event ${eventId}:`,
-        tagSyncError,
       );
     }
 
