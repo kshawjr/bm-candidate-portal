@@ -56,6 +56,8 @@ import {
 import { YoureCurrentScreen } from "@/components/portal/youre-current-screen";
 import { BackToTop } from "@/components/portal/back-to-top";
 import { ScrollDownHint } from "@/components/portal/scroll-down-hint";
+import { OptOutFooterLink } from "@/components/portal/opt-out-footer-link";
+import type { OptOutReason } from "@/lib/opt-out";
 import { SideDrawer } from "@/components/ui/side-drawer";
 import { useIsMobile } from "@/lib/hooks/use-is-mobile";
 import type { ClientLogEventArgs } from "@/app/portal/[token]/event-actions";
@@ -254,6 +256,15 @@ export interface ShellProps {
    * server-side and never surfaced.
    */
   onLogEvent: (args: ClientLogEventArgs) => Promise<void>;
+  /**
+   * Bound server action for the opt-out footer link. The link is only
+   * shown for the candidate's current education chapters (0-1); once
+   * they advance to chapter 2 or beyond, the footer link hides itself
+   * so this prop is essentially unused in later chapters.
+   */
+  onOptOut: (
+    reason: OptOutReason,
+  ) => Promise<{ success: boolean; error?: string }>;
 }
 
 export function CinematicShell({
@@ -305,6 +316,7 @@ export function CinematicShell({
   pendingTransitionVideoStepId,
   currentChapterCompletedSteps,
   onLogEvent,
+  onOptOut,
 }: ShellProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -1089,6 +1101,10 @@ export function CinematicShell({
 
         <ScrollDownHint />
         <BackToTop />
+        <OptOutFooterLink
+          currentChapterIdx={currentChapterIdx}
+          onOptOut={onOptOut}
+        />
       </>
     );
   }
@@ -1112,6 +1128,10 @@ export function CinematicShell({
     </div>
     <ScrollDownHint />
     <BackToTop />
+    <OptOutFooterLink
+      currentChapterIdx={currentChapterIdx}
+      onOptOut={onOptOut}
+    />
     </>
   );
 }

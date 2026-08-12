@@ -21,6 +21,7 @@ import {
   type ScheduleConfig,
   type Slot,
 } from "@/lib/google-calendar";
+import { OPT_OUT_REASONS, type OptOutReason } from "@/lib/opt-out";
 
 /**
  * Resolve the (candidate_id, brand_id) pair from a portal token. Used by
@@ -613,6 +614,116 @@ async function generateAndStoreApplicationDocument(
       );
     }
   }
+}
+
+// ======================================================================
+// Opt-out / reengage — candidate-initiated portal off-ramp + on-ramp
+// ======================================================================
+
+/**
+ * Candidate opts out from the portal footer link. Stamps the opt-out
+ * timestamp + reason on their portal row (which the page reads to
+ * render the locked screen), then fires the candidate_opted_out
+ * milestone so the Zoho sync writes Reason_for_Loss and fires the
+ * brand-aware Blueprint transition.
+ */
+export async function optOutAction(
+  token: string,
+  reason: OptOutReason,
+): Promise<{ success: boolean; error?: string }> {
+  if (!OPT_OUT_REASONS.includes(reason)) {
+    return { success: false, error: "Invalid reason" };
+  }
+  const app = createAppServiceClient();
+  const { data: session } = await app
+    .from("candidates_in_portal")
+    .select("id")
+    .eq("token", token)
+    .maybeSingle();
+  if (!session?.id) return { success: false, error: "Session not found" };
+
+  const { error: updErr } = await app
+    .from("candidates_in_portal")
+    .update({
+      opted_out_at: new Date().toISOString(),
+      opted_out_reason: reason,
+      // A previous reengage timestamp would be misleading if we're
+      // opting out again; clear it so the audit trail matches the
+      // current opt-out cycle.
+      opted_out_reengage_requested_at: null,
+      last_activity_at: new Date().toISOString(),
+    })
+    .eq("id", session.id);
+  if (updErr) return { success: false, error: updErr.message };
+
+  const ctx = await resolveCandidateAndBrand(token);
+  if (ctx) {
+    await logEvent({
+      candidateId: ctx.candidateId,
+      brandId: ctx.brandId,
+      category: "milestone",
+      eventType: "candidate_opted_out",
+      metadata: { reason },
+    });
+  }
+
+  revalidatePath(`/portal/${token}`);
+  return { success: true };
+}
+
+/**
+ * Candidate hits "Reconnect with our team" on the opted-out screen.
+ * Clears opted_out_at so the portal unlocks (candidate resumes at their
+ * last position); leaves opted_out_reason as historical context and
+ * stamps opted_out_reengage_requested_at for audit. Fires the
+ * reengage_requested milestone so Zoho creates a Task for the Lead
+ * Owner. Blueprint stays at "Not Interested" — the rep manually
+ * advances after reaching out.
+ */
+export async function reengageAction(
+  token: string,
+): Promise<{ success: boolean; error?: string }> {
+  const app = createAppServiceClient();
+  const { data: session } = await app
+    .from("candidates_in_portal")
+    .select("id, opted_out_at, opted_out_reason")
+    .eq("token", token)
+    .maybeSingle();
+  if (!session?.id) return { success: false, error: "Session not found" };
+  if (!session.opted_out_at) {
+    // Idempotent: no lock to release.
+    return { success: true };
+  }
+
+  const previousReason = (session.opted_out_reason as string | null) ?? null;
+  const previousOptedOutAt = (session.opted_out_at as string | null) ?? null;
+
+  const { error: updErr } = await app
+    .from("candidates_in_portal")
+    .update({
+      opted_out_at: null,
+      opted_out_reengage_requested_at: new Date().toISOString(),
+      last_activity_at: new Date().toISOString(),
+    })
+    .eq("id", session.id);
+  if (updErr) return { success: false, error: updErr.message };
+
+  const ctx = await resolveCandidateAndBrand(token);
+  if (ctx) {
+    await logEvent({
+      candidateId: ctx.candidateId,
+      brandId: ctx.brandId,
+      category: "milestone",
+      eventType: "reengage_requested",
+      metadata: {
+        previous_reason: previousReason,
+        opted_out_at: previousOptedOutAt,
+      },
+    });
+  }
+
+  revalidatePath(`/portal/${token}`);
+  return { success: true };
 }
 
 // ======================================================================

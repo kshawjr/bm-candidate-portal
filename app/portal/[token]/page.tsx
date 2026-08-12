@@ -17,6 +17,8 @@ import {
   cancelBookingAction,
   completeTourAction,
   getAvailableSlotsAction,
+  optOutAction,
+  reengageAction,
   saveApplicationAnswerAction,
   submitApplicationAction,
   advanceStepAction,
@@ -29,6 +31,7 @@ import { resolveJourneyCardState } from "@/components/sidebar/journey-card";
 import type { ExistingBooking } from "@/components/content-types/schedule-renderer";
 import { DevResetButton } from "@/components/portal/dev-reset-button";
 import { OnboardingPopups } from "@/components/portal/onboarding-popups";
+import { OptedOutScreen } from "@/components/portal/opted-out-screen";
 import type { ChapterVideoConfig } from "@/components/portal/chapter-video-popup";
 import type {
   ChapterIntroBullet,
@@ -152,7 +155,7 @@ export default async function PortalTokenPage({
   const { data: session } = await app
     .from("candidates_in_portal")
     .select(
-      "id, candidate_id, current_chapter, current_step, is_app_submitted, last_activity_at, dismissed_chapter_videos, dismissed_chapter_intros, dismissed_step_transitions, dismissed_step_transition_videos, dismissed_chapter_completes, last_visited_step_id, prefilled_zip, prefilled_phone, unlocked_keys",
+      "id, candidate_id, current_chapter, current_step, is_app_submitted, last_activity_at, dismissed_chapter_videos, dismissed_chapter_intros, dismissed_step_transitions, dismissed_step_transition_videos, dismissed_chapter_completes, last_visited_step_id, prefilled_zip, prefilled_phone, unlocked_keys, opted_out_at",
     )
     .eq("token", params.token)
     .maybeSingle();
@@ -199,6 +202,18 @@ export default async function PortalTokenPage({
     .eq("id", candidate.brand_id)
     .maybeSingle();
   if (!brand) notFound();
+
+  // Opt-out lock: if the candidate has opted out (opted_out_at set),
+  // short-circuit the normal shell render and show the locked screen
+  // with a reengage CTA. reengageAction clears opted_out_at and
+  // revalidates, so on next render this branch falls through and the
+  // full portal resumes at the candidate's last position.
+  if (session.opted_out_at) {
+    const onReengage = reengageAction.bind(null, params.token);
+    return (
+      <OptedOutScreen brandName={brand.name as string} onReengage={onReengage} />
+    );
+  }
 
   // Fire portal_first_visit milestone exactly once per candidate. Dedup
   // off the events table itself rather than `last_activity_at` so a
@@ -869,6 +884,7 @@ export default async function PortalTokenPage({
     params.token,
   );
   const onLogEvent = logEventByTokenAction.bind(null, params.token);
+  const onOptOut = optOutAction.bind(null, params.token);
 
   const bookingsByStepId: Record<string, ExistingBooking> = {};
   for (const b of bookingsRows ?? []) {
@@ -950,6 +966,7 @@ export default async function PortalTokenPage({
         pendingTransitionVideoStepId={pendingTransitionVideoStepId}
         currentChapterCompletedSteps={currentChapterCompletedSteps}
         onLogEvent={onLogEvent}
+        onOptOut={onOptOut}
       />
       <DevResetButton token={params.token} />
       <OnboardingPopups

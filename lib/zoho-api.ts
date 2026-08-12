@@ -358,6 +358,81 @@ class ZohoApiClient {
   }
 
   /**
+   * Create a Task linked to a Lead. Used by the reengage flow so the
+   * assigned rep gets a real Zoho Task in their queue when a candidate
+   * opts back in — instead of relying on email or Slack that we don't
+   * have infra for yet.
+   *
+   * `What_Id` + `$se_module: "Leads"` attaches the task to the Lead
+   * record (same pattern as createMeeting). `Owner` optionally assigns
+   * to a Zoho user; omit to let Zoho default to the Lead Owner. Due
+   * date accepts a plain `YYYY-MM-DD` — Tasks use Date, not DateTime.
+   *
+   * Returns a result union rather than throwing so the milestone sync
+   * can stay best-effort — a task-create hiccup shouldn't wipe the
+   * reengage event from the audit trail.
+   */
+  async createTask(payload: {
+    leadId: string;
+    subject: string;
+    description?: string;
+    /** `YYYY-MM-DD`; defaults to today (portal-server local date). */
+    dueDate?: string;
+    priority?: "High" | "Normal" | "Low";
+    /** Zoho user id — omit to let Zoho fall back to the Lead Owner. */
+    ownerId?: string | null;
+  }): Promise<{ success: boolean; taskId?: string; error?: string }> {
+    const leadId = String(payload.leadId);
+    const token = await this.getAccessToken();
+
+    const record: Record<string, unknown> = {
+      Subject: payload.subject,
+      What_Id: { id: leadId },
+      $se_module: "Leads",
+      Due_Date:
+        payload.dueDate ?? new Date().toISOString().slice(0, 10),
+      Priority: payload.priority ?? "High",
+      Status: "Not Started",
+    };
+    if (payload.description) record.Description = payload.description;
+    if (payload.ownerId) record.Owner = { id: payload.ownerId };
+
+    const response = await fetch(`${API_DOMAIN}/crm/v3/Tasks`, {
+      method: "POST",
+      headers: {
+        Authorization: `Zoho-oauthtoken ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ data: [record] }),
+    });
+
+    if (!response.ok) {
+      const body = await response.text();
+      return {
+        success: false,
+        error: `Zoho createTask ${response.status}: ${body}`,
+      };
+    }
+
+    const data = (await response.json()) as {
+      data?: Array<{
+        code?: string;
+        details?: { id?: string };
+        message?: string;
+        status?: string;
+      }>;
+    };
+    const record0 = data.data?.[0];
+    if (!record0 || record0.code !== "SUCCESS") {
+      return {
+        success: false,
+        error: `Zoho createTask non-success: ${record0?.code ?? "unknown"} ${record0?.message ?? ""}`.trim(),
+      };
+    }
+    return { success: true, taskId: record0.details?.id };
+  }
+
+  /**
    * Read a single Zoho CRM user by ID. Used by the lead-created webhook
    * to look up an Owner's full_name when auto-creating a rep — the
    * Owner object embedded in a Lead response often lacks first_name /

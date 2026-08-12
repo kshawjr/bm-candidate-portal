@@ -8,7 +8,11 @@ import {
   type EventCategory,
   type MilestoneEvent,
 } from "@/lib/candidate-events";
-import { getTransitionIdForMilestone } from "@/lib/zoho-blueprint-transitions";
+import {
+  getTransitionId,
+  type BrandSlug,
+} from "@/lib/zoho-blueprint-transitions";
+import { OPT_OUT_REASONS } from "@/lib/opt-out";
 import { zohoApi } from "@/lib/zoho-api";
 import {
   CREDIT_SCORE_RANGES,
@@ -17,6 +21,18 @@ import {
   OPENING_TIMELINE,
   findOptionLabel,
 } from "@/lib/application-options";
+
+// Whitelist of Reason_for_Loss values written from candidate_opted_out.
+// A Zoho picklist rejects unknown strings, so re-validating here keeps
+// a bad client payload from breaking the field write. Sources from the
+// same shared enum the client + server action use, so adding a new
+// reason means one change in lib/opt-out.ts.
+const OPT_OUT_REASON_VALUES: Set<string> = new Set(OPT_OUT_REASONS);
+
+// Type guard: only the two brand slugs configured today.
+function isKnownBrandSlug(s: string | null | undefined): s is BrandSlug {
+  return s === "hounds-town-usa" || s === "cruisin-tikis";
+}
 
 // Zoho's DateTime fields reject the `Z` suffix and millisecond precision
 // that `toISOString()` produces — they want `YYYY-MM-DDTHH:mm:ss±hh:mm`.
@@ -128,6 +144,23 @@ async function syncMilestoneToZoho(
     .eq("id", args.candidateId)
     .maybeSingle();
 
+  // Resolve the brand slug once — the Blueprint transition map is
+  // brand-keyed (opt-out transitions differ per brand) and the rep
+  // notification for reengage may want brand context in the future.
+  // Lookup miss is non-fatal for the pre-opt-out milestones because
+  // their transitions are the same across brands anyway; the transition
+  // step below just logs and skips when brandSlug is unresolved.
+  const { data: brandRow } = await core
+    .from("brands")
+    .select("slug")
+    .eq("id", args.brandId)
+    .maybeSingle();
+  const brandSlug: BrandSlug | null = isKnownBrandSlug(
+    brandRow?.slug as string | null | undefined,
+  )
+    ? (brandRow?.slug as BrandSlug)
+    : null;
+
   if (!candidate?.zoho_lead_id) {
     // Candidate exists in Supabase but never came in via the Zoho
     // webhook (test seeds, manual rows). Mark every pipeline skipped
@@ -157,13 +190,17 @@ async function syncMilestoneToZoho(
   let zohoSyncError: string | null = null;
   try {
     const status =
-      ZOHO_STATUS_BY_MILESTONE[
-        args.eventType as keyof typeof ZOHO_STATUS_BY_MILESTONE
-      ];
+      ZOHO_STATUS_BY_MILESTONE[args.eventType as MilestoneEvent];
     const fields: Record<string, string> = {
-      Portal_Status: status,
       Last_Active_Date: formatZohoDateTime(new Date()),
     };
+    // Portal_Status only fires for milestones with a mapping — the
+    // off-funnel events (candidate_opted_out, reengage_requested) are
+    // deliberately absent from the map since Blueprint owns their
+    // state.
+    if (status) {
+      fields.Portal_Status = status;
+    }
     // FranFunnel_Stage is a picklist field a downstream Zoho workflow
     // rule watches to advance the sales funnel. Only discovery_scheduled
     // maps to a value today; extend this guard when other milestones
@@ -171,6 +208,21 @@ async function syncMilestoneToZoho(
     // costs zero extra Zoho round-trips.
     if (args.eventType === "discovery_scheduled") {
       fields.FranFunnel_Stage = "Discovery Call Scheduled";
+    }
+    // Reason_for_Loss is the sales-team-visible free-text on why the
+    // lead dropped. Client passed a validated enum; re-check against
+    // the whitelist here so a bad payload can't smuggle in a value
+    // Zoho's picklist would reject.
+    if (args.eventType === "candidate_opted_out") {
+      const reason = args.metadata?.reason;
+      if (typeof reason === "string" && OPT_OUT_REASON_VALUES.has(reason)) {
+        fields.Reason_for_Loss = reason;
+      } else {
+        console.warn(
+          `[log-event] candidate_opted_out event ${eventId} — reason missing or invalid, skipping Reason_for_Loss write. Got:`,
+          reason,
+        );
+      }
     }
     await zohoApi.updateLead(candidate.zoho_lead_id, fields);
   } catch (err) {
@@ -180,6 +232,66 @@ async function syncMilestoneToZoho(
       `[log-event] Zoho field update failed for event ${eventId}:`,
       err,
     );
+  }
+
+  // Reengage: create a Zoho Task assigned to the Lead Owner so the rep
+  // sees the opt-back-in in their queue. Best-effort — a task failure
+  // does not flip zohoSyncStatus and does not block the transition
+  // step below (which is a no-op for reengage anyway).
+  if (args.eventType === "reengage_requested") {
+    try {
+      const lead = await zohoApi.getLead(candidate.zoho_lead_id, [
+        "Owner",
+        "Full_Name",
+        "First_Name",
+        "Last_Name",
+      ]);
+      const owner = (lead?.Owner as { id?: string } | undefined) ?? undefined;
+      const ownerId =
+        typeof owner?.id === "string" && owner.id.length > 0 ? owner.id : null;
+      const fullName = (lead?.Full_Name as string | null) ?? null;
+      const composedName = [lead?.First_Name, lead?.Last_Name]
+        .filter((v): v is string => typeof v === "string" && v.length > 0)
+        .join(" ")
+        .trim();
+      const candidateName = fullName || composedName || "Candidate";
+      const previousReason =
+        typeof args.metadata?.previous_reason === "string"
+          ? args.metadata.previous_reason
+          : null;
+      const optedOutAt =
+        typeof args.metadata?.opted_out_at === "string"
+          ? args.metadata.opted_out_at
+          : null;
+
+      const description = [
+        `${candidateName} clicked "Reconnect with our team" on the candidate portal after opting out.`,
+        previousReason ? `Previous opt-out reason: ${previousReason}.` : null,
+        optedOutAt ? `Originally opted out at: ${optedOutAt}.` : null,
+        "Their portal has been unlocked. Please reach out to reconfirm interest and next step.",
+      ]
+        .filter(Boolean)
+        .join("\n\n");
+
+      const taskResult = await zohoApi.createTask({
+        leadId: candidate.zoho_lead_id,
+        subject: `Candidate wants to reengage: ${candidateName}`,
+        description,
+        priority: "High",
+        ownerId,
+      });
+      if (!taskResult.success) {
+        console.warn(
+          `[log-event] Zoho reengage task create failed for event ${eventId}:`,
+          taskResult.error,
+        );
+      }
+    } catch (err) {
+      console.warn(
+        `[log-event] Zoho reengage task threw for event ${eventId}:`,
+        err instanceof Error ? err.message : err,
+      );
+    }
   }
 
   // For discovery_scheduled, also create a Zoho Meeting under the
@@ -475,14 +587,21 @@ async function syncMilestoneToZoho(
   }
 
   // Blueprint transition runs only for milestones explicitly mapped in
-  // TRANSITION_ID_BY_MILESTONE. Unmapped milestones (e.g.,
-  // portal_first_visit, application_submitted) record 'skipped' so the
-  // null state is unambiguous in dashboards.
+  // TRANSITION_ID_BY_MILESTONE_BY_BRAND. Unmapped milestones (e.g.,
+  // portal_first_visit, application_submitted, reengage_requested)
+  // record 'skipped' so the null state is unambiguous in dashboards.
+  // A missing brand slug also skips — better to log a warning than to
+  // guess an ID.
   let transitionStatus: "success" | "failed" | "skipped" = "skipped";
   let transitionError: string | null = null;
-  const transitionId = getTransitionIdForMilestone(
-    args.eventType as MilestoneEvent,
-  );
+  const transitionId = brandSlug
+    ? getTransitionId(args.eventType as MilestoneEvent, brandSlug)
+    : undefined;
+  if (!brandSlug) {
+    console.warn(
+      `[log-event] Blueprint transition skipped for event ${eventId} — could not resolve brand slug for brand_id ${args.brandId}`,
+    );
+  }
   if (transitionId) {
     try {
       await zohoApi.transitionLead(candidate.zoho_lead_id, transitionId);
