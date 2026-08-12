@@ -14,7 +14,12 @@ export type BrandSlug = "hounds-town-usa" | "cruisin-tikis";
 export const TRANSITION_ID_BY_MILESTONE_BY_BRAND: Partial<
   Record<MilestoneEvent, Record<BrandSlug, string>>
 > = {
-  brand_tour_engaged: {
+  portal_first_visit: {
+    // Fires the New → Engaged transition on the candidate's first
+    // portal load. Earlier PRs wired this to brand_tour_engaged
+    // (advance past slide 1); the sales-team signal we actually want
+    // is "opened the link at all" — engaging the deck is table stakes
+    // after that.
     // TODO: confirm — assumed shared until Kevin verifies with Zoho.
     "hounds-town-usa": "5380286000093074144",
     "cruisin-tikis": "5380286000093074144",
