@@ -13,10 +13,18 @@ export type EventCategory =
 // these in order, never regress.
 export const MILESTONE_EVENTS = [
   "portal_first_visit",
+  // Fires when the candidate dismisses the Chapter 1 ("explore")
+  // welcome video popup. This is the milestone that fires the
+  // New → Engaged Blueprint transition — dismissing the welcome video
+  // is a stronger "actually here" signal than the page load that
+  // fires portal_first_visit. Chapter 2+ video dismissals do NOT fire
+  // this (see dismissChapterVideo in app/portal/[token]/popup-actions.ts).
+  "welcome_video_completed",
   // Fires the first time a candidate advances past slide 1 of the
   // Chapter 1 / Stop 1 brand tour (i.e. they're now viewing slide 2).
-  // Sits between portal_first_visit ("opened the link") and
-  // education_completed ("watched the whole brand pitch") — the gap
+  // Sits between welcome_video_completed ("dismissed the welcome
+  // video") and education_completed ("watched the whole brand
+  // pitch") — the gap
   // between visit and engagement is a sales-team signal distinct from
   // a 5-second click-and-close.
   "brand_tour_engaged",
@@ -50,6 +58,7 @@ export type MilestoneEvent = (typeof MILESTONE_EVENTS)[number];
 // those off-funnel events.
 export const ZOHO_STATUS_BY_MILESTONE: Partial<Record<MilestoneEvent, string>> = {
   portal_first_visit: "Portal Accessed",
+  welcome_video_completed: "Welcome Video Complete",
   brand_tour_engaged: "Brand Tour Engaged",
   education_completed: "Education Complete",
   application_started: "Application Started",
@@ -71,6 +80,7 @@ export const ZOHO_STATUS_BY_MILESTONE: Partial<Record<MilestoneEvent, string>> =
 // off-funnel opt-out events — deliberately don't attach a tag.
 export const ZOHO_TAG_BY_MILESTONE: Partial<Record<MilestoneEvent, string>> = {
   portal_first_visit: "Portal Accessed",
+  welcome_video_completed: "Welcome Video Complete",
   brand_tour_engaged: "Exploring Brand",
   education_completed: "Exploring Brand",
   application_started: "Application In Progress",

@@ -13,6 +13,13 @@ import { logEvent } from "@/lib/log-event";
  *
  * Replaces the old dismissWelcomePopup (PR 31) which set a single boolean;
  * the per-chapter array supports the generalized chapter video model.
+ *
+ * The FIRST dismissal of the Chapter 1 ("explore") video also fires the
+ * welcome_video_completed milestone, which writes Portal_Status
+ * "Welcome Video Complete", attaches the matching tag, and fires the
+ * New → Engaged Blueprint transition. Repeat dismissals and non-explore
+ * chapters (e.g. Hounds Town's first_chat video) never fire it. The
+ * event is best-effort — a logEvent failure never breaks the dismissal.
  */
 export async function dismissChapterVideo(
   token: string,
@@ -25,7 +32,7 @@ export async function dismissChapterVideo(
   const app = createAppServiceClient();
   const { data: row, error: readErr } = await app
     .from("candidates_in_portal")
-    .select("id, dismissed_chapter_videos")
+    .select("id, candidate_id, dismissed_chapter_videos")
     .eq("token", token)
     .maybeSingle();
   if (readErr || !row) {
@@ -38,6 +45,8 @@ export async function dismissChapterVideo(
     : [];
 
   if (list.includes(chapterKey)) {
+    // Repeat dismissal — bump activity only. Deliberately no milestone
+    // here; welcome_video_completed fires on the first dismissal only.
     await app
       .from("candidates_in_portal")
       .update({ last_activity_at: new Date().toISOString() })
@@ -55,6 +64,49 @@ export async function dismissChapterVideo(
   if (updErr) {
     return { success: false };
   }
+
+  // First dismissal of the Chapter 1 welcome video → milestone. Only the
+  // "explore" chapter counts; later chapter videos are not the welcome
+  // video. Resolve brand_id the same way completeChapterAndAdvance does.
+  // Wrapped so a tracking/Zoho failure can never undo a successful
+  // dismissal — the array write above has already landed.
+  if (chapterKey === "explore") {
+    try {
+      const candidateId = row.candidate_id as string | null | undefined;
+      if (!candidateId) {
+        console.warn(
+          "[welcome_video_completed] skipped — candidate_id missing on portal row",
+          row.id,
+        );
+      } else {
+        const core = createCoreClient();
+        const { data: candidate } = await core
+          .from("candidates")
+          .select("brand_id")
+          .eq("id", candidateId)
+          .maybeSingle();
+        const brandId = (candidate as { brand_id?: string } | null)?.brand_id;
+        if (!brandId) {
+          console.warn(
+            "[welcome_video_completed] skipped — brand_id unresolved for candidate",
+            candidateId,
+          );
+        } else {
+          await logEvent({
+            candidateId,
+            brandId,
+            category: "milestone",
+            eventType: "welcome_video_completed",
+            eventKey: chapterKey,
+            metadata: { chapter_key: chapterKey },
+          });
+        }
+      }
+    } catch (err) {
+      console.warn("[welcome_video_completed] logEvent failed:", err);
+    }
+  }
+
   revalidatePath(`/portal/${token}`);
   return { success: true };
 }

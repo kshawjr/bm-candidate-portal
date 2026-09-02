@@ -607,7 +607,8 @@ async function syncMilestoneToZoho(
   }
 
   // Blueprint transition runs only for milestones explicitly mapped in
-  // TRANSITION_ID_BY_MILESTONE_BY_BRAND. Unmapped milestones (e.g.,
+  // TRANSITION_ID_BY_MILESTONE_BY_BRAND (New → Engaged fires on
+  // welcome_video_completed). Unmapped milestones (e.g.,
   // portal_first_visit, application_submitted, reengage_requested)
   // record 'skipped' so the null state is unambiguous in dashboards.
   // A missing brand slug also skips — better to log a warning than to

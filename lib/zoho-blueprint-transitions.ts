@@ -14,12 +14,14 @@ export type BrandSlug = "hounds-town-usa" | "cruisin-tikis";
 export const TRANSITION_ID_BY_MILESTONE_BY_BRAND: Partial<
   Record<MilestoneEvent, Record<BrandSlug, string>>
 > = {
-  portal_first_visit: {
-    // Fires the New → Engaged transition on the candidate's first
-    // portal load. Earlier PRs wired this to brand_tour_engaged
-    // (advance past slide 1); the sales-team signal we actually want
-    // is "opened the link at all" — engaging the deck is table stakes
-    // after that.
+  welcome_video_completed: {
+    // Fires the New → Engaged transition when the candidate dismisses
+    // the Chapter 1 welcome video popup. History: originally wired to
+    // brand_tour_engaged (advance past slide 1), then moved to
+    // portal_first_visit in PR #143 ("opened the link at all"), now
+    // moved here so "Engaged" means they got through the welcome video
+    // rather than merely loading the page. portal_first_visit has no
+    // transition and records blueprint_transition_status = 'skipped'.
     // TODO: confirm — assumed shared until Kevin verifies with Zoho.
     "hounds-town-usa": "5380286000093074144",
     "cruisin-tikis": "5380286000093074144",

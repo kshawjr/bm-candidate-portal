@@ -134,8 +134,9 @@ in CRM.
    fields alongside `Portal_Token` / `Portal_URL`:
    - `Portal_Status` (single-line text — values written by the app
      come from `ZOHO_STATUS_BY_MILESTONE` in
-     `lib/candidate-events.ts`: "Portal Accessed", "Brand Tour
-     Engaged", "Education Complete", "Application Started",
+     `lib/candidate-events.ts`: "Portal Accessed", "Welcome Video
+     Complete", "Brand Tour Engaged", "Education Complete",
+     "Application Started",
      "Application Submitted", "Discovery Scheduled", "Discovery
      Completed", "Verifying", "Verified", "Offer Sent", "Awarded")
    - `Last_Active_Date` (date — ISO-8601 timestamps; Zoho stores as
@@ -156,12 +157,15 @@ custom fields updated.
 
 | Milestone | Blueprint transition |
 |---|---|
-| `education_completed` | New → Engaged |
+| `welcome_video_completed` | New → Engaged (fires when the candidate dismisses the Chapter 1 welcome video; moved here from `portal_first_visit`, which now records `'skipped'`) |
 | `discovery_scheduled` | Engaged → Discovery Call Booked |
+| `candidate_opted_out` | → Not Interested (brand-specific IDs) |
 
-Transition IDs live in `lib/zoho-blueprint-transitions.ts`. Both
-brands share the same Lead Blueprint, so the IDs aren't
-brand-specific.
+Transition IDs live in `lib/zoho-blueprint-transitions.ts`, keyed
+by milestone and then by brand slug. The New → Engaged and
+Discovery Call Booked IDs are assumed shared across brands (still
+marked TODO-confirm in code); the opt-out transition differs per
+brand.
 
 **Finding new transition IDs.** Setup → Process Management →
 Blueprint → click the Lead Blueprint → click each transition arrow.
