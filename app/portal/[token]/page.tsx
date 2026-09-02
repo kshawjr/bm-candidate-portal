@@ -764,6 +764,13 @@ export default async function PortalTokenPage({
     const ck = row.chapter_key as string;
     const pos = row.position as number;
     if (pos === 0 && ck === chapters[0]?.chapter_key) continue;
+    // Skip the application step. It is usually the last step of its
+    // chapter, so the "Almost done with <chapter>" framing would fire
+    // the moment the candidate lands on the application — the wrong
+    // beat (the application renderer has its own section intros, and
+    // the shell already suppresses the chapter banner there for the
+    // same reason). Admin-configured rows above still win if one is set.
+    if ((row.content_type as string) === "application") continue;
     const stepLabel = (row.label as string) ?? "the next step";
     const total = stepCountByChapter[ck] ?? 1;
     const isLast = pos === total - 1;

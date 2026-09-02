@@ -119,7 +119,7 @@ export function SlidesRenderer({
 
   const goPrev = () => setIdx((i) => Math.max(0, i - 1));
   // PR 112: removed the virtual handoff card that used to sit at
-  // idx === slides.length. The last slide's "Almost done →" button now
+  // idx === slides.length. The last slide's "Continue →" button now
   // calls finish() directly, so the candidate goes straight from the
   // last image into the step transition video (or onComplete if none).
   const goNext = () => {
@@ -233,7 +233,6 @@ export function SlidesRenderer({
       {idx === 0 && (
         <div className="slide-tap-hint-wrap" aria-hidden="true">
           <div className="slide-tap-hint">
-            <span className="slide-tap-hint-label">Start here</span>
             <svg
               className="slide-tap-hint-arrow"
               width="40"
@@ -300,7 +299,7 @@ export function SlidesRenderer({
           className="slide-nav-btn primary"
           onClick={goNext}
         >
-          {idx === slides.length - 1 ? "Almost done →" : "Next →"}
+          {idx === slides.length - 1 ? "Continue →" : "Next →"}
         </button>
       </div>
 
