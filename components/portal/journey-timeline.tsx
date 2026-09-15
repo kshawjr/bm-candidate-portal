@@ -110,22 +110,76 @@ interface BrandTheme {
   decor: string;
   /** Aria description used by screen readers for the road. */
   pathDescription: string;
+  /** Wordmark rendered inside the pin-8 award ribbon. Use "\n" to
+   *  split onto multiple lines (e.g. "NEW\nTOWNIE"). */
+  awardLabel: string;
+  /** Screen-reader label for the award ribbon. */
+  awardAriaLabel: string;
+  /** Colors for the pin-8 award ribbon. */
+  awardRibbonColors: AwardRibbonColors;
+}
+
+interface AwardRibbonColors {
+  /** Rosette center disk (behind the wordmark). */
+  center: string;
+  /** Scalloped outer ring + inner disk. */
+  ring: string;
+  /** Left ribbon tail. */
+  tailLeft: string;
+  /** Right ribbon tail (slightly lighter than left for depth). */
+  tailRight: string;
+  /** Drop-shadow glow color used when pin 8 is the current stage. */
+  glow: string;
 }
 
 const BRAND_THEMES: Record<string, BrandTheme> = {
   "hounds-town-usa": {
     decor: "🐾",
     pathDescription: "Trail of paw prints connecting each stage.",
+    awardLabel: "NEW\nTOWNIE",
+    awardAriaLabel: "New Townie award",
+    // The original hardcoded HT rosette: orange center, light-blue
+    // scallops, dark-blue tails.
+    awardRibbonColors: {
+      center: "#ec7a3a",
+      ring: "#a5cfeb",
+      tailLeft: "#1c3a78",
+      tailRight: "#2b4a8a",
+      glow: "rgba(236, 122, 58, 0.55)",
+    },
   },
   "cruisin-tikis": {
     decor: "⛵",
     pathDescription: "Boat wake connecting each stage.",
+    awardLabel: "AWARDED",
+    awardAriaLabel: "Franchise awarded",
+    // Pulled from the CT scenery palette already in this file: coral
+    // boat hull (#f86e4f) for the center, teal sail (#1edee4) for the
+    // scallops, and the CT mid-mountain navy (rgba(33,57,118)) for
+    // the tails.
+    awardRibbonColors: {
+      center: "#f86e4f",
+      ring: "#1edee4",
+      tailLeft: "#213976",
+      tailRight: "#2f4d94",
+      glow: "rgba(248, 110, 79, 0.55)",
+    },
   },
 };
 
 const FALLBACK_THEME: BrandTheme = {
   decor: "★",
   pathDescription: "Connecting path between stages.",
+  awardLabel: "AWARDED",
+  awardAriaLabel: "Franchise awarded",
+  // Neutral grays so an unthemed brand still gets a legible ribbon.
+  awardRibbonColors: {
+    center: "#6b7280",
+    ring: "#d1d5db",
+    tailLeft: "#374151",
+    tailRight: "#4b5563",
+    glow: "rgba(107, 114, 128, 0.55)",
+  },
 };
 
 import type { JourneyStop } from "@/components/content-cards/types";
@@ -180,8 +234,9 @@ interface Props {
  *   6. Road shadow → asphalt body → yellow centerline
  *   7. Path-side brand sprinkles (paws / wave dashes)
  *   8. Numbered pins overlaid as HTML buttons. Pin 8 swaps the
- *      numbered circle for a "New Townie" award ribbon since it
- *      represents the franchise-award milestone, not a routine stop.
+ *      numbered circle for a brand-themed award ribbon ("New Townie"
+ *      for HT, "Awarded" for CT) since it represents the
+ *      franchise-award milestone, not a routine stop.
  */
 export function JourneyTimeline({
   brandSlug,
@@ -614,7 +669,11 @@ export function JourneyTimeline({
                   </span>
                 )}
                 {i === 7 ? (
-                  <NewTownieRibbon />
+                  <AwardRibbon
+                    label={theme.awardLabel}
+                    ariaLabel={theme.awardAriaLabel}
+                    colors={theme.awardRibbonColors}
+                  />
                 ) : (
                   <span className="journey-pin-circle">
                     <span className="journey-pin-sheen" aria-hidden="true" />
@@ -653,23 +712,43 @@ export function JourneyTimeline({
 }
 
 /**
- * "New Townie" award ribbon used in place of the numbered circle on
+ * Brand-themed award ribbon used in place of the numbered circle on
  * pin 8. The last stop is the award milestone, so it gets a distinct
  * badge treatment instead of "8 in a circle". First-pass inline SVG —
- * orange rosette + light-blue scalloped border + dark-blue ribbon
- * tails with a "New Townie" wordmark across the center. Swap in a
- * designed asset later if you want a refined version.
+ * rosette + scalloped border + ribbon tails with a wordmark across the
+ * center. Label and colors come from BRAND_THEMES (HT: "NEW / TOWNIE"
+ * in orange + blue; CT: "AWARDED" in coral + teal). Swap in a designed
+ * asset later if you want a refined version.
  */
-function NewTownieRibbon() {
+function AwardRibbon({
+  label,
+  ariaLabel,
+  colors,
+}: {
+  label: string;
+  ariaLabel: string;
+  colors: AwardRibbonColors;
+}) {
+  // Wordmark lines are stacked 10 units apart and centered on y=32
+  // (the visual middle of the r=20 center disk for a 6.5px font), so
+  // one line lands at 32 and two lines land at 27 / 37 — the same
+  // positions the original two-line "NEW / TOWNIE" used.
+  const lines = label.split("\n");
+  const lineGap = 10;
+  const firstBaseline = 32 - ((lines.length - 1) * lineGap) / 2;
   return (
-    <span className="journey-pin-ribbon" aria-label="New Townie award">
+    <span
+      className="journey-pin-ribbon"
+      aria-label={ariaLabel}
+      style={{ ["--jr-ribbon-glow" as string]: colors.glow }}
+    >
       <svg viewBox="0 0 60 80" width="100%" height="100%" aria-hidden="true">
         {/* Ribbon tails — drawn first so the rosette sits over them. */}
-        <polygon points="18,42 18,76 26,68 30,76 34,68 26,68 26,42" fill="#1c3a78" />
-        <polygon points="42,42 42,76 34,68 30,76 26,68 34,68 34,42" fill="#2b4a8a" />
+        <polygon points="18,42 18,76 26,68 30,76 34,68 26,68 26,42" fill={colors.tailLeft} />
+        <polygon points="42,42 42,76 34,68 30,76 26,68 34,68 34,42" fill={colors.tailRight} />
         {/* Scalloped outer ring — 12 small overlapping bumps around
             the rim to suggest a ribbon rosette without modelling each
-            ruffle precisely. Light blue. */}
+            ruffle precisely. */}
         {Array.from({ length: 12 }).map((_, i) => {
           const angle = (i / 12) * Math.PI * 2 - Math.PI / 2;
           const cx = 30 + Math.cos(angle) * 25;
@@ -680,14 +759,14 @@ function NewTownieRibbon() {
               cx={cx}
               cy={cy}
               r={6}
-              fill="#a5cfeb"
+              fill={colors.ring}
             />
           );
         })}
-        {/* Inner light-blue disk */}
-        <circle cx="30" cy="30" r="24" fill="#a5cfeb" />
-        {/* Orange center */}
-        <circle cx="30" cy="30" r="20" fill="#ec7a3a" />
+        {/* Inner ring disk */}
+        <circle cx="30" cy="30" r="24" fill={colors.ring} />
+        {/* Center disk */}
+        <circle cx="30" cy="30" r="20" fill={colors.center} />
         {/* Thin highlight ring */}
         <circle
           cx="30"
@@ -697,31 +776,23 @@ function NewTownieRibbon() {
           stroke="rgba(255,255,255,0.35)"
           strokeWidth="1.2"
         />
-        {/* Wordmark — two lines so it reads at this size */}
-        <text
-          x="30"
-          y="27"
-          textAnchor="middle"
-          fontSize="6.5"
-          fontWeight="700"
-          fill="#fff"
-          fontFamily="var(--font-heading, system-ui)"
-          letterSpacing="0.04em"
-        >
-          NEW
-        </text>
-        <text
-          x="30"
-          y="37"
-          textAnchor="middle"
-          fontSize="6.5"
-          fontWeight="700"
-          fill="#fff"
-          fontFamily="var(--font-heading, system-ui)"
-          letterSpacing="0.04em"
-        >
-          TOWNIE
-        </text>
+        {/* Wordmark — one <text> per line so multi-word labels read
+            at this size. */}
+        {lines.map((line, i) => (
+          <text
+            key={i}
+            x="30"
+            y={firstBaseline + i * lineGap}
+            textAnchor="middle"
+            fontSize="6.5"
+            fontWeight="700"
+            fill="#fff"
+            fontFamily="var(--font-heading, system-ui)"
+            letterSpacing="0.04em"
+          >
+            {line}
+          </text>
+        ))}
       </svg>
     </span>
   );

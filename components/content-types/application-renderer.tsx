@@ -510,7 +510,7 @@ export function ApplicationRenderer({
         <ShortTextField
           value={v}
           onChange={(x) => setA({ current_role: x })}
-          placeholder="Franchise consultant, real estate, etc."
+          placeholder="e.g., Corporate Executive, Sales Director, Retired"
         />
       </QuestionScreen>
     );
