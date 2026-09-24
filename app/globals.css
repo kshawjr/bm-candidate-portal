@@ -961,6 +961,73 @@ html::-webkit-scrollbar-thumb:hover {
   cursor: not-allowed;
 }
 
+/* Brand tour Continue gate. Always rendered at the bottom-right of the
+   slides step; disabled (greyed, no hover) until the candidate reaches
+   the last slide and, for a video slide, watches it to the end. Enabled
+   state uses --brand-primary so every brand gets its own color. */
+.slides-continue-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 16px;
+}
+/* Single-slide decks have no .slide-controls row above, so give the
+   Continue row the same breathing room the controls row would have. */
+.slide-canvas + .slides-continue-row,
+.slide-caption + .slides-continue-row {
+  margin-top: max(40px, 4vh);
+}
+.slides-continue-cta {
+  font-family: var(--font-body);
+  font-size: 15px;
+  font-weight: 700;
+  padding: 12px 24px;
+  min-height: 44px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--brand-primary);
+  background: var(--brand-primary);
+  color: #fff;
+  cursor: pointer;
+  transition: background 0.25s ease, border-color 0.25s ease,
+    color 0.25s ease, filter 0.15s, transform 0.05s;
+}
+.slides-continue-cta:hover:not(:disabled) {
+  filter: brightness(0.94);
+}
+.slides-continue-cta:active:not(:disabled) {
+  background: color-mix(in srgb, var(--brand-primary) 85%, black);
+  border-color: color-mix(in srgb, var(--brand-primary) 85%, black);
+  filter: none;
+  transform: translateY(1px);
+}
+.slides-continue-cta:focus-visible {
+  outline: 2px solid var(--brand-accent, var(--brand-primary));
+  outline-offset: 2px;
+}
+.slides-continue-cta:disabled {
+  background: var(--surface-soft);
+  border-color: var(--border-strong);
+  color: var(--text-muted);
+  cursor: not-allowed;
+  filter: none;
+  transform: none;
+}
+@media (max-width: 768px) {
+  /* The Continue row is now the bottom-most element of the slides
+     step, so it owns the safe-area inset instead of .slide-controls. */
+  .slides-renderer .slide-controls {
+    padding-bottom: 0;
+  }
+  .slides-continue-row {
+    padding-bottom: max(0px, var(--safe-area-inset-bottom));
+  }
+  .slides-continue-cta {
+    max-width: 100%;
+    padding: 12px 18px;
+    white-space: normal;
+    text-align: center;
+  }
+}
+
 /* PR 128: slide-1-only bouncing-arrow attention cue (the "Start here"
    text label was dropped for the CT launch). Sits in its
    own row above .slide-controls so it can right-align without
