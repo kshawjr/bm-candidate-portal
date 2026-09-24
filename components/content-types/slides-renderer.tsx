@@ -99,13 +99,11 @@ export function SlidesRenderer({
   // click and the actual onComplete fire — bridges the visual gap before
   // the next step mounts.
   const [transitioning, setTransitioning] = useState(false);
-  // Continue gate: true once the current slide's video fires `ended`.
-  // Reset on every slide change so a video that ended on one slide
-  // never unlocks Continue on another.
-  const [videoEnded, setVideoEnded] = useState(false);
-  useEffect(() => {
-    setVideoEnded(false);
-  }, [idx]);
+  // Continue gate: id of the slide whose video last fired `ended`.
+  // Keyed to the slide id (not a boolean reset in an effect) so a video
+  // that ended on one slide can never unlock Continue on another, not
+  // even for the single render between a slide change and an effect.
+  const [endedSlideId, setEndedSlideId] = useState<string | null>(null);
 
   if (slides.length === 0) {
     return (
@@ -123,6 +121,7 @@ export function SlidesRenderer({
 
   const isSingleSlide = slides.length === 1;
   const isLastSlide = idx >= slides.length - 1;
+  const videoEnded = endedSlideId === slide.id;
   const currentSlideIsVideo =
     slide.media_type === "video" && Boolean(slide.video_url);
   // Content-aware Continue gate. Continue is always rendered but stays
@@ -202,7 +201,7 @@ export function SlidesRenderer({
             poster={slide.poster_url ?? null}
             hasSound={slide.has_sound === true}
             reduceMotion={reduceMotion}
-            onEnded={() => setVideoEnded(true)}
+            onEnded={() => setEndedSlideId(slide.id)}
           />
         ) : (
           <Image
@@ -311,8 +310,10 @@ export function SlidesRenderer({
           {idx + 1} / {slides.length}
         </span>
 
-        {/* Next is hidden (not removed) on the last slide so the grid
-            keeps its shape; the Continue button below takes over. */}
+        {/* Next is hidden on the last slide via the `hidden` attribute
+            (display: none, so it leaves the layout). It was the last
+            grid item, so Back and the dots/counter don't move. The
+            Continue button below takes over from here. */}
         <button
           type="button"
           className="slide-nav-btn primary"
@@ -389,6 +390,12 @@ function SlideVideo({
   const videoRef = useRef<HTMLVideoElement>(null);
   const isAmbient = !hasSound;
   const shouldAutoplay = isAmbient && !reduceMotion;
+  // If the browser blocks muted autoplay, a silent video would otherwise
+  // sit paused with no controls and never fire `ended`, leaving the
+  // Continue gate locked forever. Surface native controls so the
+  // candidate can always start it. Resets per slide because the parent
+  // remounts this component via key={slide.id}.
+  const [autoplayBlocked, setAutoplayBlocked] = useState(false);
 
   useEffect(() => {
     if (!shouldAutoplay) return;
@@ -399,6 +406,7 @@ function SlideVideo({
       // side — log so we can spot persistent failures on specific
       // videos in real-device testing.
       console.warn("[SlideVideo] autoplay blocked:", err);
+      setAutoplayBlocked(true);
     });
   }, [shouldAutoplay, src]);
 
@@ -410,7 +418,7 @@ function SlideVideo({
       playsInline
       preload="metadata"
       muted={isAmbient}
-      controls={hasSound || reduceMotion}
+      controls={hasSound || reduceMotion || autoplayBlocked}
       width={1280}
       height={720}
       onEnded={onEnded}
