@@ -75,10 +75,7 @@ export function SlidesRenderer({
   // chapter nav above and Next button below. Smooth behavior so the
   // transition feels intentional. PR 108 used window.scrollTo({ top:
   // 0 }) but that pinned to absolute top, which felt jolting and
-  // pushed the image off-screen when captions were long. The
-  // handoff slide has no .slide-canvas, so the optional-chained ref
-  // silently no-ops there — leftover scroll position from the prior
-  // slide is fine for that short sentinel screen.
+  // pushed the image off-screen when captions were long.
   useEffect(() => {
     if (!didInitialMountRef.current) {
       didInitialMountRef.current = true;
@@ -102,6 +99,13 @@ export function SlidesRenderer({
   // click and the actual onComplete fire — bridges the visual gap before
   // the next step mounts.
   const [transitioning, setTransitioning] = useState(false);
+  // Continue gate: true once the current slide's video fires `ended`.
+  // Reset on every slide change so a video that ended on one slide
+  // never unlocks Continue on another.
+  const [videoEnded, setVideoEnded] = useState(false);
+  useEffect(() => {
+    setVideoEnded(false);
+  }, [idx]);
 
   if (slides.length === 0) {
     return (
@@ -117,20 +121,29 @@ export function SlidesRenderer({
 
   const slide = slides[Math.min(idx, slides.length - 1)];
 
+  const isSingleSlide = slides.length === 1;
+  const isLastSlide = idx >= slides.length - 1;
+  const currentSlideIsVideo =
+    slide.media_type === "video" && Boolean(slide.video_url);
+  // Content-aware Continue gate. Continue is always rendered but stays
+  // disabled until the candidate reaches the last slide AND, if that
+  // last slide is a video, the video has played to the end. A video in
+  // the middle of a multi-slide deck never unlocks Continue on its own.
+  // No skip, no time-based bypass.
+  const canContinue = isLastSlide && (currentSlideIsVideo ? videoEnded : true);
+  const continueDisabledLabel = !isLastSlide
+    ? "Reach the last slide"
+    : "Watch to continue";
+  const continueIsDisabled = !canContinue || transitioning || disabled;
+
   const goPrev = () => setIdx((i) => Math.max(0, i - 1));
-  // PR 112: removed the virtual handoff card that used to sit at
-  // idx === slides.length. The last slide's "Continue →" button now
-  // calls finish() directly, so the candidate goes straight from the
-  // last image into the step transition video (or onComplete if none).
+  // Next only advances slides. Leaving the tour happens exclusively via
+  // the Continue button (finish()), which is gated above.
   const goNext = () => {
-    if (idx < slides.length - 1) {
-      setIdx((i) => i + 1);
-    } else {
-      finish();
-    }
+    setIdx((i) => Math.min(slides.length - 1, i + 1));
   };
 
-  // finish() does one of two things on last-slide click:
+  // finish() does one of two things on Continue click:
   //   1. If a step transition video is configured for this step and
   //      hasn't been dismissed yet, surface it inline before advancing.
   //      The "Setting things up…" loader stays out of the way until
@@ -138,7 +151,7 @@ export function SlidesRenderer({
   //      gesture in that case.
   //   2. Otherwise fall through to the existing 700ms loader → advance.
   const finish = () => {
-    if (transitioning || disabled) return;
+    if (transitioning || disabled || !canContinue) return;
     if (stepTransitionVideo && !pendingVideo) {
       setPendingVideo(stepTransitionVideo);
       return;
@@ -189,6 +202,7 @@ export function SlidesRenderer({
             poster={slide.poster_url ?? null}
             hasSound={slide.has_sound === true}
             reduceMotion={reduceMotion}
+            onEnded={() => setVideoEnded(true)}
           />
         ) : (
           <Image
@@ -230,7 +244,7 @@ export function SlidesRenderer({
           toward Next removes the "where do I tap?" moment. aria-hidden
           because the Next button is already the semantic CTA; the arrow
           is purely visual. Hides on any slide change (back, dot, next). */}
-      {idx === 0 && (
+      {idx === 0 && !isSingleSlide && (
         <div className="slide-tap-hint-wrap" aria-hidden="true">
           <div className="slide-tap-hint">
             <svg
@@ -250,6 +264,9 @@ export function SlidesRenderer({
         </div>
       )}
 
+      {/* Single-slide decks (e.g. a one-video brand tour) have nothing
+          to page through, so Back / Next / dots / counter are hidden. */}
+      {!isSingleSlide && (
       <div className="slide-controls">
         <button
           type="button"
@@ -294,12 +311,33 @@ export function SlidesRenderer({
           {idx + 1} / {slides.length}
         </span>
 
+        {/* Next is hidden (not removed) on the last slide so the grid
+            keeps its shape; the Continue button below takes over. */}
         <button
           type="button"
           className="slide-nav-btn primary"
           onClick={goNext}
+          disabled={isLastSlide}
+          hidden={isLastSlide}
+          aria-hidden={isLastSlide ? true : undefined}
         >
-          {idx === slides.length - 1 ? "Continue →" : "Next →"}
+          Next →
+        </button>
+      </div>
+      )}
+
+      <div className="slides-continue-row">
+        <button
+          type="button"
+          className="slides-continue-cta"
+          onClick={finish}
+          disabled={continueIsDisabled}
+          title={canContinue ? undefined : continueDisabledLabel}
+          aria-label={
+            canContinue ? "Continue to application" : continueDisabledLabel
+          }
+        >
+          {canContinue ? "Tell us about yourself →" : continueDisabledLabel}
         </button>
       </div>
 
@@ -320,6 +358,9 @@ interface SlideVideoProps {
   poster: string | null;
   hasSound: boolean;
   reduceMotion: boolean;
+  /** Fires when the video plays through to its end. Drives the brand
+   *  tour's Continue gate. */
+  onEnded?: () => void;
 }
 
 // PR 125: unified video playback rule — has_sound=true → paused with
@@ -338,7 +379,13 @@ interface SlideVideoProps {
 // as more permissible for muted videos and works in those cases.
 // .catch() handles the rare case where it's still blocked: video
 // stays paused, candidate sees the poster (or nothing), not a crash.
-function SlideVideo({ src, poster, hasSound, reduceMotion }: SlideVideoProps) {
+function SlideVideo({
+  src,
+  poster,
+  hasSound,
+  reduceMotion,
+  onEnded,
+}: SlideVideoProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const isAmbient = !hasSound;
   const shouldAutoplay = isAmbient && !reduceMotion;
@@ -366,6 +413,7 @@ function SlideVideo({ src, poster, hasSound, reduceMotion }: SlideVideoProps) {
       controls={hasSound || reduceMotion}
       width={1280}
       height={720}
+      onEnded={onEnded}
     />
   );
 }
