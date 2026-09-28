@@ -8,8 +8,9 @@ import { logEvent } from "@/lib/log-event";
 // Written to Zoho's CQ_Link field (webhook at lead creation +
 // scripts/backfill-cq-link.ts) so sales can drop a short link into a
 // follow-up email/SMS. A click:
-//   1. logs the `reengaged_via_link` milestone (→ Portal_Status =
-//      "Reengaged Link" in Zoho; no tag, no Blueprint transition), then
+//   1. logs the `reengaged_via_link` milestone (→ Zoho tag "Reengaged
+//      Link" + Last_Active_Date; Portal_Status is NOT touched; no
+//      Blueprint transition), then
 //   2. redirects to /portal/<token>?step=application, which the portal
 //      page honors by landing on the application step (only when that
 //      step is in the candidate's current chapter — see page.tsx).
