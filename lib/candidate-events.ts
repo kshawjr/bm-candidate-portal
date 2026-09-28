@@ -46,6 +46,17 @@ export const MILESTONE_EVENTS = [
   // Zoho Task assigned to the Lead Owner so the rep can reach out;
   // does not fire a Blueprint transition (rep decides next stage).
   "reengage_requested",
+  // Off-funnel: candidate clicked the short re-engagement link
+  // (https://<brand host>/a/<token>, written to Zoho's CQ_Link field)
+  // from a sales-team email/SMS. Logged by app/a/[token]/route.ts
+  // before redirecting into the portal's application step. Attaches the
+  // Zoho tag "Reengaged Link" only — deliberately does NOT touch
+  // Portal_Status (absent from ZOHO_STATUS_BY_MILESTONE, so it can't
+  // overwrite a more advanced status) and fires NO Blueprint transition
+  // (absent from TRANSITION_ID_BY_MILESTONE_BY_BRAND). The milestone
+  // sync still bumps Last_Active_Date. Like every milestone, logEvent
+  // dedupes it to once per candidate.
+  "reengaged_via_link",
 ] as const;
 
 export type MilestoneEvent = (typeof MILESTONE_EVENTS)[number];
@@ -53,7 +64,7 @@ export type MilestoneEvent = (typeof MILESTONE_EVENTS)[number];
 // Map from milestone event → the Portal_Status string we set in Zoho.
 // Keep in sync with the picklist values configured on the Zoho Leads
 // module (see DEPLOYMENT.md). Partial: milestones without an entry
-// (candidate_opted_out, reengage_requested) skip the Portal_Status
+// (candidate_opted_out, reengage_requested, reengaged_via_link) skip the Portal_Status
 // write in the milestone sync because Blueprint owns funnel state for
 // those off-funnel events.
 export const ZOHO_STATUS_BY_MILESTONE: Partial<Record<MilestoneEvent, string>> = {
@@ -86,6 +97,9 @@ export const ZOHO_TAG_BY_MILESTONE: Partial<Record<MilestoneEvent, string>> = {
   application_started: "Application In Progress",
   application_submitted: "Application Submitted",
   discovery_scheduled: "Discovery Call Booked",
+  // Off-funnel re-engagement click (app/a/[token]/route.ts). Tag only —
+  // no Portal_Status entry above.
+  reengaged_via_link: "Reengaged Link",
 };
 
 export function isMilestone(eventType: string): eventType is MilestoneEvent {
