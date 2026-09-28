@@ -46,6 +46,15 @@ export const MILESTONE_EVENTS = [
   // Zoho Task assigned to the Lead Owner so the rep can reach out;
   // does not fire a Blueprint transition (rep decides next stage).
   "reengage_requested",
+  // Off-funnel: candidate clicked the short re-engagement link
+  // (https://<brand host>/a/<token>, written to Zoho's CQ_Link field)
+  // from a sales-team email/SMS. Logged by app/a/[token]/route.ts
+  // before redirecting into the portal's application step. Writes
+  // Portal_Status = "Reengaged Link" only — deliberately NO tag and NO
+  // Blueprint transition (absent from ZOHO_TAG_BY_MILESTONE and
+  // TRANSITION_ID_BY_MILESTONE_BY_BRAND). Like every milestone, logEvent
+  // dedupes it to once per candidate.
+  "reengaged_via_link",
 ] as const;
 
 export type MilestoneEvent = (typeof MILESTONE_EVENTS)[number];
@@ -69,6 +78,7 @@ export const ZOHO_STATUS_BY_MILESTONE: Partial<Record<MilestoneEvent, string>> =
   verify_completed: "Verified",
   award_offered: "Offer Sent",
   award_accepted: "Awarded",
+  reengaged_via_link: "Reengaged Link",
 };
 
 // Map from milestone event → the Zoho Lead tag we attach. Tags stack

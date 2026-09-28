@@ -6,6 +6,10 @@ import { createAppServiceClient } from "@/lib/supabase-app";
 import { getBrandFromParseId } from "@/lib/brand-from-parseid";
 import { generateToken } from "@/lib/generate-token";
 import { zohoApi } from "@/lib/zoho-api";
+import {
+  PORTAL_HOST_BY_BRAND_SLUG,
+  buildCqShortLink,
+} from "@/lib/portal-links";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -23,11 +27,6 @@ interface ZohoLeadPayload {
   Zip_Code?: string;
   ParseID?: string;
 }
-
-const PORTAL_HOST_BY_BRAND_SLUG: Record<string, string> = {
-  "hounds-town-usa": "houndstowndiscovery.bmave.com",
-  "cruisin-tikis": "cruisintikisdiscovery.bmave.com",
-};
 
 // Default rep when no Zoho Owner → bmave-core.reps mapping is found.
 // Kevin Shaw — covers test leads, orphaned Owners, transient API
@@ -414,6 +413,29 @@ export async function POST(request: Request) {
       console.warn(
         `[zoho-lead-created] Zoho updateLead failed for ${Lead_ID}: ${zohoCallbackError}`,
       );
+    }
+
+    // CQ_Link: the short re-engagement link (https://<host>/a/<token>)
+    // sales uses in follow-ups. Sent as its OWN updateLead call rather
+    // than bundled into the Portal_Token/Portal_URL write above: Zoho
+    // rejects a single-record PUT as a whole when any one field fails
+    // validation, so bundling would risk a CQ_Link problem (field
+    // missing/renamed/permissioned in Zoho) knocking out Portal_URL —
+    // which the welcome email depends on. One extra round-trip is the
+    // price. Best-effort: a failure marks the event "partial" (same as
+    // a Portal_URL failure) so it's visible, and never fails the
+    // webhook. Existing leads can be filled via scripts/backfill-cq-link.ts.
+    const cqLink = buildCqShortLink(portalHost, token);
+    try {
+      await zohoApi.updateLead(String(Lead_ID), { CQ_Link: cqLink });
+    } catch (err) {
+      const cqError = err instanceof Error ? err.message : String(err);
+      console.warn(
+        `[zoho-lead-created] Zoho CQ_Link write failed for ${Lead_ID}: ${cqError}`,
+      );
+      zohoCallbackError = zohoCallbackError
+        ? `${zohoCallbackError} | CQ_Link: ${cqError}`
+        : `CQ_Link: ${cqError}`;
     }
 
     await finalize(

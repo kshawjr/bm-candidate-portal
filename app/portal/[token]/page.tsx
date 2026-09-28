@@ -148,8 +148,10 @@ function resolveTypography(overrides: FontOverrides | null | undefined): BrandTy
 
 export default async function PortalTokenPage({
   params,
+  searchParams,
 }: {
   params: { token: string };
+  searchParams?: { step?: string | string[] };
 }) {
   const app = createAppServiceClient();
   const { data: session } = await app
@@ -453,7 +455,34 @@ export default async function PortalTokenPage({
   }
 
   const initialChapterIdx = currentChapterIdx;
-  const initialStepIdx = currentStepIdx;
+
+  // Deep link: ?step=<content_type or step_key> (the /a/<token>
+  // re-engagement link sends ?step=application). Only jumps FORWARD
+  // within the candidate's CURRENT chapter — the same move the
+  // candidate could make by clicking that step in the step strip,
+  // which is ungated within a chapter. It never opens a locked
+  // chapter, never moves someone backward, and is view-only: it does
+  // not write current_step, so progress / completion state is
+  // untouched. Chapter-level popups (welcome video, chapter intro) are
+  // driven by OnboardingPopups off the current chapter and still show
+  // on top exactly as before. Anything that doesn't match (unknown
+  // value, candidate already past that step or in a later chapter)
+  // falls back to the normal landing spot.
+  const requestedStep =
+    typeof searchParams?.step === "string" ? searchParams.step : null;
+  let initialStepIdx = currentStepIdx;
+  if (requestedStep && currentChapterKey_) {
+    const currentChapterSteps = (stepsRows ?? [])
+      .filter((r) => r.chapter_key === currentChapterKey_)
+      .sort((a, b) => (a.position as number) - (b.position as number));
+    const targetIdx = currentChapterSteps.findIndex(
+      (r) =>
+        r.content_type === requestedStep || r.step_key === requestedStep,
+    );
+    if (targetIdx > currentStepIdx) {
+      initialStepIdx = targetIdx;
+    }
+  }
 
   const fontClasses = `${baloo2.variable} ${nunitoSans.variable} ${montserrat.variable}`;
 
