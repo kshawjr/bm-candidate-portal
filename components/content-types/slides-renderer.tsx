@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
+import { TourCompletionSplash } from "@/components/portal/tour-completion-splash";
 import { useReducedMotion } from "@/lib/use-reduced-motion";
 import {
   CAPTION_SIZES,
@@ -45,9 +46,14 @@ interface Props {
   onDismissStepTransitionVideo?: (
     stepId: string,
   ) => Promise<{ success: boolean }>;
+  /** Brand primary colour for the completion splash's Continue button. */
+  brandPrimaryColor?: string | null;
 }
 
 const HANDOFF_LOADING_MS = 700;
+/** Pause between landing on a last image slide and the completion
+ *  splash appearing. */
+const SPLASH_DELAY_MS = 500;
 
 export function SlidesRenderer({
   slides,
@@ -57,6 +63,7 @@ export function SlidesRenderer({
   candidate,
   stepTransitionVideo = null,
   onDismissStepTransitionVideo,
+  brandPrimaryColor = null,
 }: Props) {
   const [idx, setIdx] = useState(0);
   const [pendingVideo, setPendingVideo] =
@@ -99,11 +106,39 @@ export function SlidesRenderer({
   // click and the actual onComplete fire — bridges the visual gap before
   // the next step mounts.
   const [transitioning, setTransitioning] = useState(false);
-  // Continue gate: id of the slide whose video last fired `ended`.
-  // Keyed to the slide id (not a boolean reset in an effect) so a video
-  // that ended on one slide can never unlock Continue on another, not
-  // even for the single render between a slide change and an effect.
-  const [endedSlideId, setEndedSlideId] = useState<string | null>(null);
+  // Completion splash ("Nice work!"). Once shown it stays up until the
+  // candidate hits its Continue button; it only resets when this
+  // component remounts (leaving the step and coming back).
+  const [showSplash, setShowSplash] = useState(false);
+  // Id of the video slide whose video failed to load (404, network,
+  // decode error, or no data at all). Keyed to the slide id so a
+  // failure on one slide never affects another.
+  const [failedVideoSlideId, setFailedVideoSlideId] = useState<
+    string | null
+  >(null);
+
+  const lastIdx = slides.length - 1;
+  const clampedIdx = Math.min(idx, Math.max(lastIdx, 0));
+  const onLastSlide = slides.length > 0 && clampedIdx === lastIdx;
+  const activeSlide = slides[clampedIdx];
+  const activeIsVideo =
+    activeSlide?.media_type === "video" && Boolean(activeSlide?.video_url);
+  const isSingleImageDeck = slides.length === 1 && !activeIsVideo;
+
+  // Splash trigger for a last IMAGE slide in a multi-slide deck: show
+  // it SPLASH_DELAY_MS after the candidate lands there. Video last
+  // slides wait for the video's `ended` event instead (see onEnded
+  // below). A single-image deck never auto-splashes — without this
+  // guard idx 0 === last index at mount and the splash would pop up
+  // before the candidate saw anything. The cleanup cancels the timer
+  // if they hit Back (or a dot) inside the delay window.
+  useEffect(() => {
+    if (showSplash || !onLastSlide || activeIsVideo || isSingleImageDeck) {
+      return;
+    }
+    const t = window.setTimeout(() => setShowSplash(true), SPLASH_DELAY_MS);
+    return () => window.clearTimeout(t);
+  }, [clampedIdx, onLastSlide, activeIsVideo, isSingleImageDeck, showSplash]);
 
   if (slides.length === 0) {
     return (
@@ -117,30 +152,32 @@ export function SlidesRenderer({
     );
   }
 
-  const slide = slides[Math.min(idx, slides.length - 1)];
+  const slide = slides[clampedIdx];
 
   const isSingleSlide = slides.length === 1;
-  const isLastSlide = idx >= slides.length - 1;
-  const videoEnded = endedSlideId === slide.id;
-  const currentSlideIsVideo =
-    slide.media_type === "video" && Boolean(slide.video_url);
-  // Content-aware Continue gate. Continue is always rendered but stays
-  // disabled until the candidate reaches the last slide AND, if that
-  // last slide is a video, the video has played to the end. A video in
-  // the middle of a multi-slide deck never unlocks Continue on its own.
-  // No skip, no time-based bypass.
-  const canContinue = isLastSlide && (currentSlideIsVideo ? videoEnded : true);
-  const continueDisabledLabel = !isLastSlide
-    ? "Reach the last slide"
-    : "Watch to continue";
-  const continueIsDisabled = !canContinue || transitioning || disabled;
+  const isLastSlide = onLastSlide;
 
   const goPrev = () => setIdx((i) => Math.max(0, i - 1));
   // Next only advances slides. Leaving the tour happens exclusively via
-  // the Continue button (finish()), which is gated above.
+  // the completion splash's Continue button (finish()).
   const goNext = () => {
     setIdx((i) => Math.min(slides.length - 1, i + 1));
   };
+
+  // A video only ends the tour when it is the LAST slide (this covers
+  // the single-video deck too). A video in the middle of a deck ending
+  // does nothing — the candidate keeps paging with Next.
+  const handleVideoEnded = (slideIdx: number) => {
+    if (slideIdx === lastIdx) setShowSplash(true);
+  };
+
+  // A broken last-slide video never fires `ended`, which would leave
+  // the candidate with no splash and no way forward. In that case we
+  // show the same plain Continue as a single-image deck. Mid-deck
+  // video failures need nothing extra — Next is never gated.
+  const lastVideoFailed =
+    isLastSlide && activeIsVideo && failedVideoSlideId === slide.id;
+  const showFallbackContinue = isSingleImageDeck || lastVideoFailed;
 
   // finish() does one of two things on Continue click:
   //   1. If a step transition video is configured for this step and
@@ -150,8 +187,10 @@ export function SlidesRenderer({
   //      gesture in that case.
   //   2. Otherwise fall through to the existing 700ms loader → advance.
   const finish = () => {
-    if (transitioning || disabled || !canContinue) return;
-    if (stepTransitionVideo && !pendingVideo) {
+    // pendingVideo guard: a second click while the transition video is
+    // open must not skip straight to the loader.
+    if (transitioning || disabled || pendingVideo) return;
+    if (stepTransitionVideo) {
       setPendingVideo(stepTransitionVideo);
       return;
     }
@@ -186,6 +225,29 @@ export function SlidesRenderer({
     );
   }
 
+  // The splash REPLACES the tour view rather than stacking on top of
+  // it. The step transition video popup (z-index 1000) still renders
+  // above the splash (z-index 200) after Continue is pressed.
+  if (showSplash) {
+    return (
+      <>
+        <TourCompletionSplash
+          brandPrimaryColor={brandPrimaryColor}
+          onContinue={finish}
+          disabled={disabled || Boolean(pendingVideo)}
+        />
+        {pendingVideo && (
+          <StepTransitionVideoPopup
+            key={pendingVideo.stepId}
+            config={pendingVideo}
+            onDismiss={handleTransitionVideoDismiss}
+            onDismissed={handleTransitionVideoDismissed}
+          />
+        )}
+      </>
+    );
+  }
+
   return (
     <div className="slides-renderer">
       {slide.heading && (
@@ -201,7 +263,11 @@ export function SlidesRenderer({
             poster={slide.poster_url ?? null}
             hasSound={slide.has_sound === true}
             reduceMotion={reduceMotion}
-            onEnded={() => setEndedSlideId(slide.id)}
+            onEnded={() => handleVideoEnded(clampedIdx)}
+            onLoadFailed={() => setFailedVideoSlideId(slide.id)}
+            onLoadRecovered={() =>
+              setFailedVideoSlideId((id) => (id === slide.id ? null : id))
+            }
           />
         ) : (
           <Image
@@ -313,7 +379,7 @@ export function SlidesRenderer({
         {/* Next is hidden on the last slide via the `hidden` attribute
             (display: none, so it leaves the layout). It was the last
             grid item, so Back and the dots/counter don't move. The
-            Continue button below takes over from here. */}
+            completion splash takes over from here. */}
         <button
           type="button"
           className="slide-nav-btn primary"
@@ -327,20 +393,23 @@ export function SlidesRenderer({
       </div>
       )}
 
-      <div className="slides-continue-row">
-        <button
-          type="button"
-          className="slides-continue-cta"
-          onClick={finish}
-          disabled={continueIsDisabled}
-          title={canContinue ? undefined : continueDisabledLabel}
-          aria-label={
-            canContinue ? "Continue to application" : continueDisabledLabel
-          }
-        >
-          {canContinue ? "Tell us about yourself →" : continueDisabledLabel}
-        </button>
-      </div>
+      {/* Plain Continue that opens the completion splash. Rendered only
+          when there's nothing else to wait for: a one-slide IMAGE deck
+          (not expected in current configs — no Next, no video end), or
+          a last-slide video that failed to load and so will never fire
+          `ended`. */}
+      {showFallbackContinue && (
+        <div className="slides-continue-row">
+          <button
+            type="button"
+            className="slides-continue-cta"
+            onClick={() => setShowSplash(true)}
+            disabled={disabled}
+          >
+            Continue →
+          </button>
+        </div>
+      )}
 
       {pendingVideo && (
         <StepTransitionVideoPopup
@@ -359,69 +428,238 @@ interface SlideVideoProps {
   poster: string | null;
   hasSound: boolean;
   reduceMotion: boolean;
-  /** Fires when the video plays through to its end. Drives the brand
-   *  tour's Continue gate. */
+  /** Fires when the video plays through to its end. On the last slide
+   *  this shows the tour completion splash. */
   onEnded?: () => void;
+  /** The video can't be played: `error` on the element, play()
+   *  rejected as unsupported, or it stalled before loading any data. */
+  onLoadFailed?: () => void;
+  /** Metadata loaded after a stall-based failure — the video is fine
+   *  after all. */
+  onLoadRecovered?: () => void;
 }
 
-// PR 125: unified video playback rule — has_sound=true → paused with
-// controls, candidate taps play (with sound); has_sound!==true →
-// autoplay muted with no controls (ambient). reduceMotion users see
-// the same ambient video paused with controls so they can opt into
-// playback rather than be auto-rolled.
+// Keys that seek or change speed if the <video> ever ends up focused.
+const BLOCKED_VIDEO_KEYS = new Set([
+  "ArrowLeft",
+  "ArrowRight",
+  "Home",
+  "End",
+  "PageUp",
+  "PageDown",
+  "j",
+  "l",
+  ">",
+  "<",
+  ".",
+  ",",
+]);
+
+// Slack for the forward-seek guard: timeupdate fires every ~250ms, so
+// a legitimate position can sit slightly ahead of the last recorded
+// max. Anything further ahead than this is treated as a skip.
+const SEEK_TOLERANCE_S = 1.5;
+
+function formatTime(seconds: number): string {
+  if (!Number.isFinite(seconds) || seconds < 0) return "0:00";
+  const s = Math.floor(seconds);
+  const m = Math.floor(s / 60);
+  return `${m}:${String(s % 60).padStart(2, "0")}`;
+}
+
+// Custom, non-scrubbable video player for tour slides.
 //
-// PR 132 made `muted` unconditional for ambient videos to dodge an
-// iOS attribute-race bug; PR 134 hotfix replaces the declarative
-// `autoPlay` attribute with an imperative videoRef.current.play()
-// in a useEffect. Background: iOS Safari can SILENTLY reject the
-// autoPlay attribute under various conditions (off-viewport mount,
-// low-power mode, hydration races) and offer no recovery path —
-// candidate sees an empty rectangle. Programmatic .play() is treated
-// as more permissible for muted videos and works in those cases.
-// .catch() handles the rare case where it's still blocked: video
-// stays paused, candidate sees the poster (or nothing), not a crash.
+// Playback rule (unchanged from PR 125/134): has_sound=true → starts
+// paused, candidate presses play (with sound). has_sound!==true →
+// ambient: always muted, started with an imperative .play() (iOS can
+// silently ignore the autoPlay attribute), unless the candidate prefers
+// reduced motion. If the browser blocks that .play() (iPhone low-power
+// mode etc.) the video just sits paused with the play button showing.
+//
+// There is no native `controls` attribute, so there is no scrub bar.
+// Our overlay is play/pause + a progress bar the candidate can't drag +
+// elapsed/total time. Every video gets the overlay (including ambient)
+// so there is always a visible way to start — and to pause motion.
+//
+// Anti-skip is deterrence, not a lock: disablePictureInPicture,
+// controlsList, blocked context menu (Chrome/Firefox "Show controls"
+// would bring the native scrub bar back), playsInline (iOS fullscreen
+// has its own scrubber), seek keys swallowed, playback speed pinned to
+// 1x, and any forward jump past what's been watched is snapped back.
+// Someone determined (devtools, downloading the file) can still get
+// around it.
 function SlideVideo({
   src,
   poster,
   hasSound,
   reduceMotion,
   onEnded,
+  onLoadFailed,
+  onLoadRecovered,
 }: SlideVideoProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const isAmbient = !hasSound;
   const shouldAutoplay = isAmbient && !reduceMotion;
-  // If the browser blocks muted autoplay, a silent video would otherwise
-  // sit paused with no controls and never fire `ended`, leaving the
-  // Continue gate locked forever. Surface native controls so the
-  // candidate can always start it. Resets per slide because the parent
-  // remounts this component via key={slide.id}.
-  const [autoplayBlocked, setAutoplayBlocked] = useState(false);
+  const [playing, setPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  // Furthest point legitimately reached. Seeking backwards is fine;
+  // seeking past this is snapped back.
+  const maxWatchedRef = useRef(0);
+  // True once the candidate has pressed play themselves, so a late
+  // reduced-motion flip doesn't pause a video they chose to start.
+  const userStartedRef = useRef(false);
 
   useEffect(() => {
-    if (!shouldAutoplay) return;
     const v = videoRef.current;
     if (!v) return;
+    if (!shouldAutoplay) {
+      // useReducedMotion() starts false and flips after mount, so an
+      // ambient video may already be auto-playing. Stop it unless the
+      // candidate started it.
+      if (isAmbient && !userStartedRef.current && !v.paused) v.pause();
+      return;
+    }
     v.play().catch((err) => {
-      // Browser blocked autoplay despite muted. Nothing to do client-
-      // side — log so we can spot persistent failures on specific
-      // videos in real-device testing.
+      // Blocked despite muted. The play button stays visible, so the
+      // candidate can start it themselves. An unsupported / missing
+      // source is a load failure, not an autoplay block.
       console.warn("[SlideVideo] autoplay blocked:", err);
-      setAutoplayBlocked(true);
+      if (err?.name === "NotSupportedError") onLoadFailed?.();
     });
-  }, [shouldAutoplay, src]);
+  }, [shouldAutoplay, isAmbient, src]);
+
+  const togglePlay = () => {
+    const v = videoRef.current;
+    if (!v) return;
+    if (v.paused || v.ended) {
+      userStartedRef.current = true;
+      v.play().catch((err) => {
+        console.warn("[SlideVideo] play failed:", err);
+        if (err?.name === "NotSupportedError") onLoadFailed?.();
+      });
+    } else {
+      v.pause();
+    }
+  };
+
+  const syncDuration = () => {
+    const d = videoRef.current?.duration ?? 0;
+    setDuration(Number.isFinite(d) && d > 0 ? d : 0);
+  };
+
+  const handleTimeUpdate = () => {
+    const v = videoRef.current;
+    if (!v) return;
+    // Normal playback advances the watched mark. Seeks never reach
+    // here un-checked: handleSeeking runs first and snaps a forward
+    // jump back. (No step-size limit here on purpose — a throttled
+    // background tab can legitimately skip several seconds between
+    // timeupdates, and we must never strand the candidate.)
+    if (!v.seeking && v.currentTime > maxWatchedRef.current) {
+      maxWatchedRef.current = v.currentTime;
+    }
+    setCurrentTime(v.currentTime);
+  };
+
+  const handleSeeking = () => {
+    const v = videoRef.current;
+    if (!v) return;
+    if (v.currentTime > maxWatchedRef.current + SEEK_TOLERANCE_S) {
+      v.currentTime = maxWatchedRef.current;
+    }
+  };
+
+  const handleRateChange = () => {
+    const v = videoRef.current;
+    if (v && v.playbackRate !== 1) v.playbackRate = 1;
+  };
+
+  const handleEnded = () => {
+    setPlaying(false);
+    onEnded?.();
+  };
+
+  const progress =
+    duration > 0 ? Math.min(100, Math.max(0, (currentTime / duration) * 100)) : 0;
 
   return (
-    <video
-      ref={videoRef}
-      src={src}
-      poster={poster ?? undefined}
-      playsInline
-      preload="metadata"
-      muted={isAmbient}
-      controls={hasSound || reduceMotion || autoplayBlocked}
-      width={1280}
-      height={720}
-      onEnded={onEnded}
-    />
+    <div className="slide-video">
+      <video
+        ref={videoRef}
+        src={src}
+        poster={poster ?? undefined}
+        playsInline
+        preload="metadata"
+        muted={isAmbient}
+        width={1280}
+        height={720}
+        disablePictureInPicture
+        controlsList="nodownload noplaybackrate noremoteplayback nofullscreen"
+        onContextMenu={(e) => e.preventDefault()}
+        onKeyDown={(e) => {
+          if (BLOCKED_VIDEO_KEYS.has(e.key)) e.preventDefault();
+        }}
+        onClick={togglePlay}
+        onPlay={() => setPlaying(true)}
+        onPause={() => setPlaying(false)}
+        onLoadedMetadata={() => {
+          syncDuration();
+          onLoadRecovered?.();
+        }}
+        onDurationChange={syncDuration}
+        onError={() => {
+          console.warn("[SlideVideo] video failed to load:", src);
+          onLoadFailed?.();
+        }}
+        onStalled={() => {
+          // `stalled` = the browser has been waiting ~3s for data. Only
+          // treat it as a failure if NOTHING has loaded yet
+          // (HAVE_NOTHING); a mid-playback stall is just buffering. If
+          // metadata arrives later, onLoadedMetadata un-fails it.
+          const v = videoRef.current;
+          if (v && v.readyState === 0) onLoadFailed?.();
+        }}
+        onTimeUpdate={handleTimeUpdate}
+        onSeeking={handleSeeking}
+        onRateChange={handleRateChange}
+        onEnded={handleEnded}
+      />
+      <div className="slide-video-controls">
+        <button
+          type="button"
+          className="slide-video-btn"
+          onClick={togglePlay}
+          aria-label={playing ? "Pause video" : "Play video"}
+        >
+          {playing ? (
+            <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
+              <rect x="6" y="5" width="4" height="14" rx="1" fill="currentColor" />
+              <rect x="14" y="5" width="4" height="14" rx="1" fill="currentColor" />
+            </svg>
+          ) : (
+            <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z" fill="currentColor" />
+            </svg>
+          )}
+        </button>
+        <div
+          className="slide-video-progress"
+          role="progressbar"
+          aria-label="Video progress"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={Math.round(progress)}
+        >
+          <div
+            className="slide-video-progress-fill"
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+        <span className="slide-video-time" aria-hidden="true">
+          {formatTime(currentTime)} / {formatTime(duration)}
+        </span>
+      </div>
+    </div>
   );
 }
