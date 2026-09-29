@@ -1,3 +1,4 @@
+import { headers } from "next/headers";
 import { createAppServiceClient } from "@/lib/supabase-app";
 import { createCoreClient } from "@/lib/core-client";
 import {
@@ -54,6 +55,13 @@ export default async function AdminCandidatesPage() {
   const core = createCoreClient();
 
   const testCandidates = await getTestCandidatesStatus();
+
+  // Request host drives the test-candidate Preview link: production
+  // admin opens the brand's production portal; Vercel previews /
+  // localhost stay on this same host. x-hostname is set by middleware.
+  const headersList = headers();
+  const currentHost =
+    headersList.get("x-hostname") ?? headersList.get("host") ?? "";
 
   const { data: sessions } = await app
     .from("candidates_in_portal")
@@ -297,7 +305,10 @@ export default async function AdminCandidatesPage() {
         All portal sessions. Reset wipes a candidate&apos;s progress back to
         Chapter 1 · Step 1.
       </p>
-      <TestCandidatesPanel candidates={testCandidates} />
+      <TestCandidatesPanel
+        candidates={testCandidates}
+        currentHost={currentHost}
+      />
       <CandidatesTable rows={rows} />
     </div>
   );

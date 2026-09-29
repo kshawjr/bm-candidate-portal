@@ -87,6 +87,43 @@ export function getCorrectPortalUrl(
 }
 
 /**
+ * True for the real production domains (anything on bmave.com). Vercel
+ * preview URLs (*.vercel.app) and localhost return false. A missing host
+ * is treated as production so callers keep their production behavior.
+ */
+export function isProductionHost(hostname: string): boolean {
+  const h = hostname.toLowerCase().split(":")[0];
+  if (!h) return true;
+  return h === "bmave.com" || h.endsWith(".bmave.com");
+}
+
+/**
+ * href for the admin "Preview →" button on a test candidate.
+ *
+ * - Production admin (cpflightdeck.bmave.com): the brand's production
+ *   portal URL, same as getCorrectPortalUrl.
+ * - Preview / dev hosts (*.vercel.app, localhost): a relative
+ *   /portal/<token> link so the preview stays on the SAME deployment
+ *   (and therefore the code under review). Those hosts are admin-type,
+ *   so /portal/[token] skips the brand-mismatch redirect and themes from
+ *   the candidate's own brand.
+ *
+ * `currentHost` is the request host, read server-side and passed down as
+ * a prop, so server and client render the same href (no hydration
+ * mismatch).
+ */
+export function getAdminPreviewPortalHref(
+  token: string,
+  brandSlug: string,
+  currentHost: string,
+): string {
+  if (isProductionHost(currentHost)) {
+    return getCorrectPortalUrl(token, brandSlug);
+  }
+  return `/portal/${encodeURIComponent(token)}`;
+}
+
+/**
  * The brand's marketing website — sent to the home page when someone
  * lands on a brand subdomain without a token. Hardcoded; admins can edit
  * here when domains change.
