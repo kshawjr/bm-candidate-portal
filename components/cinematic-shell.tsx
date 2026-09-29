@@ -902,6 +902,7 @@ export function CinematicShell({
                 candidate={candidate}
                 leaderName={leader.name}
                 brandName={brandName}
+                brandPrimaryColor={colors.primary}
                 initialApplicationAnswers={initialApplicationAnswers}
                 isApplicationSubmitted={isApplicationSubmitted}
                 prefilledZip={prefilledZip}
@@ -1150,6 +1151,7 @@ function StepRenderer({
   candidate,
   leaderName,
   brandName,
+  brandPrimaryColor,
   initialApplicationAnswers,
   isApplicationSubmitted,
   prefilledZip,
@@ -1194,6 +1196,10 @@ function StepRenderer({
   candidate: ApplicationCandidate;
   leaderName: string;
   brandName: string;
+  /** Brand primary colour (brands.colors.primary, same value the shell
+   *  emits as --brand-primary). Used by the tour completion splash to
+   *  pick a readable text colour for its Continue button. */
+  brandPrimaryColor: string;
   initialApplicationAnswers: Record<string, unknown>;
   isApplicationSubmitted: boolean;
   prefilledZip: string | null;
@@ -1248,7 +1254,11 @@ function StepRenderer({
     return (
       <>
         <SlidesRenderer
+          // Remount per step so slide index / splash state never
+          // carries over between two different slides steps.
+          key={step.id}
           slides={slides}
+          brandPrimaryColor={brandPrimaryColor}
           onComplete={onTourComplete}
           disabled={tourPending}
           candidate={candidate}
