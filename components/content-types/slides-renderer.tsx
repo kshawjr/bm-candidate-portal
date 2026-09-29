@@ -110,6 +110,12 @@ export function SlidesRenderer({
   // candidate hits its Continue button; it only resets when this
   // component remounts (leaving the step and coming back).
   const [showSplash, setShowSplash] = useState(false);
+  // Id of the video slide whose video failed to load (404, network,
+  // decode error, or no data at all). Keyed to the slide id so a
+  // failure on one slide never affects another.
+  const [failedVideoSlideId, setFailedVideoSlideId] = useState<
+    string | null
+  >(null);
 
   const lastIdx = slides.length - 1;
   const clampedIdx = Math.min(idx, Math.max(lastIdx, 0));
@@ -164,6 +170,14 @@ export function SlidesRenderer({
   const handleVideoEnded = (slideIdx: number) => {
     if (slideIdx === lastIdx) setShowSplash(true);
   };
+
+  // A broken last-slide video never fires `ended`, which would leave
+  // the candidate with no splash and no way forward. In that case we
+  // show the same plain Continue as a single-image deck. Mid-deck
+  // video failures need nothing extra — Next is never gated.
+  const lastVideoFailed =
+    isLastSlide && activeIsVideo && failedVideoSlideId === slide.id;
+  const showFallbackContinue = isSingleImageDeck || lastVideoFailed;
 
   // finish() does one of two things on Continue click:
   //   1. If a step transition video is configured for this step and
@@ -250,6 +264,10 @@ export function SlidesRenderer({
             hasSound={slide.has_sound === true}
             reduceMotion={reduceMotion}
             onEnded={() => handleVideoEnded(clampedIdx)}
+            onLoadFailed={() => setFailedVideoSlideId(slide.id)}
+            onLoadRecovered={() =>
+              setFailedVideoSlideId((id) => (id === slide.id ? null : id))
+            }
           />
         ) : (
           <Image
@@ -375,11 +393,12 @@ export function SlidesRenderer({
       </div>
       )}
 
-      {/* Fallback for a one-slide IMAGE deck (not expected in current
-          configs): there's no Next and no video end to wait for, so give
-          the candidate a plain Continue that opens the completion
-          splash. Video decks and multi-slide decks never render this. */}
-      {isSingleImageDeck && (
+      {/* Plain Continue that opens the completion splash. Rendered only
+          when there's nothing else to wait for: a one-slide IMAGE deck
+          (not expected in current configs — no Next, no video end), or
+          a last-slide video that failed to load and so will never fire
+          `ended`. */}
+      {showFallbackContinue && (
         <div className="slides-continue-row">
           <button
             type="button"
@@ -412,6 +431,12 @@ interface SlideVideoProps {
   /** Fires when the video plays through to its end. On the last slide
    *  this shows the tour completion splash. */
   onEnded?: () => void;
+  /** The video can't be played: `error` on the element, play()
+   *  rejected as unsupported, or it stalled before loading any data. */
+  onLoadFailed?: () => void;
+  /** Metadata loaded after a stall-based failure — the video is fine
+   *  after all. */
+  onLoadRecovered?: () => void;
 }
 
 // Keys that seek or change speed if the <video> ever ends up focused.
@@ -469,6 +494,8 @@ function SlideVideo({
   hasSound,
   reduceMotion,
   onEnded,
+  onLoadFailed,
+  onLoadRecovered,
 }: SlideVideoProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const isAmbient = !hasSound;
@@ -495,8 +522,10 @@ function SlideVideo({
     }
     v.play().catch((err) => {
       // Blocked despite muted. The play button stays visible, so the
-      // candidate can start it themselves.
+      // candidate can start it themselves. An unsupported / missing
+      // source is a load failure, not an autoplay block.
       console.warn("[SlideVideo] autoplay blocked:", err);
+      if (err?.name === "NotSupportedError") onLoadFailed?.();
     });
   }, [shouldAutoplay, isAmbient, src]);
 
@@ -507,6 +536,7 @@ function SlideVideo({
       userStartedRef.current = true;
       v.play().catch((err) => {
         console.warn("[SlideVideo] play failed:", err);
+        if (err?.name === "NotSupportedError") onLoadFailed?.();
       });
     } else {
       v.pause();
@@ -573,8 +603,23 @@ function SlideVideo({
         onClick={togglePlay}
         onPlay={() => setPlaying(true)}
         onPause={() => setPlaying(false)}
-        onLoadedMetadata={syncDuration}
+        onLoadedMetadata={() => {
+          syncDuration();
+          onLoadRecovered?.();
+        }}
         onDurationChange={syncDuration}
+        onError={() => {
+          console.warn("[SlideVideo] video failed to load:", src);
+          onLoadFailed?.();
+        }}
+        onStalled={() => {
+          // `stalled` = the browser has been waiting ~3s for data. Only
+          // treat it as a failure if NOTHING has loaded yet
+          // (HAVE_NOTHING); a mid-playback stall is just buffering. If
+          // metadata arrives later, onLoadedMetadata un-fails it.
+          const v = videoRef.current;
+          if (v && v.readyState === 0) onLoadFailed?.();
+        }}
         onTimeUpdate={handleTimeUpdate}
         onSeeking={handleSeeking}
         onRateChange={handleRateChange}

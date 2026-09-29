@@ -3,9 +3,10 @@
 import { useEffect, useRef, type CSSProperties } from "react";
 
 interface Props {
-  /** Brand primary colour (brands.colors.primary). Drives the Continue
-   *  button fill. Falls back to the inherited --brand-primary CSS var
-   *  when missing. */
+  /** Brand primary colour (brands.colors.primary). The splash
+   *  background is this colour at full strength; the text colour on it
+   *  is picked for contrast. Falls back to the inherited --brand-primary
+   *  CSS var when missing. */
   brandPrimaryColor?: string | null;
   /** Runs the slides renderer's finish() — step transition video (if
    *  any) → "Setting things up…" loader → application step. */
@@ -41,11 +42,12 @@ function contrast(a: number, b: number): number {
 }
 
 /**
- * Pick the button label colour for a brand fill. The label is 20px
- * bold, which WCAG counts as "large text" (AA needs 3:1). White is
- * preferred so the button matches the portal's other brand CTAs; if
- * white can't reach 3:1 on this brand's colour (e.g. Cruisin' Tikis
- * coral #f86e4f → 2.86:1) we switch to near-black instead.
+ * Pick the text colour for content sitting on a brand fill. Everything
+ * on the splash is sized as WCAG "large text" (heading ≥36px bold,
+ * sub-line ≥24px, button border/focus ring are non-text UI), so AA
+ * needs 3:1. White is preferred; if white can't reach 3:1 on this
+ * brand's colour (e.g. Cruisin' Tikis coral #f86e4f → 2.86:1) we
+ * switch to near-black instead.
  */
 export function pickOnColor(bg: string | null | undefined): string {
   const rgb = bg ? parseHex(bg) : null;
@@ -75,10 +77,8 @@ export function TourCompletionSplash({
   }, []);
 
   const style = {
-    ...(brandPrimaryColor
-      ? { "--tour-splash-cta-bg": brandPrimaryColor }
-      : {}),
-    "--tour-splash-cta-fg": pickOnColor(brandPrimaryColor),
+    ...(brandPrimaryColor ? { "--tour-splash-bg": brandPrimaryColor } : {}),
+    "--tour-splash-fg": pickOnColor(brandPrimaryColor),
   } as CSSProperties;
 
   return (

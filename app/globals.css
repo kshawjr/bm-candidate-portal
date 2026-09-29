@@ -1111,9 +1111,13 @@ html::-webkit-scrollbar-thumb:hover {
 /* Tour completion splash ("Nice work!"). Full-screen, replaces the
    tour view once the candidate finishes the deck / video. z-index 200
    keeps it above the shell but below the portal popups (1000) so the
-   step transition video can still play over it. The CTA colours come
-   in as inline vars from TourCompletionSplash (text colour picked for
-   contrast per brand). */
+   step transition video can still play over it. Background is the
+   brand primary at full strength (--tour-splash-bg, set inline from
+   brands.colors.primary). --tour-splash-fg is white or near-black,
+   picked per brand in TourCompletionSplash for ≥3:1 contrast — all
+   text here is WCAG "large text" (heading ≥36px bold, sub-line
+   ≥24px), so 3:1 is the AA bar. The button is white with brand-dark
+   text so it stands apart from the brand-coloured background. */
 .tour-splash {
   position: fixed;
   inset: 0;
@@ -1123,7 +1127,8 @@ html::-webkit-scrollbar-thumb:hover {
   justify-content: center;
   padding: 24px;
   padding-bottom: max(24px, var(--safe-area-inset-bottom));
-  background: color-mix(in srgb, var(--brand-primary) 8%, #ffffff);
+  background: var(--tour-splash-bg, var(--brand-primary));
+  color: var(--tour-splash-fg, #fff);
   font-family: var(--font-body);
   text-align: center;
   animation: tour-splash-fade 200ms ease-out both;
@@ -1143,14 +1148,17 @@ html::-webkit-scrollbar-thumb:hover {
   font-size: var(--fluid-text-3xl);
   line-height: 1.1;
   letter-spacing: -0.01em;
-  color: var(--brand-dark, var(--cin-text));
+  color: var(--tour-splash-fg, #fff);
   animation: tour-splash-scale 320ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 .tour-splash-sub {
   margin: 0 0 20px;
-  font-size: var(--fluid-text-lg);
-  line-height: 1.4;
-  color: var(--text-muted);
+  /* Min 24px keeps this WCAG "large text" so the 3:1 bar applies
+     (white on Hounds Town #008aba is 3.93:1). */
+  font-size: clamp(1.5rem, 1.35rem + 0.5vw, 1.75rem);
+  font-weight: 500;
+  line-height: 1.35;
+  color: var(--tour-splash-fg, #fff);
 }
 .tour-splash-cta {
   font-family: var(--font-body);
@@ -1161,9 +1169,12 @@ html::-webkit-scrollbar-thumb:hover {
   padding: 14px 32px;
   min-height: 52px;
   border-radius: var(--radius-md);
-  border: 1px solid var(--tour-splash-cta-bg, var(--brand-primary));
-  background: var(--tour-splash-cta-bg, var(--brand-primary));
-  color: var(--tour-splash-cta-fg, #fff);
+  /* White button on the brand background. The border uses the same
+     contrast-picked colour as the text, so the button's edge stays
+     visible even where white vs the brand is low (CT coral 2.86:1). */
+  border: 2px solid var(--tour-splash-fg, #fff);
+  background: #ffffff;
+  color: var(--brand-dark, #1a1a1a);
   cursor: pointer;
   transition: filter 0.15s, transform 0.05s;
 }
@@ -1175,7 +1186,7 @@ html::-webkit-scrollbar-thumb:hover {
   transform: translateY(1px);
 }
 .tour-splash-cta:focus-visible {
-  outline: 3px solid var(--brand-dark, var(--cin-text));
+  outline: 3px solid var(--tour-splash-fg, #fff);
   outline-offset: 3px;
 }
 .tour-splash-cta:disabled {
