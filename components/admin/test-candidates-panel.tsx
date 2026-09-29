@@ -3,14 +3,17 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { createOrResetTestCandidateAction } from "@/app/admin/candidates/actions";
-import { getCorrectPortalUrl } from "@/lib/brand-from-hostname";
+import { getAdminPreviewPortalHref } from "@/lib/brand-from-hostname";
 import type { TestCandidateStatus } from "@/lib/seed-test-candidate";
 
 interface Props {
   candidates: TestCandidateStatus[];
+  /** Request host (read server-side). Decides whether Preview opens the
+   *  production brand portal or /portal/<token> on this same host. */
+  currentHost: string;
 }
 
-export function TestCandidatesPanel({ candidates }: Props) {
+export function TestCandidatesPanel({ candidates, currentHost }: Props) {
   return (
     <section className="adm-test-candidates">
       <h2 className="adm-test-candidates-h2">Test Candidates</h2>
@@ -21,14 +24,24 @@ export function TestCandidatesPanel({ candidates }: Props) {
       </p>
       <div className="adm-test-candidates-grid">
         {candidates.map((c) => (
-          <TestCandidateCard key={c.token} candidate={c} />
+          <TestCandidateCard
+            key={c.token}
+            candidate={c}
+            currentHost={currentHost}
+          />
         ))}
       </div>
     </section>
   );
 }
 
-function TestCandidateCard({ candidate }: { candidate: TestCandidateStatus }) {
+function TestCandidateCard({
+  candidate,
+  currentHost,
+}: {
+  candidate: TestCandidateStatus;
+  currentHost: string;
+}) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [feedback, setFeedback] = useState<
@@ -78,7 +91,11 @@ function TestCandidateCard({ candidate }: { candidate: TestCandidateStatus }) {
           {pending ? `${actionLabel.slice(0, -1)}ing…` : actionLabel}
         </button>
         <a
-          href={getCorrectPortalUrl(candidate.token, candidate.brandSlug)}
+          href={getAdminPreviewPortalHref(
+            candidate.token,
+            candidate.brandSlug,
+            currentHost,
+          )}
           target="_blank"
           rel="noopener noreferrer"
           className="adm-btn-ghost"
