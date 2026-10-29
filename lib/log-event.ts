@@ -48,6 +48,36 @@ function formatZohoDateTime(d: Date): string {
   return d.toISOString().slice(0, 19) + "+00:00";
 }
 
+/**
+ * discovery_scheduled fires once per BOOKING, not once per candidate.
+ *
+ * Returns the booking identity used by the duplicate check: the
+ * bookings row id (metadata.booking_id, set by bookSlotAction) plus the
+ * booked start time (metadata.start_time). The id changes on every
+ * reschedule because cancelBookingAction hard-deletes the old row and
+ * the next booking inserts a new one; a double click upserts the SAME
+ * row (unique on candidate_in_portal_id + step_id), so it keeps the id
+ * and start time and is skipped. Adding the start time also covers a
+ * booking row that is upserted to a new slot without a cancel.
+ *
+ * Returns null for every other milestone, and for a discovery_scheduled
+ * with no booking_id (legacy callers) — both keep the once-per-candidate
+ * rule.
+ */
+export function bookingDedupeKey(
+  args: Pick<LogEventArgs, "eventType" | "metadata">,
+): { bookingId: string; startTime: string | null } | null {
+  if (args.eventType !== "discovery_scheduled") return null;
+  const bookingId = args.metadata?.booking_id;
+  if (typeof bookingId !== "string" || bookingId.length === 0) return null;
+  const startTime = args.metadata?.start_time;
+  return {
+    bookingId,
+    startTime:
+      typeof startTime === "string" && startTime.length > 0 ? startTime : null,
+  };
+}
+
 export interface LogEventArgs {
   candidateId: string;
   brandId: string;
@@ -77,24 +107,38 @@ export async function logEvent(args: LogEventArgs): Promise<void> {
     args.category === "milestone" && isMilestone(args.eventType);
   const syncStatus = milestone ? "pending" : "skipped";
 
-  // Milestone events are once-per-candidate by definition. Pre-insert
-  // check skips the write (and the Zoho round-trip below) when the
-  // milestone has already fired. Catches the common "navigate forward
-  // then back then forward" pattern that would otherwise log the same
-  // milestone twice and double-write Zoho. Non-milestone events skip
-  // this check — they can repeat freely.
+  // Milestone events are once-per-candidate, with ONE exception:
+  // discovery_scheduled is once-per-BOOKING (see bookingDedupeKey).
+  // Pre-insert check skips the write (and the Zoho round-trip below)
+  // when the milestone has already fired. Catches the common "navigate
+  // forward then back then forward" pattern and double clicks, which
+  // would otherwise log the same milestone twice and double-write Zoho.
+  // Non-milestone events skip this check — they can repeat freely.
+  //
+  // For discovery_scheduled the check is narrowed to rows with the same
+  // booking id + start time, so a reschedule (cancel, then book again →
+  // a new bookings row with a new id) runs the full sync again, exactly
+  // like the first booking: Zoho Meeting, Portal_Status,
+  // FranFunnel_Stage (forward-only), tag, Blueprint transition attempt.
+  //
   // Note: there's a tiny race window between SELECT and INSERT for two
-  // concurrent calls, but the Zoho update is idempotent (setting the
-  // same Portal_Status twice is harmless), so duplicates are benign.
+  // truly concurrent calls with the same key. Nothing in the database
+  // enforces uniqueness here (no unique index on candidate_events).
   if (milestone) {
-    const { data: existing } = await supabase
+    let query = supabase
       .from("candidate_events")
       .select("id")
       .eq("candidate_id", args.candidateId)
       .eq("event_type", args.eventType)
-      .eq("category", "milestone")
-      .limit(1)
-      .maybeSingle();
+      .eq("category", "milestone");
+    const bookingKey = bookingDedupeKey(args);
+    if (bookingKey) {
+      query = query.eq("metadata->>booking_id", bookingKey.bookingId);
+      if (bookingKey.startTime) {
+        query = query.eq("metadata->>start_time", bookingKey.startTime);
+      }
+    }
+    const { data: existing } = await query.limit(1).maybeSingle();
     if (existing) return;
   }
 
@@ -465,11 +509,15 @@ async function syncMilestoneToZoho(
   // does NOT flip zohoSyncStatus or block the Blueprint transition
   // below; both of those are higher-priority for the sales funnel.
   //
-  // Reschedules always create a fresh Meeting; the old one stays as
-  // historical Activity. Rare enough that the visual duplication
-  // beats the complexity of querying + updating by What_Id. If
-  // reports later miscount, upgrade to storing zoho_meeting_id on the
-  // bookings row and cancelling explicitly.
+  // Reschedules: the candidate cancels (cancelBookingAction deletes the
+  // bookings row and makes NO Zoho call) and books again, which creates
+  // a new bookings row with a new id. Because discovery_scheduled is
+  // de-duplicated per booking (bookingDedupeKey), that new booking runs
+  // this whole sync again and creates a new Meeting here. The old
+  // Meeting is left untouched in Zoho as historical Activity — nothing
+  // deletes or updates it. If reports later miscount, upgrade to
+  // storing zoho_meeting_id on the bookings row and cancelling
+  // explicitly.
   if (args.eventType === "discovery_scheduled") {
     try {
       const meta = args.metadata ?? {};

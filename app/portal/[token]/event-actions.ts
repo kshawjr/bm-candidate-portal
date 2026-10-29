@@ -40,9 +40,26 @@ export async function logEventByTokenAction(
     .maybeSingle();
   if (!candidate?.brand_id) return;
 
+  // discovery_scheduled is de-duplicated per booking_id (see
+  // bookingDedupeKey in lib/log-event.ts). Only bookSlotAction may set
+  // that key — it comes from a real bookings row. Strip it from
+  // client-supplied metadata so a client call can't mint new booking
+  // ids and re-run the Zoho sync; client calls stay once per candidate.
+  let metadata = args.metadata;
+  if (
+    args.eventType === "discovery_scheduled" &&
+    metadata &&
+    "booking_id" in metadata
+  ) {
+    const { booking_id: _ignored, ...rest } = metadata;
+    void _ignored;
+    metadata = rest;
+  }
+
   await logEvent({
     candidateId: session.candidate_id as string,
     brandId: candidate.brand_id as string,
     ...args,
+    metadata,
   });
 }
