@@ -1057,6 +1057,12 @@ export async function bookSlotAction(
       // now reads. Same value; two aliases so historical dashboards
       // don't break.
       booked_for: result.startTime,
+      // booking_id + start_time are the duplicate-check key: this
+      // milestone fires once per booking (not once per candidate), so
+      // a reschedule (cancel, then book again → new bookings row) runs
+      // the full Zoho sync again, while a double click on the same
+      // booking (same upserted row) fires only once.
+      booking_id: bookingRow.id as string,
       start_time: result.startTime,
       end_time: result.endTime,
       meeting_url: result.meetingUrl,
