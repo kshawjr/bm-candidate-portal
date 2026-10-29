@@ -14,6 +14,10 @@ import {
   type BrandSlug,
 } from "@/lib/zoho-blueprint-transitions";
 import { OPT_OUT_REASONS } from "@/lib/opt-out";
+import {
+  PORTAL_STAGE_BY_MILESTONE,
+  shouldWritePortalStage,
+} from "@/lib/portal-stage";
 import { zohoApi } from "@/lib/zoho-api";
 import {
   CREDIT_SCORE_RANGES,
@@ -131,6 +135,81 @@ export async function logEvent(args: LogEventArgs): Promise<void> {
   }
 }
 
+/**
+ * Write the Zoho Lead field FranFunnel_Stage for milestones mapped in
+ * PORTAL_STAGE_BY_MILESTONE, forward-only (see lib/portal-stage.ts).
+ *
+ * Reads the lead's current FranFunnel_Stage + Lead_Status first and only
+ * writes when shouldWritePortalStage says so. A read failure skips the
+ * write (we can't prove the move is forward). Every failure is caught
+ * and logged — this must never break the candidate's portal experience
+ * or fail the milestone event.
+ *
+ * The write goes through zohoApi.updateLead, which sends no `trigger`
+ * key. Omitting `trigger` makes Zoho fire workflow rules (passing
+ * `trigger: []` would turn them off), so downstream workflows that
+ * watch FranFunnel_Stage still run.
+ */
+async function syncPortalStage(
+  leadId: string | null | undefined,
+  eventType: string,
+  eventId: string,
+): Promise<void> {
+  const newStage = PORTAL_STAGE_BY_MILESTONE[eventType as MilestoneEvent];
+  if (!newStage) return;
+  if (!leadId) {
+    console.warn(
+      `[log-event] FranFunnel_Stage skipped for event ${eventId} — no zoho_lead_id`,
+    );
+    return;
+  }
+
+  let currentStage: string | null = null;
+  let currentLeadStatus: string | null = null;
+  try {
+    const lead = await zohoApi.getLead(leadId, [
+      "FranFunnel_Stage",
+      "Lead_Status",
+    ]);
+    if (!lead) {
+      console.warn(
+        `[log-event] FranFunnel_Stage read returned no lead for event ${eventId} — skipping write`,
+      );
+      return;
+    }
+    currentStage =
+      typeof lead.FranFunnel_Stage === "string" ? lead.FranFunnel_Stage : null;
+    currentLeadStatus =
+      typeof lead.Lead_Status === "string" ? lead.Lead_Status : null;
+  } catch (err) {
+    console.warn(
+      `[log-event] FranFunnel_Stage read failed for event ${eventId}:`,
+      err instanceof Error ? err.message : err,
+    );
+    return;
+  }
+
+  if (!shouldWritePortalStage(currentStage, currentLeadStatus, newStage)) {
+    console.log(
+      `[log-event] FranFunnel_Stage unchanged event=${eventId} current="${currentStage ?? ""}" lead_status="${currentLeadStatus ?? ""}" new="${newStage}"`,
+    );
+    return;
+  }
+
+  try {
+    // No `trigger` option → Zoho runs workflow rules on this update.
+    await zohoApi.updateLead(leadId, { FranFunnel_Stage: newStage });
+    console.log(
+      `[log-event] FranFunnel_Stage written event=${eventId} from="${currentStage ?? ""}" to="${newStage}"`,
+    );
+  } catch (err) {
+    console.warn(
+      `[log-event] FranFunnel_Stage write failed for event ${eventId}:`,
+      err instanceof Error ? err.message : err,
+    );
+  }
+}
+
 async function syncMilestoneToZoho(
   eventId: string,
   args: LogEventArgs,
@@ -206,14 +285,9 @@ async function syncMilestoneToZoho(
     if (status) {
       fields.Portal_Status = status;
     }
-    // FranFunnel_Stage is a picklist field a downstream Zoho workflow
-    // rule watches to advance the sales funnel. Only discovery_scheduled
-    // maps to a value today; extend this guard when other milestones
-    // need to drive the same field. Bundled into the same PUT so it
-    // costs zero extra Zoho round-trips.
-    if (args.eventType === "discovery_scheduled") {
-      fields.FranFunnel_Stage = "Discovery Call Scheduled";
-    }
+    // FranFunnel_Stage is NOT written here — it needs a read-before-
+    // write forward-only check, so it has its own call in
+    // syncPortalStage below.
     // Reason_for_Loss is the sales-team-visible free-text on why the
     // lead dropped. Client passed a validated enum; re-check against
     // the whitelist here so a bad payload can't smuggle in a value
@@ -238,6 +312,10 @@ async function syncMilestoneToZoho(
       err,
     );
   }
+
+  // FranFunnel_Stage ("Portal Stage") — forward-only, read before
+  // write. Best-effort: never flips zohoSyncStatus or throws.
+  await syncPortalStage(candidate.zoho_lead_id, args.eventType, eventId);
 
   // Centralized phase-tag write. Every milestone with an entry in
   // ZOHO_TAG_BY_MILESTONE attaches its tag to the Lead so sales-team
