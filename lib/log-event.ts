@@ -135,76 +135,101 @@ export async function logEvent(args: LogEventArgs): Promise<void> {
   }
 }
 
+type StageSyncStatus = "success" | "failed" | "skipped";
+
+interface PortalStagePlan {
+  // Value to add to the main updateLead call, or null to leave
+  // FranFunnel_Stage out of it.
+  stage: string | null;
+  // Outcome so far. "failed" here means the read failed; the write
+  // outcome is filled in after the main update.
+  status: StageSyncStatus;
+  error: string | null;
+}
+
 /**
- * Write the Zoho Lead field FranFunnel_Stage for milestones mapped in
- * PORTAL_STAGE_BY_MILESTONE, forward-only (see lib/portal-stage.ts).
+ * Work out whether the main updateLead call for this milestone should
+ * also carry FranFunnel_Stage ("Portal Stage"), forward-only (see
+ * lib/portal-stage.ts).
  *
- * Reads the lead's current FranFunnel_Stage + Lead_Status first and only
- * writes when shouldWritePortalStage says so. A read failure skips the
- * write (we can't prove the move is forward). Every failure is caught
- * and logged — this must never break the candidate's portal experience
- * or fail the milestone event.
+ * Reads the lead's current FranFunnel_Stage first. If the read fails or
+ * the lead is not found, returns stage=null so the main update goes out
+ * exactly as it would without stage sync — a stage read failure must
+ * never block Portal_Status, tags or anything else.
  *
- * The write goes through zohoApi.updateLead, which sends no `trigger`
- * key. Omitting `trigger` makes Zoho fire workflow rules (passing
- * `trigger: []` would turn them off), so downstream workflows that
- * watch FranFunnel_Stage still run.
+ * Returns null when the milestone has no stage mapping. Never throws.
  */
-async function syncPortalStage(
-  leadId: string | null | undefined,
+async function planPortalStage(
+  leadId: string,
   eventType: string,
   eventId: string,
-): Promise<void> {
+): Promise<PortalStagePlan | null> {
   const newStage = PORTAL_STAGE_BY_MILESTONE[eventType as MilestoneEvent];
-  if (!newStage) return;
-  if (!leadId) {
-    console.warn(
-      `[log-event] FranFunnel_Stage skipped for event ${eventId} — no zoho_lead_id`,
-    );
-    return;
-  }
+  if (!newStage) return null;
 
   let currentStage: string | null = null;
-  let currentLeadStatus: string | null = null;
   try {
-    const lead = await zohoApi.getLead(leadId, [
-      "FranFunnel_Stage",
-      "Lead_Status",
-    ]);
+    const lead = await zohoApi.getLead(leadId, ["FranFunnel_Stage"]);
     if (!lead) {
+      const msg = "FranFunnel_Stage read returned no lead";
       console.warn(
-        `[log-event] FranFunnel_Stage read returned no lead for event ${eventId} — skipping write`,
+        `[log-event] ${msg} for event ${eventId} — leaving FranFunnel_Stage out of the update`,
       );
-      return;
+      return { stage: null, status: "failed", error: msg };
     }
     currentStage =
       typeof lead.FranFunnel_Stage === "string" ? lead.FranFunnel_Stage : null;
-    currentLeadStatus =
-      typeof lead.Lead_Status === "string" ? lead.Lead_Status : null;
   } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
     console.warn(
       `[log-event] FranFunnel_Stage read failed for event ${eventId}:`,
-      err instanceof Error ? err.message : err,
+      msg,
     );
-    return;
+    return {
+      stage: null,
+      status: "failed",
+      error: `FranFunnel_Stage read failed: ${msg}`,
+    };
   }
 
-  if (!shouldWritePortalStage(currentStage, currentLeadStatus, newStage)) {
+  if (!shouldWritePortalStage(currentStage, newStage)) {
     console.log(
-      `[log-event] FranFunnel_Stage unchanged event=${eventId} current="${currentStage ?? ""}" lead_status="${currentLeadStatus ?? ""}" new="${newStage}"`,
+      `[log-event] FranFunnel_Stage unchanged event=${eventId} current="${currentStage ?? ""}" new="${newStage}"`,
     );
-    return;
+    return { stage: null, status: "skipped", error: null };
   }
 
+  return { stage: newStage, status: "success", error: null };
+}
+
+/**
+ * Save the FranFunnel_Stage outcome on the candidate_events row.
+ *
+ * Kept as its own UPDATE, separate from the main status update, so the
+ * other sync columns still save if the stage_sync_* columns do not
+ * exist yet (migration 20261028_candidate_events_stage_sync.sql not yet
+ * applied). Any failure here is logged and swallowed.
+ */
+async function recordStageSyncStatus(
+  supabase: ReturnType<typeof createAppServiceClient>,
+  eventId: string,
+  status: StageSyncStatus,
+  error: string | null,
+): Promise<void> {
   try {
-    // No `trigger` option → Zoho runs workflow rules on this update.
-    await zohoApi.updateLead(leadId, { FranFunnel_Stage: newStage });
-    console.log(
-      `[log-event] FranFunnel_Stage written event=${eventId} from="${currentStage ?? ""}" to="${newStage}"`,
-    );
+    const { error: dbError } = await supabase
+      .from("candidate_events")
+      .update({ stage_sync_status: status, stage_sync_error: error })
+      .eq("id", eventId);
+    if (dbError) {
+      console.warn(
+        `[log-event] stage_sync_status write failed for event ${eventId}:`,
+        dbError.message ?? dbError,
+      );
+    }
   } catch (err) {
     console.warn(
-      `[log-event] FranFunnel_Stage write failed for event ${eventId}:`,
+      `[log-event] stage_sync_status write threw for event ${eventId}:`,
       err instanceof Error ? err.message : err,
     );
   }
@@ -262,6 +287,12 @@ async function syncMilestoneToZoho(
         zoho_synced_at: nowIso(),
       })
       .eq("id", eventId);
+    if (PORTAL_STAGE_BY_MILESTONE[args.eventType as MilestoneEvent]) {
+      console.warn(
+        `[log-event] FranFunnel_Stage skipped for event ${eventId} — no zoho_lead_id`,
+      );
+      await recordStageSyncStatus(supabase, eventId, "skipped", null);
+    }
     return;
   }
 
@@ -269,6 +300,16 @@ async function syncMilestoneToZoho(
   // — a transition failure (e.g., lead already in target state) doesn't
   // mean the Portal_Status update failed. Track the two outcomes
   // separately and write both in a single trailing update.
+
+  // FranFunnel_Stage ("Portal Stage") — read the current value FIRST,
+  // decide forward-only, then ride along in the main updateLead below
+  // so there is one Zoho save. planPortalStage never throws; on a read
+  // failure it returns stage=null and the main update is unchanged.
+  const stagePlan = await planPortalStage(
+    candidate.zoho_lead_id,
+    args.eventType,
+    eventId,
+  );
 
   let zohoSyncStatus: "success" | "failed" = "success";
   let zohoSyncError: string | null = null;
@@ -285,9 +326,13 @@ async function syncMilestoneToZoho(
     if (status) {
       fields.Portal_Status = status;
     }
-    // FranFunnel_Stage is NOT written here — it needs a read-before-
-    // write forward-only check, so it has its own call in
-    // syncPortalStage below.
+    // FranFunnel_Stage only when the forward-only check above allowed
+    // it. No `trigger` key is ever sent: omitting it makes Zoho run
+    // workflow rules (`trigger: []` would turn them off), so workflows
+    // that watch FranFunnel_Stage still fire.
+    if (stagePlan?.stage) {
+      fields.FranFunnel_Stage = stagePlan.stage;
+    }
     // Reason_for_Loss is the sales-team-visible free-text on why the
     // lead dropped. Client passed a validated enum; re-check against
     // the whitelist here so a bad payload can't smuggle in a value
@@ -313,9 +358,20 @@ async function syncMilestoneToZoho(
     );
   }
 
-  // FranFunnel_Stage ("Portal Stage") — forward-only, read before
-  // write. Best-effort: never flips zohoSyncStatus or throws.
-  await syncPortalStage(candidate.zoho_lead_id, args.eventType, eventId);
+  if (stagePlan?.stage) {
+    if (zohoSyncStatus === "success") {
+      console.log(
+        `[log-event] FranFunnel_Stage written event=${eventId} to="${stagePlan.stage}"`,
+      );
+    } else {
+      stagePlan.status = "failed";
+      stagePlan.error = zohoSyncError;
+      console.warn(
+        `[log-event] FranFunnel_Stage write failed for event ${eventId}:`,
+        zohoSyncError,
+      );
+    }
+  }
 
   // Centralized phase-tag write. Every milestone with an entry in
   // ZOHO_TAG_BY_MILESTONE attaches its tag to the Lead so sales-team
@@ -735,4 +791,15 @@ async function syncMilestoneToZoho(
       zoho_synced_at: nowIso(),
     })
     .eq("id", eventId);
+
+  // Separate write so a missing stage_sync_* column can't take the
+  // columns above down with it.
+  if (stagePlan) {
+    await recordStageSyncStatus(
+      supabase,
+      eventId,
+      stagePlan.status,
+      stagePlan.error,
+    );
+  }
 }

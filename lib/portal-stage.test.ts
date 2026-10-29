@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  LEAD_STATUS_NO_SHOW_ATC,
   PORTAL_STAGE_BY_MILESTONE,
   PORTAL_STAGE_ORDER,
   portalStageRank,
@@ -52,20 +51,20 @@ describe("shouldWritePortalStage — forward moves", () => {
     ["Complete Questionnaire", "Confirmed Discovery"],
     ["Access Portal", "Confirmed Discovery"],
   ])("current %s → new %s writes", (current, next) => {
-    expect(shouldWritePortalStage(current, null, next)).toBe(true);
+    expect(shouldWritePortalStage(current, next)).toBe(true);
   });
 });
 
 describe("shouldWritePortalStage — forward-only blocking", () => {
   it("does not move Complete Questionnaire back to Access Portal", () => {
     expect(
-      shouldWritePortalStage("Complete Questionnaire", null, "Access Portal"),
+      shouldWritePortalStage("Complete Questionnaire", "Access Portal"),
     ).toBe(false);
   });
 
   it("does not move Confirmed Discovery back to Watch Overview", () => {
     expect(
-      shouldWritePortalStage("Confirmed Discovery", null, "Watch Overview"),
+      shouldWritePortalStage("Confirmed Discovery", "Watch Overview"),
     ).toBe(false);
   });
 
@@ -75,51 +74,36 @@ describe("shouldWritePortalStage — forward-only blocking", () => {
     "Complete Questionnaire",
     "Confirmed Discovery",
   ])("same value %s does not write", (v) => {
-    expect(shouldWritePortalStage(v, null, v)).toBe(false);
+    expect(shouldWritePortalStage(v, v)).toBe(false);
   });
 });
 
 describe("shouldWritePortalStage — rebook exception", () => {
-  it("Confirmed Discovery overwrites FranFunnel_Stage 'Discovery Call No Show'", () => {
+  it("Confirmed Discovery overwrites 'Discovery Call No Show'", () => {
     expect(
-      shouldWritePortalStage("Discovery Call No Show", null, "Confirmed Discovery"),
+      shouldWritePortalStage("Discovery Call No Show", "Confirmed Discovery"),
     ).toBe(true);
   });
 
-  it("Confirmed Discovery overwrites a later stage when Lead_Status is the No Show ATC value", () => {
-    expect(LEAD_STATUS_NO_SHOW_ATC).toBe("Discovery Call No Show ATC");
+  it("Confirmed Discovery still overwrites No Show with surrounding spaces", () => {
     expect(
-      shouldWritePortalStage(
-        "Discovery Call No Show",
-        LEAD_STATUS_NO_SHOW_ATC,
-        "Confirmed Discovery",
-      ),
+      shouldWritePortalStage("  Discovery Call No Show ", "Confirmed Discovery"),
     ).toBe(true);
-  });
-
-  it("Lead_Status No Show ATC alone does not let earlier milestones overwrite", () => {
-    expect(
-      shouldWritePortalStage(
-        "Discovery Call No Show",
-        LEAD_STATUS_NO_SHOW_ATC,
-        "Complete Questionnaire",
-      ),
-    ).toBe(false);
   });
 
   it.each(["Access Portal", "Watch Overview", "Complete Questionnaire"])(
     "%s may NOT overwrite 'Discovery Call No Show'",
     (next) => {
-      expect(shouldWritePortalStage("Discovery Call No Show", null, next)).toBe(
+      expect(shouldWritePortalStage("Discovery Call No Show", next)).toBe(
         false,
       );
     },
   );
 
-  it("an unrelated Lead_Status does not unlock anything", () => {
-    expect(
-      shouldWritePortalStage("Discovery Call No Show", "Engaged", "Access Portal"),
-    ).toBe(false);
+  it("takes no Lead_Status input at all (decision is stage-only)", () => {
+    // Two parameters: current stage, new stage. A Lead_Status argument
+    // would make this 3.
+    expect(shouldWritePortalStage.length).toBe(2);
   });
 });
 
@@ -130,25 +114,25 @@ describe("shouldWritePortalStage — legacy 'Discovery Call Scheduled'", () => {
     );
   });
 
-  it("discovery_scheduled (Confirmed Discovery) does not write over it", () => {
+  it("discovery_scheduled (Confirmed Discovery) overwrites it with the new wording", () => {
     expect(
-      shouldWritePortalStage("Discovery Call Scheduled", null, "Confirmed Discovery"),
-    ).toBe(false);
+      shouldWritePortalStage("Discovery Call Scheduled", "Confirmed Discovery"),
+    ).toBe(true);
   });
 
   it.each(["Access Portal", "Watch Overview", "Complete Questionnaire"])(
     "earlier value %s does not write over it",
     (next) => {
-      expect(
-        shouldWritePortalStage("Discovery Call Scheduled", null, next),
-      ).toBe(false);
+      expect(shouldWritePortalStage("Discovery Call Scheduled", next)).toBe(
+        false,
+      );
     },
   );
 });
 
 describe("shouldWritePortalStage — blank and legacy/unknown current values", () => {
   it.each([null, undefined, "", "   "])("blank current %j → writes", (cur) => {
-    expect(shouldWritePortalStage(cur, null, "Access Portal")).toBe(true);
+    expect(shouldWritePortalStage(cur, "Access Portal")).toBe(true);
   });
 
   it.each([
@@ -164,20 +148,17 @@ describe("shouldWritePortalStage — blank and legacy/unknown current values", (
     "Reschedule Discovery",
     "Something Nobody Has Seen",
   ])("legacy/unknown current %s → Access Portal writes", (cur) => {
-    expect(shouldWritePortalStage(cur, null, "Access Portal")).toBe(true);
+    expect(shouldWritePortalStage(cur, "Access Portal")).toBe(true);
   });
 
   it("'Engaged - Needs Scheduling' → Confirmed Discovery writes", () => {
     expect(
-      shouldWritePortalStage(
-        "Engaged - Needs Scheduling",
-        null,
-        "Confirmed Discovery",
+      shouldWritePortalStage("Engaged - Needs Scheduling", "Confirmed Discovery",
       ),
     ).toBe(true);
   });
 
   it("never writes a new value that is not in the order list", () => {
-    expect(shouldWritePortalStage(null, null, "Not A Stage")).toBe(false);
+    expect(shouldWritePortalStage(null, "Not A Stage")).toBe(false);
   });
 });

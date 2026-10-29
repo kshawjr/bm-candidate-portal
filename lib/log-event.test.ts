@@ -11,7 +11,13 @@ const EVENT_ID = "evt-123";
 // Per-test knobs for what the fake Supabase returns.
 const db = {
   zohoLeadId: LEAD_ID as string | null,
+  // Simulate the stage_sync_* columns not existing yet (migration not
+  // applied): any update touching them resolves with a PostgREST error.
+  stageColumnsMissing: false,
 };
+
+// Every candidate_events UPDATE payload, in order.
+const eventUpdates: Record<string, unknown>[] = [];
 
 // Minimal chainable Supabase query fake. Every builder method returns
 // the builder; terminal calls resolve to canned rows keyed by table.
@@ -28,17 +34,16 @@ function fakeSupabase() {
         return { data: null, error: null };
       };
       let inserting = false;
+      let updatePayload: Record<string, unknown> | null = null;
       const builder: Record<string, unknown> = {};
-      for (const m of [
-        "select",
-        "eq",
-        "in",
-        "order",
-        "limit",
-        "update",
-      ]) {
+      for (const m of ["select", "eq", "in", "order", "limit"]) {
         builder[m] = () => builder;
       }
+      builder.update = (payload: Record<string, unknown>) => {
+        updatePayload = payload;
+        if (table === "candidate_events") eventUpdates.push(payload);
+        return builder;
+      };
       builder.insert = () => {
         inserting = true;
         return builder;
@@ -48,11 +53,35 @@ function fakeSupabase() {
         inserting && table === "candidate_events"
           ? { data: { id: EVENT_ID }, error: null }
           : result();
-      builder.then = (resolve: (v: unknown) => unknown) =>
-        resolve({ data: null, error: null });
+      builder.then = (resolve: (v: unknown) => unknown) => {
+        if (
+          db.stageColumnsMissing &&
+          updatePayload &&
+          "stage_sync_status" in updatePayload
+        ) {
+          return resolve({
+            data: null,
+            error: {
+              message:
+                "Could not find the 'stage_sync_error' column of 'candidate_events' in the schema cache",
+            },
+          });
+        }
+        return resolve({ data: null, error: null });
+      };
       return builder;
     },
   };
+}
+
+// The candidate_events update that carries stage_sync_status, if any.
+function stageStatusUpdates() {
+  return eventUpdates.filter((u) => "stage_sync_status" in u);
+}
+
+// The main trailing status update (carries zoho_sync_status).
+function mainStatusUpdate() {
+  return eventUpdates.find((u) => "zoho_sync_status" in u);
 }
 
 vi.mock("@/lib/supabase-app", () => ({
@@ -94,10 +123,17 @@ function stageWrites() {
   );
 }
 
-function leadReturns(stage: string | null, leadStatus: string | null = null) {
+// Calls to updateLead that carry Portal_Status (the main update).
+function mainUpdates() {
+  return zoho.updateLead.mock.calls.filter(
+    ([, fields]) => fields && "Portal_Status" in fields,
+  );
+}
+
+function leadReturns(stage: string | null, extra: Record<string, unknown> = {}) {
   zoho.getLead.mockImplementation(async (_id: string, fields?: string[]) => {
     if (fields?.includes("FranFunnel_Stage")) {
-      return { id: LEAD_ID, FranFunnel_Stage: stage, Lead_Status: leadStatus };
+      return { id: LEAD_ID, FranFunnel_Stage: stage, ...extra };
     }
     return { id: LEAD_ID };
   });
@@ -109,6 +145,8 @@ let error: ReturnType<typeof vi.spyOn>;
 beforeEach(() => {
   vi.clearAllMocks();
   db.zohoLeadId = LEAD_ID;
+  db.stageColumnsMissing = false;
+  eventUpdates.length = 0;
   zoho.updateLead.mockResolvedValue(undefined);
   zoho.addTags.mockResolvedValue(undefined);
   zoho.transitionLead.mockResolvedValue(undefined);
@@ -120,21 +158,24 @@ beforeEach(() => {
   error = vi.spyOn(console, "error").mockImplementation(() => {});
 });
 
+const STAGE_MILESTONES = [
+  ["portal_first_visit", "Access Portal"],
+  ["education_completed", "Watch Overview"],
+  ["application_submitted", "Complete Questionnaire"],
+  ["discovery_scheduled", "Confirmed Discovery"],
+] as const;
+
 describe("logEvent → FranFunnel_Stage mappings", () => {
-  it.each([
-    ["portal_first_visit", "Access Portal"],
-    ["education_completed", "Watch Overview"],
-    ["application_submitted", "Complete Questionnaire"],
-    ["discovery_scheduled", "Confirmed Discovery"],
-  ])("%s writes %s on a blank lead", async (eventType, value) => {
-    leadReturns(null);
-    await milestone(eventType);
-    expect(zoho.getLead).toHaveBeenCalledWith(LEAD_ID, [
-      "FranFunnel_Stage",
-      "Lead_Status",
-    ]);
-    expect(stageWrites()).toEqual([[LEAD_ID, { FranFunnel_Stage: value }]]);
-  });
+  it.each(STAGE_MILESTONES)(
+    "%s writes %s on a blank lead",
+    async (eventType, value) => {
+      leadReturns(null);
+      await milestone(eventType);
+      expect(zoho.getLead).toHaveBeenCalledWith(LEAD_ID, ["FranFunnel_Stage"]);
+      expect(stageWrites()).toHaveLength(1);
+      expect(stageWrites()[0][1].FranFunnel_Stage).toBe(value);
+    },
+  );
 
   it("no longer writes the old 'Discovery Call Scheduled' value", async () => {
     await milestone("discovery_scheduled");
@@ -147,6 +188,42 @@ describe("logEvent → FranFunnel_Stage mappings", () => {
     await milestone("brand_tour_engaged");
     expect(zoho.getLead).not.toHaveBeenCalled();
     expect(stageWrites()).toEqual([]);
+    expect(stageStatusUpdates()).toEqual([]);
+  });
+});
+
+describe("logEvent → ONE Zoho save (stage rides in the main update)", () => {
+  it.each(STAGE_MILESTONES)(
+    "%s: Portal_Status and FranFunnel_Stage go in exactly one updateLead call",
+    async (eventType, value) => {
+      leadReturns(null);
+      await milestone(eventType);
+      expect(stageWrites()).toHaveLength(1);
+      expect(mainUpdates()).toHaveLength(1);
+      const [leadId, fields] = stageWrites()[0];
+      expect(leadId).toBe(LEAD_ID);
+      expect(fields).toEqual({
+        Last_Active_Date: expect.any(String),
+        Portal_Status: expect.any(String),
+        FranFunnel_Stage: value,
+      });
+      // The stage write IS the main update, not a second call.
+      expect(stageWrites()[0]).toBe(mainUpdates()[0]);
+    },
+  );
+
+  it("reads the current stage BEFORE the main update", async () => {
+    await milestone("portal_first_visit");
+    const readOrder = zoho.getLead.mock.invocationCallOrder[0];
+    const writeOrder = zoho.updateLead.mock.invocationCallOrder[0];
+    expect(readOrder).toBeLessThan(writeOrder);
+  });
+
+  it("when the rule says no, the main update goes out without FranFunnel_Stage", async () => {
+    leadReturns("Complete Questionnaire");
+    await milestone("portal_first_visit");
+    expect(mainUpdates()).toHaveLength(1);
+    expect(mainUpdates()[0][1]).not.toHaveProperty("FranFunnel_Stage");
   });
 });
 
@@ -163,79 +240,104 @@ describe("logEvent → forward-only", () => {
     expect(stageWrites()).toEqual([]);
   });
 
-  it("rebook via FranFunnel_Stage 'Discovery Call No Show' writes Confirmed Discovery", async () => {
+  it("same value Confirmed Discovery → no write", async () => {
+    leadReturns("Confirmed Discovery");
+    await milestone("discovery_scheduled");
+    expect(stageWrites()).toEqual([]);
+  });
+
+  it("rebook: 'Discovery Call No Show' → discovery_scheduled writes Confirmed Discovery", async () => {
     leadReturns("Discovery Call No Show");
     await milestone("discovery_scheduled");
-    expect(stageWrites()).toEqual([
-      [LEAD_ID, { FranFunnel_Stage: "Confirmed Discovery" }],
-    ]);
+    expect(stageWrites()).toHaveLength(1);
+    expect(stageWrites()[0][1].FranFunnel_Stage).toBe("Confirmed Discovery");
   });
 
-  it("rebook via Lead_Status 'Discovery Call No Show ATC' writes Confirmed Discovery", async () => {
-    leadReturns("Discovery Call No Show", "Discovery Call No Show ATC");
+  it.each(["portal_first_visit", "education_completed", "application_submitted"])(
+    "%s may NOT overwrite 'Discovery Call No Show'",
+    async (eventType) => {
+      leadReturns("Discovery Call No Show");
+      await milestone(eventType);
+      expect(stageWrites()).toEqual([]);
+    },
+  );
+
+  it("Lead_Status is not read", async () => {
     await milestone("discovery_scheduled");
-    expect(stageWrites()).toEqual([
-      [LEAD_ID, { FranFunnel_Stage: "Confirmed Discovery" }],
-    ]);
+    for (const [, fields] of zoho.getLead.mock.calls) {
+      expect(fields ?? []).not.toContain("Lead_Status");
+    }
   });
 
-  it("other milestones may NOT overwrite 'Discovery Call No Show'", async () => {
-    leadReturns("Discovery Call No Show", "Discovery Call No Show ATC");
+  it("a Lead_Status value on the lead has no effect", async () => {
+    // Even if Zoho returned a no-show Lead_Status, a later stage with an
+    // earlier milestone must still be skipped...
+    leadReturns("Discovery Call No Show", {
+      Lead_Status: "Discovery Call No Show ATC",
+    });
     await milestone("application_submitted");
     expect(stageWrites()).toEqual([]);
-  });
 
-  it("legacy 'Discovery Call Scheduled': discovery_scheduled does not write", async () => {
-    leadReturns("Discovery Call Scheduled");
+    // ...and Confirmed Discovery over Confirmed Discovery is still a skip.
+    vi.clearAllMocks();
+    zoho.updateLead.mockResolvedValue(undefined);
+    zoho.addTags.mockResolvedValue(undefined);
+    zoho.transitionLead.mockResolvedValue(undefined);
+    zoho.createMeeting.mockResolvedValue({ success: true });
+    leadReturns("Confirmed Discovery", {
+      Lead_Status: "Discovery Call No Show ATC",
+    });
     await milestone("discovery_scheduled");
     expect(stageWrites()).toEqual([]);
   });
 
-  it("legacy 'Discovery Call Scheduled': earlier milestone does not write", async () => {
+  it("legacy 'Discovery Call Scheduled': discovery_scheduled writes Confirmed Discovery", async () => {
     leadReturns("Discovery Call Scheduled");
-    await milestone("education_completed");
-    expect(stageWrites()).toEqual([]);
+    await milestone("discovery_scheduled");
+    expect(stageWrites()).toHaveLength(1);
+    expect(stageWrites()[0][1].FranFunnel_Stage).toBe("Confirmed Discovery");
   });
+
+  it.each(["portal_first_visit", "education_completed", "application_submitted"])(
+    "legacy 'Discovery Call Scheduled': %s does not write",
+    async (eventType) => {
+      leadReturns("Discovery Call Scheduled");
+      await milestone(eventType);
+      expect(stageWrites()).toEqual([]);
+    },
+  );
 
   it("legacy/unknown current 'Engaged - Needs Scheduling' is overwritten", async () => {
     leadReturns("Engaged - Needs Scheduling");
     await milestone("portal_first_visit");
-    expect(stageWrites()).toEqual([
-      [LEAD_ID, { FranFunnel_Stage: "Access Portal" }],
-    ]);
+    expect(stageWrites()).toHaveLength(1);
+    expect(stageWrites()[0][1].FranFunnel_Stage).toBe("Access Portal");
   });
 });
 
-describe("logEvent → failures never escape and are logged", () => {
-  it("Zoho read failure: no throw, no stage write, logged", async () => {
-    zoho.getLead.mockRejectedValue(new Error("Zoho getLead 500: boom"));
-    await expect(milestone("portal_first_visit")).resolves.toBeUndefined();
-    expect(stageWrites()).toEqual([]);
-    expect(warn).toHaveBeenCalledWith(
-      `[log-event] FranFunnel_Stage read failed for event ${EVENT_ID}:`,
-      "Zoho getLead 500: boom",
-    );
-    // Other milestone syncs still ran.
-    expect(zoho.addTags).toHaveBeenCalled();
-  });
+describe("logEvent → stage read failures never touch the main update", () => {
+  it.each(STAGE_MILESTONES)(
+    "%s: read throws → single main update still goes out, without FranFunnel_Stage",
+    async (eventType) => {
+      zoho.getLead.mockRejectedValue(new Error("Zoho getLead 500: boom"));
+      await expect(milestone(eventType)).resolves.toBeUndefined();
+      expect(mainUpdates()).toHaveLength(1);
+      const [, fields] = mainUpdates()[0];
+      expect(fields).not.toHaveProperty("FranFunnel_Stage");
+      expect(fields).toHaveProperty("Portal_Status");
+      expect(fields).toHaveProperty("Last_Active_Date");
+      expect(stageWrites()).toEqual([]);
+      expect(mainStatusUpdate()?.zoho_sync_status).toBe("success");
+      expect(zoho.addTags).toHaveBeenCalled();
+    },
+  );
 
-  it("Zoho write failure: no throw, logged", async () => {
-    zoho.updateLead.mockImplementation(
-      async (_id: string, fields: Record<string, string>) => {
-        if ("FranFunnel_Stage" in fields) {
-          throw new Error("Zoho updateLead 400: INVALID_DATA");
-        }
-      },
-    );
-    await expect(milestone("discovery_scheduled")).resolves.toBeUndefined();
-    expect(warn).toHaveBeenCalledWith(
-      `[log-event] FranFunnel_Stage write failed for event ${EVENT_ID}:`,
-      "Zoho updateLead 400: INVALID_DATA",
-    );
-    expect(error).not.toHaveBeenCalledWith(
-      expect.stringContaining("syncMilestoneToZoho threw"),
-      expect.anything(),
-    );
+  it("lead not found → main update still goes out, without FranFunnel_Stage", async () => {
+    zoho.getLead.mockResolvedValue(null);
+    await milestone("education_completed");
+    expect(mainUpdates()).toHaveLength(1);
+    expect(mainUpdates()[0][1]).not.toHaveProperty("FranFunnel_Stage");
+    expect(mainStatusUpdate()?.zoho_sync_status).toBe("success");
   });
 
   it("network error (TypeError) on read: no throw, logged", async () => {
@@ -246,17 +348,104 @@ describe("logEvent → failures never escape and are logged", () => {
       "fetch failed",
     );
   });
+});
 
-  it("missing Zoho lead id: no Zoho calls, no throw", async () => {
+describe("logEvent → stage outcome saved to candidate_events.stage_sync_status", () => {
+  it("written → success", async () => {
+    await milestone("portal_first_visit");
+    expect(stageStatusUpdates()).toEqual([
+      { stage_sync_status: "success", stage_sync_error: null },
+    ]);
+  });
+
+  it("forward-only rule said no → skipped", async () => {
+    leadReturns("Complete Questionnaire");
+    await milestone("portal_first_visit");
+    expect(stageStatusUpdates()).toEqual([
+      { stage_sync_status: "skipped", stage_sync_error: null },
+    ]);
+  });
+
+  it("read failure → failed, with reason; console log kept", async () => {
+    zoho.getLead.mockRejectedValue(new Error("Zoho getLead 500: boom"));
+    await milestone("portal_first_visit");
+    expect(stageStatusUpdates()).toEqual([
+      {
+        stage_sync_status: "failed",
+        stage_sync_error: "FranFunnel_Stage read failed: Zoho getLead 500: boom",
+      },
+    ]);
+    expect(warn).toHaveBeenCalledWith(
+      `[log-event] FranFunnel_Stage read failed for event ${EVENT_ID}:`,
+      "Zoho getLead 500: boom",
+    );
+  });
+
+  it("lead not found → failed", async () => {
+    zoho.getLead.mockResolvedValue(null);
+    await milestone("portal_first_visit");
+    expect(stageStatusUpdates()).toEqual([
+      {
+        stage_sync_status: "failed",
+        stage_sync_error: "FranFunnel_Stage read returned no lead",
+      },
+    ]);
+  });
+
+  it("main update carrying the stage fails → failed, logged, no throw", async () => {
+    zoho.updateLead.mockRejectedValue(
+      new Error("Zoho updateLead 400: INVALID_DATA"),
+    );
+    await expect(milestone("discovery_scheduled")).resolves.toBeUndefined();
+    expect(stageStatusUpdates()).toEqual([
+      {
+        stage_sync_status: "failed",
+        stage_sync_error: "Zoho updateLead 400: INVALID_DATA",
+      },
+    ]);
+    expect(warn).toHaveBeenCalledWith(
+      `[log-event] FranFunnel_Stage write failed for event ${EVENT_ID}:`,
+      "Zoho updateLead 400: INVALID_DATA",
+    );
+    expect(error).not.toHaveBeenCalledWith(
+      expect.stringContaining("syncMilestoneToZoho threw"),
+      expect.anything(),
+    );
+  });
+
+  it("no zoho_lead_id → skipped, no Zoho calls, no throw", async () => {
     db.zohoLeadId = null;
     await expect(milestone("portal_first_visit")).resolves.toBeUndefined();
     expect(zoho.getLead).not.toHaveBeenCalled();
     expect(zoho.updateLead).not.toHaveBeenCalled();
+    expect(stageStatusUpdates()).toEqual([
+      { stage_sync_status: "skipped", stage_sync_error: null },
+    ]);
+  });
+
+  it("stage status is a separate UPDATE from the main status columns", async () => {
+    await milestone("portal_first_visit");
+    expect(mainStatusUpdate()).toBeDefined();
+    expect(mainStatusUpdate()).not.toHaveProperty("stage_sync_status");
+  });
+
+  it("columns missing (migration not applied): event still syncs, no throw, warning logged", async () => {
+    db.stageColumnsMissing = true;
+    await expect(milestone("portal_first_visit")).resolves.toBeUndefined();
+    expect(mainStatusUpdate()?.zoho_sync_status).toBe("success");
+    expect(warn).toHaveBeenCalledWith(
+      `[log-event] stage_sync_status write failed for event ${EVENT_ID}:`,
+      expect.stringContaining("stage_sync_error"),
+    );
+    expect(error).not.toHaveBeenCalledWith(
+      expect.stringContaining("syncMilestoneToZoho threw"),
+      expect.anything(),
+    );
   });
 });
 
 describe("logEvent → workflow triggers stay on", () => {
-  it("the FranFunnel_Stage write passes no trigger option", async () => {
+  it("the update carrying FranFunnel_Stage passes no trigger option", async () => {
     await milestone("portal_first_visit");
     const [call] = stageWrites();
     // Exactly (leadId, fields): no third options argument, and no

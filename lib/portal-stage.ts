@@ -31,14 +31,12 @@ export const PORTAL_STAGE_ORDER = [
 export const CONFIRMED_DISCOVERY = "Confirmed Discovery";
 export const DISCOVERY_NO_SHOW_STAGE = "Discovery Call No Show";
 
-// Old value the portal used to write for discovery_scheduled. Treated
-// as the same rank as "Confirmed Discovery".
+// Old value the portal used to write for discovery_scheduled. For the
+// forward-only comparison it ranks the same as "Confirmed Discovery",
+// so Access Portal / Watch Overview / Complete Questionnaire never
+// overwrite it. The one exception: "Confirmed Discovery" itself DOES
+// overwrite it, so older leads move to the new wording.
 export const LEGACY_CONFIRMED_DISCOVERY = "Discovery Call Scheduled";
-
-// Lead_Status value that marks a no-show candidate who may rebook.
-// Exact spelling still being confirmed with the Zoho admin — change it
-// here only.
-export const LEAD_STATUS_NO_SHOW_ATC = "Discovery Call No Show ATC";
 
 /**
  * Rank of a FranFunnel_Stage value in PORTAL_STAGE_ORDER.
@@ -65,29 +63,27 @@ export function portalStageRank(value: string | null | undefined): number {
  *
  * - Writes only when `newStage` is later in PORTAL_STAGE_ORDER than the
  *   current value. Same value or earlier → no write.
- * - Rebook exception: "Confirmed Discovery" may overwrite a later value
- *   when the current stage is "Discovery Call No Show" OR the Lead_Status
- *   is LEAD_STATUS_NO_SHOW_ATC.
+ * - "Confirmed Discovery" overwrites the legacy "Discovery Call
+ *   Scheduled" (same rank, new wording). No other milestone does.
+ * - Rebook exception: "Confirmed Discovery" overwrites "Discovery Call
+ *   No Show". Zoho sets No Show when a rep marks a missed call; a new
+ *   booking moves the lead back to Confirmed Discovery.
  */
 export function shouldWritePortalStage(
   currentStage: string | null | undefined,
-  currentLeadStatus: string | null | undefined,
   newStage: string,
 ): boolean {
   const newRank = portalStageRank(newStage);
   if (newRank < 0) return false; // never write a value outside the order
-  const currentRank = portalStageRank(currentStage);
+  const current =
+    typeof currentStage === "string" ? currentStage.trim() : currentStage;
+  const currentRank = portalStageRank(current);
 
   if (newRank > currentRank) return true;
 
-  if (newStage === CONFIRMED_DISCOVERY && newRank < currentRank) {
-    const stageIsNoShow =
-      typeof currentStage === "string" &&
-      currentStage.trim() === DISCOVERY_NO_SHOW_STAGE;
-    const statusIsNoShowAtc =
-      typeof currentLeadStatus === "string" &&
-      currentLeadStatus.trim() === LEAD_STATUS_NO_SHOW_ATC;
-    return stageIsNoShow || statusIsNoShowAtc;
+  if (newStage === CONFIRMED_DISCOVERY) {
+    if (current === LEGACY_CONFIRMED_DISCOVERY) return true;
+    if (current === DISCOVERY_NO_SHOW_STAGE) return true;
   }
 
   return false;
