@@ -5,6 +5,11 @@ import { createAppServiceClient } from "@/lib/supabase-app";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+// This is a polling lookup: every call must hit the database. In Next 14,
+// force-dynamic alone does not stop the underlying fetches being cached,
+// so a "not found" from the first poll would be replayed forever.
+export const fetchCache = "force-no-store";
+export const revalidate = 0;
 
 // Polled by /loading after a Gravity Form submission to find the
 // candidate row that the Zoho webhook just created. Returns 404 until

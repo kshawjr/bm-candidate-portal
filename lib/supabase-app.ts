@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { noStoreFetch } from "./supabase-no-store-fetch";
 
 export function createAppAnonClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -8,7 +9,9 @@ export function createAppAnonClient() {
       "Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY for the Candidate Portal Supabase project.",
     );
   }
-  return createClient(url, anonKey);
+  return createClient(url, anonKey, {
+    global: { fetch: noStoreFetch },
+  });
 }
 
 export function createAppServiceClient() {
@@ -21,5 +24,6 @@ export function createAppServiceClient() {
   }
   return createClient(url, serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false },
+    global: { fetch: noStoreFetch },
   });
 }

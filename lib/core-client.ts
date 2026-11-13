@@ -1,5 +1,6 @@
 import "server-only";
 import { createClient } from "@supabase/supabase-js";
+import { noStoreFetch } from "./supabase-no-store-fetch";
 
 export function createCoreClient() {
   const url = process.env.NEXT_PUBLIC_BMAVE_CORE_URL;
@@ -13,5 +14,6 @@ export function createCoreClient() {
 
   return createClient(url, serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false },
+    global: { fetch: noStoreFetch },
   });
 }
