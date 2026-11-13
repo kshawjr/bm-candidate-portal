@@ -134,6 +134,47 @@ export function ChapterVideoPopup({ config, onDismiss, onDismissed }: Props) {
     });
   }, [isAmbient, parsed?.provider, parsed?.embedUrl]);
 
+  // First-frame nudge for the click-to-play (hasSound) mp4. The video
+  // sits paused until the candidate presses play, and several browsers
+  // (Safari especially) paint nothing for a paused video that has only
+  // loaded metadata — the candidate sees a black box. Seeking a hair
+  // forward makes the browser fetch and draw one frame.
+  //
+  // Rules: only ever nudge a video that has not been started and is
+  // still at 0; and when the candidate first presses play, put it back
+  // to 0 so playback starts from the very beginning. Ambient (muted
+  // autoplay) videos are never touched. The 25s Continue gate above is
+  // a wall-clock timer from popup open, so none of this affects it.
+  const FIRST_FRAME_NUDGE_S = 0.1;
+  const mp4StartedRef = useRef(false);
+  const mp4NudgedRef = useRef(false);
+
+  const nudgeFirstFrame = (v: HTMLVideoElement) => {
+    if (isAmbient || mp4StartedRef.current || mp4NudgedRef.current) return;
+    if (!v.paused || v.currentTime !== 0) return;
+    mp4NudgedRef.current = true;
+    v.currentTime = FIRST_FRAME_NUDGE_S;
+  };
+
+  const handleMp4Play = (v: HTMLVideoElement) => {
+    if (mp4StartedRef.current) return;
+    mp4StartedRef.current = true;
+    // Undo the nudge — unless the candidate already dragged the scrub
+    // bar somewhere else before pressing play, in which case leave it.
+    if (mp4NudgedRef.current && v.currentTime <= FIRST_FRAME_NUDGE_S + 0.05) {
+      v.currentTime = 0;
+    }
+  };
+
+  // The popup is in the server-rendered HTML, so the browser can finish
+  // loading metadata before React attaches onLoadedMetadata. Catch that
+  // case on mount.
+  useEffect(() => {
+    const v = mp4VideoRef.current;
+    if (v && v.readyState >= 1) nudgeFirstFrame(v);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [parsed?.embedUrl]);
+
   return (
     <div
       className={`pp-popup-backdrop${closing ? " is-closing" : ""}`}
@@ -158,6 +199,8 @@ export function ChapterVideoPopup({ config, onDismiss, onDismissed }: Props) {
               preload="metadata"
               muted={isAmbient}
               controls={config.hasSound === true}
+              onLoadedMetadata={(e) => nudgeFirstFrame(e.currentTarget)}
+              onPlay={(e) => handleMp4Play(e.currentTarget)}
             />
           ) : iframeSrc ? (
             <iframe
