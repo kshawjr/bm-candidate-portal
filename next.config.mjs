@@ -19,6 +19,12 @@ const nextConfig = {
         pathname: "/storage/v1/object/public/**",
       },
       {
+        // FlightDeck's storage, where brand-assets moves when bmave-core is retired.
+        protocol: "https",
+        hostname: "ahwhfcqwtxtvpqdvaown.supabase.co",
+        pathname: "/storage/v1/object/public/**",
+      },
+      {
         protocol: "https",
         hostname: "placehold.co",
       },
